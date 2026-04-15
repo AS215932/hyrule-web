@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Review Order — Hyrule Cloud{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>Review Your Order</h1>
+    </div>
+</section>
+
+<section class="review">
+    <div class="container">
+        <table class="review-table">
+            <tr><th>Operating System</th><td><code>{{ os }}</code></td></tr>
+            <tr><th>Size</th><td>{{ tier.name }} &mdash; {{ tier.vcpu }} vCPU, {{ tier.ram_mb // 1024 if tier.ram_mb >= 1024 else tier.ram_mb }} {{ "GB" if tier.ram_mb >= 1024 else "MB" }} RAM, {{ tier.disk_gb }} GB SSD</td></tr>
+            <tr><th>Duration</th><td>{{ duration }} days</td></tr>
+            <tr><th>Hostname</th><td>{% if hostname %}<code>{{ hostname }}</code>{% else %}<em>Auto-assigned</em>{% endif %}</td></tr>
+            <tr><th>Domain</th><td>{% if domain_mode == 'custom' and domain %}{{ domain }}{% else %}Auto subdomain (<code>*.deploy.servify.network</code>){% endif %}</td></tr>
+            <tr><th>SSH Key</th><td><code class="ssh-key">{{ ssh_pubkey[:60] }}{% if ssh_pubkey|length > 60 %}&hellip;{% endif %}</code></td></tr>
+        </table>
+
+        <div class="price-breakdown">
+            <div class="price-line">
+                <span>VM ({{ tier.name }}, {{ duration }} days)</span>
+                <span>${{ "%.2f"|format(total) }}</span>
+            </div>
+            <div class="price-line">
+                <span>DNS subdomain</span>
+                <span>$0.00</span>
+            </div>
+            <hr>
+            <div class="price-line price-total">
+                <span>Total</span>
+                <span>${{ "%.2f"|format(total) }} USDC</span>
+            </div>
+        </div>
+
+        {# Hidden form read by payment.js to build the API request #}
+        <form id="order-data" style="display:none">
+            <input type="hidden" name="os" value="{{ os }}">
+            <input type="hidden" name="size" value="{{ size }}">
+            <input type="hidden" name="duration_days" value="{{ duration }}">
+            <input type="hidden" name="ssh_pubkey" value="{{ ssh_pubkey }}">
+            <input type="hidden" name="hostname" value="{{ hostname }}">
+            <input type="hidden" name="domain_mode" value="{{ domain_mode }}">
+            <input type="hidden" name="domain" value="{{ domain }}">
+        </form>
+
+        <div class="payment-section">
+            <noscript>
+                <div class="notice notice-warn">
+                    <p><strong>JavaScript required for payment.</strong></p>
+                    <p>The x402 payment protocol requires a browser wallet (MetaMask, Rabby, etc.) which needs JavaScript enabled. Please enable JavaScript and refresh this page.</p>
+                </div>
+            </noscript>
+
+            <button type="button" id="pay-btn" class="btn btn-primary btn-lg">
+                Pay ${{ "%.2f"|format(total) }} with Wallet
+            </button>
+
+            <div id="payment-status" class="payment-status"></div>
+
+            <p class="payment-note">Payment via x402 &mdash; USDC on Base. You sign a message, we pay the gas.</p>
+        </div>
+
+        <a href="/order" class="btn btn-ghost">&larr; Back to order form</a>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/payment.js" defer></script>
+{% endblock %}

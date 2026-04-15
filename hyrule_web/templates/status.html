@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}VM Status — Hyrule Cloud{% endblock %}
+
+{% block head %}
+{% if not vm or (vm and vm.get('status') == 'provisioning') %}
+<meta http-equiv="refresh" content="10">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>VM Status</h1>
+        <p class="vm-id-display"><code>{{ vm_id }}</code></p>
+    </div>
+</section>
+
+<section class="status-section">
+    <div class="container">
+        {% include "_status_partial.html" %}
+    </div>
+</section>
+{% endblock %}

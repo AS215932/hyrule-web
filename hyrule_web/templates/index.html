@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Hyrule Cloud — Bare-metal VMs, Crypto-native{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <div class="container">
+        <h1>Bare-metal VMs.<br>Pay-as-you-go.<br><span class="accent">Crypto-native.</span></h1>
+        <p class="hero-sub">No KYC. No lock-in. Full root access. USDC payments on Base.</p>
+        <div class="hero-actions">
+            <a href="/order" class="btn btn-primary btn-lg">Order a VM</a>
+            <a href="/services" class="btn btn-ghost">View Pricing</a>
+        </div>
+    </div>
+</section>
+
+<section class="features">
+    <div class="container">
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">&loz;</div>
+                <h3>Crypto Payments</h3>
+                <p>Pay with USDC on Base via x402. Gasless signing&nbsp;&mdash; you never pay transaction fees.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x27C1;</div>
+                <h3>API-First</h3>
+                <p>Built for AI agents and automation. Human-friendly web interface on top.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x25C7;</div>
+                <h3>Bare Metal</h3>
+                <p>Full root access over SSH. No runtime restrictions, no buildpacks, no vendor lock-in.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">&#x25B3;</div>
+                <h3>Simple Pricing</h3>
+                <p>Per-day billing from $0.05/day. No hidden fees, no surprises, no minimum commitment.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="pricing-preview">
+    <div class="container">
+        <h2>Pricing</h2>
+        <div class="tier-grid">
+            {% for key, t in vm_tiers.items() %}
+            <div class="tier-card{% if key == 'sm' %} tier-popular{% endif %}">
+                {% if key == 'sm' %}<span class="tier-badge">Popular</span>{% endif %}
+                <h3 class="tier-name">{{ t.name }}</h3>
+                <div class="tier-price"><span class="amount">${{ "%.2f"|format(t.price) }}</span>/day</div>
+                <ul class="tier-specs">
+                    <li>{{ t.vcpu }} vCPU{{ "s" if t.vcpu > 1 else "" }}</li>
+                    <li>{{ t.ram_mb // 1024 if t.ram_mb >= 1024 else t.ram_mb }} {{ "GB" if t.ram_mb >= 1024 else "MB" }} RAM</li>
+                    <li>{{ t.disk_gb }} GB SSD</li>
+                    <li>IPv6 included</li>
+                    <li>Auto DNS subdomain</li>
+                </ul>
+                <a href="/order?size={{ key }}" class="btn btn-outline">Select</a>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="pricing-note">All prices in USDC. Paid via x402 protocol&nbsp;&mdash; gasless wallet signing.</p>
+    </div>
+</section>
+
+<section class="cta">
+    <div class="container">
+        <h2>Ready to deploy?</h2>
+        <p>Spin up a VM in under 60 seconds. All you need is an SSH key and a wallet.</p>
+        <a href="/order" class="btn btn-primary btn-lg">Get Started</a>
+    </div>
+</section>
+{% endblock %}

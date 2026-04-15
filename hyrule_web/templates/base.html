@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>{% block title %}Hyrule Cloud{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▲</text></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body hx-boost="true">
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">▲ <span>Hyrule Cloud</span></a>
+            <ul class="nav-links">
+                <li><a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}>Services</a></li>
+                <li><a href="/order"{% if request.url.path.startswith('/order') %} aria-current="page"{% endif %} class="btn btn-sm btn-primary">Order a VM</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container">
+            <p>Hyrule Cloud &mdash; <a href="https://as215932.net/">AS215932</a> &mdash; Bare-metal VMs, crypto-native</p>
+            <p class="footer-links">
+                <a href="/api/pricing">API</a>
+                <a href="https://as215932.net/">Network</a>
+            </p>
+        </div>
+    </footer>
+
+    <script src="/static/htmx.min.js" defer></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

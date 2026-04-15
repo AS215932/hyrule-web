@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Services &amp; Pricing — Hyrule Cloud{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>Services &amp; Pricing</h1>
+        <p>Transparent, per-day billing. No contracts, no hidden fees.</p>
+    </div>
+</section>
+
+<section class="pricing-detail">
+    <div class="container">
+        <h2>Virtual Machines</h2>
+        <div class="tier-grid">
+            {% for key, t in vm_tiers.items() %}
+            <div class="tier-card{% if key == 'sm' %} tier-popular{% endif %}">
+                {% if key == 'sm' %}<span class="tier-badge">Popular</span>{% endif %}
+                <h3 class="tier-name">{{ t.name }}</h3>
+                <div class="tier-price"><span class="amount">${{ "%.2f"|format(t.price) }}</span>/day</div>
+                <ul class="tier-specs">
+                    <li><span class="spec-label">vCPU</span><span class="spec-value">{{ t.vcpu }}</span></li>
+                    <li><span class="spec-label">RAM</span><span class="spec-value">{{ t.ram_mb // 1024 if t.ram_mb >= 1024 else t.ram_mb }} {{ "GB" if t.ram_mb >= 1024 else "MB" }}</span></li>
+                    <li><span class="spec-label">Disk</span><span class="spec-value">{{ t.disk_gb }} GB SSD</span></li>
+                    <li><span class="spec-label">Network</span><span class="spec-value">IPv6 + NAT64</span></li>
+                    <li><span class="spec-label">DNS</span><span class="spec-value">Auto subdomain</span></li>
+                </ul>
+                <div class="tier-examples">
+                    <p class="example-price">${{ "%.2f"|format(t.price * 30) }}/month</p>
+                    <p class="example-price">${{ "%.2f"|format(t.price * 365) }}/year</p>
+                </div>
+                <a href="/order?size={{ key }}" class="btn btn-outline">Order</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="features-detail">
+    <div class="container">
+        <h2>What's Included</h2>
+        <table class="feature-table">
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Root Access</td><td>Full SSH root via your public key (ed25519 or RSA)</td></tr>
+                <tr><td>Firewall</td><td>UFW preconfigured: SSH (22), HTTP (80), HTTPS (443) open. SMTP blocked.</td></tr>
+                <tr><td>Networking</td><td>Global IPv6 via SLAAC. NAT64/DNS64 bridge for IPv4 destinations.</td></tr>
+                <tr><td>DNS</td><td>Auto subdomain under <code>deploy.servify.network</code>. Custom domains available.</td></tr>
+                <tr><td>Duration</td><td>1&ndash;365 days. Extend anytime. 48h grace period on expiry.</td></tr>
+                <tr><td>Provisioning</td><td>~60 seconds from payment to SSH-ready.</td></tr>
+                <tr><td>Payment</td><td>USDC on Base via x402. Gasless signing&nbsp;&mdash; you pay zero gas.</td></tr>
+                <tr><td>Setup Script</td><td>Optional cloud-init script executed on first boot.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="os-list">
+    <div class="container">
+        <h2>Operating Systems</h2>
+        <div class="os-grid">
+            {% for os in os_list %}
+            <div class="os-card{% if os.get('default', false) %} os-default{% endif %}">
+                <h3>{{ os.get('description', os.name) }}</h3>
+                <code>{{ os.name }}</code>
+                {% if os.get('default', false) %}<span class="os-badge">Default</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="cta">
+    <div class="container">
+        <a href="/order" class="btn btn-primary btn-lg">Order a VM</a>
+    </div>
+</section>
+{% endblock %}

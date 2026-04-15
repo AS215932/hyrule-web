@@ -1,0 +1,62 @@
+{# Status box partial — rendered inline on first load and swapped by HTMX thereafter #}
+{% if vm %}
+    {% set status = vm.get('status', 'unknown') %}
+{% else %}
+    {% set status = 'loading' %}
+{% endif %}
+
+{% set cls_map = {
+    'provisioning': 'status-pending',
+    'ready': 'status-ok',
+    'running': 'status-ok',
+    'failed': 'status-error',
+    'suspended': 'status-warn',
+    'destroyed': 'status-error',
+    'loading': 'status-pending',
+} %}
+{% set cls = cls_map.get(status, 'status-pending') %}
+
+<div class="status-box {{ cls }}"
+     {% if status in ('provisioning', 'loading') %}
+     hx-get="/partials/status/{{ vm_id }}"
+     hx-trigger="every 5s"
+     hx-swap="outerHTML"
+     {% endif %}>
+
+    <div class="status-header">
+        <span class="status-indicator"></span>
+        <span class="status-label">{{ status | upper }}</span>
+    </div>
+
+    {% if status in ('ready', 'running') %}
+    <div class="status-details terminal-block">
+        {% if vm.hostname %}<p><span class="label">hostname </span> <code>{{ vm.hostname }}</code></p>{% endif %}
+        {% if vm.ipv6 %}<p><span class="label">ipv6     </span> <code>{{ vm.ipv6 }}</code></p>{% endif %}
+        {% if vm.ssh %}<p><span class="label">connect  </span> <code>{{ vm.ssh }}</code></p>{% endif %}
+        {% if vm.expires_at %}<p><span class="label">expires  </span> <code>{{ vm.expires_at }}</code></p>{% endif %}
+    </div>
+
+    {% elif status == 'provisioning' %}
+    <div class="provision-progress">
+        <p>Your VM is being provisioned. This typically takes about 60 seconds.</p>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+
+    {% elif status == 'failed' %}
+    <div class="error-details">
+        <p>{{ vm.get('error', 'An error occurred during provisioning.') }}</p>
+    </div>
+
+    {% elif status == 'loading' %}
+    <p class="loading-msg">Connecting to API&hellip;</p>
+
+    {% elif status == 'suspended' %}
+    <div class="warn-details">
+        <p>This VM has been suspended due to expiry. Use the API to extend it.</p>
+        {% if vm.expires_at %}<p><code>POST /v1/vm/{{ vm_id }}/extend</code></p>{% endif %}
+    </div>
+
+    {% elif status == 'destroyed' %}
+    <p>This VM has been destroyed.</p>
+    {% endif %}
+</div>

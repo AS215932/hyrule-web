@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Order a VM — Hyrule Cloud{% endblock %}
+
+{% set sel_size = request.query_params.get('size', 'sm') %}
+{% if sel_size not in vm_tiers %}{% set sel_size = 'sm' %}{% endif %}
+{% set sel_tier = vm_tiers[sel_size] %}
+{% set default_days = 30 %}
+
+{% block content %}
+<section class="page-header">
+    <div class="container">
+        <h1>Order a VM</h1>
+        <p>Configure your server and pay with your wallet.</p>
+    </div>
+</section>
+
+<section class="order-form">
+    <div class="container">
+        <form method="post" action="/order/review" id="order-form">
+
+            <fieldset>
+                <legend>Operating System</legend>
+                <div class="radio-grid">
+                    {% for os in os_list %}
+                    <label class="radio-card">
+                        <input type="radio" name="os" value="{{ os.name }}"
+                               {% if os.get('default', false) %}checked{% endif %} required>
+                        <span class="radio-card-body">
+                            <span class="radio-card-title">{{ os.get('description', os.name) }}</span>
+                            <code>{{ os.name }}</code>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Server Size</legend>
+                <div class="radio-grid radio-grid-4">
+                    {% for key, t in vm_tiers.items() %}
+                    <label class="radio-card size-card">
+                        <input type="radio" name="size" value="{{ key }}"
+                               {% if key == sel_size %}checked{% endif %}
+                               hx-post="/partials/price" hx-include="[name='duration']"
+                               hx-target="#price-display" hx-swap="innerHTML"
+                               required>
+                        <span class="radio-card-body">
+                            <span class="radio-card-title">{{ t.name }}</span>
+                            <span class="size-specs">
+                                <span>{{ t.vcpu }} vCPU{{ "s" if t.vcpu > 1 else "" }}</span>
+                                <span>{{ t.ram_mb // 1024 if t.ram_mb >= 1024 else t.ram_mb }} {{ "GB" if t.ram_mb >= 1024 else "MB" }}</span>
+                                <span>{{ t.disk_gb }} GB SSD</span>
+                            </span>
+                            <span class="size-price">${{ "%.2f"|format(t.price) }}/day</span>
+                        </span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Duration</legend>
+                <div class="duration-input">
+                    <input type="number" name="duration" id="duration"
+                           value="{{ default_days }}" min="1" max="365" required
+                           hx-post="/partials/price" hx-include="[name='size']"
+                           hx-target="#price-display" hx-swap="innerHTML"
+                           hx-trigger="change, keyup changed delay:300ms">
+                    <span class="input-suffix">days</span>
+                </div>
+                <div class="duration-shortcuts">
+                    <button type="button" class="btn btn-xs"
+                            onclick="document.getElementById('duration').value=7;document.getElementById('duration').dispatchEvent(new Event('change'))">7d</button>
+                    <button type="button" class="btn btn-xs"
+                            onclick="document.getElementById('duration').value=30;document.getElementById('duration').dispatchEvent(new Event('change'))">30d</button>
+                    <button type="button" class="btn btn-xs"
+                            onclick="document.getElementById('duration').value=90;document.getElementById('duration').dispatchEvent(new Event('change'))">90d</button>
+                    <button type="button" class="btn btn-xs"
+                            onclick="document.getElementById('duration').value=365;document.getElementById('duration').dispatchEvent(new Event('change'))">365d</button>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>SSH Public Key</legend>
+                <textarea name="ssh_pubkey" rows="3" required
+                          placeholder="ssh-ed25519 AAAA... user@host"></textarea>
+                <p class="field-hint">Your ed25519 or RSA public key for root SSH access.</p>
+            </fieldset>
+
+            <fieldset>
+                <legend>Hostname <span class="optional">(optional)</span></legend>
+                <input type="text" name="hostname" placeholder="my-server"
+                       pattern="[a-z0-9][a-z0-9\-]*[a-z0-9]">
+                <p class="field-hint">Lowercase letters, numbers, hyphens. Auto-assigned if empty.</p>
+            </fieldset>
+
+            <fieldset>
+                <legend>Domain</legend>
+                <div class="radio-stack">
+                    <label class="radio-inline">
+                        <input type="radio" name="domain_mode" value="auto" checked>
+                        Auto subdomain <code>*.deploy.servify.network</code> <span class="tag">Free</span>
+                    </label>
+                    <label class="radio-inline">
+                        <input type="radio" name="domain_mode" value="custom">
+                        Custom domain
+                    </label>
+                </div>
+                <input type="text" name="domain" placeholder="example.com" class="mt-1"
+                       aria-label="Custom domain name">
+            </fieldset>
+
+            <div class="order-summary">
+                <h3>Estimated Cost</h3>
+                <div id="price-display" class="price-display">
+                    <span class="price-amount">${{ "%.2f"|format(sel_tier.price * default_days) }}</span>
+                    <span class="price-detail">{{ default_days }} days &times; ${{ "%.2f"|format(sel_tier.price) }}/day</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg">Review Order</button>
+        </form>
+    </div>
+</section>
+{% endblock %}
