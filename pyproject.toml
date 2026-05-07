@@ -1,7 +1,7 @@
 [project]
 name = "hyrule-web"
 version = "0.1.0"
-description = "Web frontend for Hyrule Cloud — lightweight, server-rendered, Tor-friendly"
+description = "Web frontend for Servify — lightweight, server-rendered, Tor-friendly"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -10,6 +10,7 @@ dependencies = [
     "httpx>=0.28",
     "pydantic-settings>=2.7",
     "python-multipart>=0.0.18",
+    "structlog>=24.4",
 ]
 
 [project.scripts]

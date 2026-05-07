@@ -1,18 +1,38 @@
-"""Hyrule Cloud web frontend — lightweight, server-rendered, Tor-friendly."""
+"""Servify web frontend — lightweight, server-rendered, Tor-friendly."""
 
 from __future__ import annotations
 
+import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
 import httpx
+import structlog
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
+
+# Newline-delimited JSON to stdout per AS215932's application logging
+# contract (hyrule-infra/docs/application-logging.md). systemd-journald
+# captures it; the host's Vector agent ships to Loki.
+structlog.configure(
+    processors=[
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso", utc=True, key="ts"),
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.dict_tracebacks,
+        structlog.processors.JSONRenderer(),
+    ],
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+    cache_logger_on_first_use=True,
+)
+log = structlog.get_logger().bind(service="hyrule-web")
 
 BASE_DIR = Path(__file__).parent
 
@@ -27,7 +47,7 @@ async def lifespan(app: FastAPI):
     await app.state.http.aclose()
 
 
-app = FastAPI(title="Hyrule Cloud", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="Servify", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -40,13 +60,14 @@ def _render(request: Request, name: str, **kwargs):
 
 
 async def _fetch_api(request: Request, path: str):
-    """GET a JSON endpoint from the hyrule-cloud API, return parsed dict or None."""
+    """GET a JSON endpoint from the backend API, return parsed dict or None."""
     try:
         resp = await request.app.state.http.get(path)
         if resp.status_code == 200:
             return resp.json()
-    except httpx.HTTPError:
-        pass
+        log.warn("api_non_200", path=path, status=resp.status_code)
+    except httpx.HTTPError as exc:
+        log.error("api_fetch_failed", path=path, error={"type": type(exc).__name__, "message": str(exc)})
     return None
 
 
@@ -131,7 +152,7 @@ async def partial_status(request: Request, vm_id: str):
 
 
 # ---------------------------------------------------------------------------
-# API proxy — browser talks to same origin, we forward to hyrule-cloud API
+# API proxy — browser talks to same origin, we forward to the backend API
 # ---------------------------------------------------------------------------
 
 
