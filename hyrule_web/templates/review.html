@@ -1,73 +1,92 @@
 {% extends "base.html" %}
-{% block title %}Review Order — Hyrule Cloud{% endblock %}
+{% block title %}Review order — Servify{% endblock %}
 
 {% block content %}
-<section class="page-header">
-    <div class="container">
-        <h1>Review Your Order</h1>
+{% set tier = vm_tiers[order.size] if order and order.size in vm_tiers else vm_tiers['sm'] %}
+{% set duration = order.duration if order else 30 %}
+{% set total = tier.price * duration %}
+
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <a href="/order">order</a><span class="sep">/</span>
+                <span class="here">review</span>
+            </div>
+            <span class="panel-label">review</span>
+            <h1>Confirm the order manifest before payment.</h1>
+            <p class="hero-blurb">The wallet request will mirror these values exactly. If anything looks off, go back and fix it before signing.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">checkout rail</span>
+            <p style="color:var(--text-muted);margin-top:8px;line-height:1.6">Payment uses x402 with USDC on Base. You sign an authorization; gas is handled for you.</p>
+        </div>
     </div>
 </section>
 
-<section class="review">
-    <div class="container">
-        <table class="review-table">
-            <tr><th>Operating System</th><td><code>{{ os }}</code></td></tr>
-            <tr><th>Size</th><td>{{ tier.name }} &mdash; {{ tier.vcpu }} vCPU, {{ tier.ram_mb // 1024 if tier.ram_mb >= 1024 else tier.ram_mb }} {{ "GB" if tier.ram_mb >= 1024 else "MB" }} RAM, {{ tier.disk_gb }} GB SSD</td></tr>
-            <tr><th>Duration</th><td>{{ duration }} days</td></tr>
-            <tr><th>Hostname</th><td>{% if hostname %}<code>{{ hostname }}</code>{% else %}<em>Auto-assigned</em>{% endif %}</td></tr>
-            <tr><th>Domain</th><td>{% if domain_mode == 'custom' and domain %}{{ domain }}{% else %}Auto subdomain (<code>*.deploy.servify.network</code>){% endif %}</td></tr>
-            <tr><th>SSH Key</th><td><code class="ssh-key">{{ ssh_pubkey[:60] }}{% if ssh_pubkey|length > 60 %}&hellip;{% endif %}</code></td></tr>
-        </table>
+<section class="container page-section">
+    <div class="order-stepper">
+        <span class="stp done"><span class="num">✓</span> configure</span><span class="sep">›</span>
+        <span class="stp active"><span class="num">2</span> review</span><span class="sep">›</span>
+        <span class="stp"><span class="num">3</span> sign</span><span class="sep">›</span>
+        <span class="stp"><span class="num">4</span> running</span>
+    </div>
 
-        <div class="price-breakdown">
-            <div class="price-line">
-                <span>VM ({{ tier.name }}, {{ duration }} days)</span>
-                <span>${{ "%.2f"|format(total) }}</span>
+    <div class="review-layout">
+        <div class="manifest">
+            <div class="manifest-head">
+                <span>order manifest</span>
+                <span class="badge">{{ order.id if order else 'order-7c4a' }}</span>
             </div>
-            <div class="price-line">
-                <span>DNS subdomain</span>
-                <span>$0.00</span>
-            </div>
-            <hr>
-            <div class="price-line price-total">
-                <span>Total</span>
-                <span>${{ "%.2f"|format(total) }} USDC</span>
+            <div class="manifest-rows">
+                <div class="manifest-k">os</div>
+                <div class="manifest-v"><code>{{ order.os if order else 'debian-13' }}</code></div>
+
+                <div class="manifest-k">size</div>
+                <div class="manifest-v"><strong>{{ tier.name }}</strong> · {{ tier.vcpu }} vCPU · {% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %} · {{ tier.disk_gb }} GB SSD</div>
+
+                <div class="manifest-k">duration</div>
+                <div class="manifest-v">{{ duration }} days</div>
+
+                <div class="manifest-k">hostname</div>
+                <div class="manifest-v">{% if order and order.hostname %}<code>{{ order.hostname }}</code>{% else %}<em style="color:var(--text-soft)">auto-assigned</em>{% endif %}</div>
+
+                <div class="manifest-k">domain</div>
+                <div class="manifest-v">{% if order and order.domain %}<code>{{ order.domain }}</code>{% else %}auto subdomain · <code>*.deploy.servify.network</code>{% endif %}</div>
+
+                <div class="manifest-k">ssh key</div>
+                <div class="manifest-v"><code style="word-break:break-all;font-size:.78rem">{{ (order.ssh_pubkey if order else 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK8h3p5z+sample…')[:80] }}{% if order and order.ssh_pubkey and order.ssh_pubkey|length > 80 %}…{% endif %}</code></div>
+
+                <div class="manifest-k">network</div>
+                <div class="manifest-v">IPv6 + NAT64/DNS64 · firewall: 22/80/443 open</div>
             </div>
         </div>
 
-        {# Hidden form read by payment.js to build the API request #}
-        <form id="order-data" style="display:none">
-            <input type="hidden" name="os" value="{{ os }}">
-            <input type="hidden" name="size" value="{{ size }}">
-            <input type="hidden" name="duration_days" value="{{ duration }}">
-            <input type="hidden" name="ssh_pubkey" value="{{ ssh_pubkey }}">
-            <input type="hidden" name="hostname" value="{{ hostname }}">
-            <input type="hidden" name="domain_mode" value="{{ domain_mode }}">
-            <input type="hidden" name="domain" value="{{ domain }}">
-        </form>
-
-        <div class="payment-section">
-            <noscript>
-                <div class="notice notice-warn">
-                    <p><strong>JavaScript required for payment.</strong></p>
-                    <p>The x402 payment protocol requires a browser wallet (MetaMask, Rabby, etc.) which needs JavaScript enabled. Please enable JavaScript and refresh this page.</p>
+        <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="payment-card">
+                <span class="panel-label">amount due</span>
+                <div class="price">
+                    <div class="price-line"><span>VM ({{ tier.name }}, {{ duration }} days)</span><span>${{ "%.2f"|format(total) }}</span></div>
+                    <div class="price-line"><span>DNS subdomain</span><span>$0.00</span></div>
+                    <div class="price-line"><span>x402 settlement</span><span style="color:var(--ok)">gas covered</span></div>
+                    <div class="price-line total"><span>Total</span><span>${{ "%.2f"|format(total) }} USDC</span></div>
                 </div>
-            </noscript>
+            </div>
 
-            <button type="button" id="pay-btn" class="btn btn-primary btn-lg">
-                Pay ${{ "%.2f"|format(total) }} with Wallet
-            </button>
+            <div class="wallet-card">
+                <span class="panel-label" style="justify-content:center">wallet confirmation</span>
+                <div class="wallet-amount">pay <em>${{ "%.2f"|format(total) }}</em> USDC</div>
+                <form method="post" action="/order/pay" hx-post="/order/pay" hx-target=".wallet-card">
+                    <input type="hidden" name="order_id" value="{{ order.id if order else '' }}">
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" data-pay-button>Pay ${{ "%.2f"|format(total) }} with wallet</button>
+                </form>
+                <div class="wallet-status">sign once · gasless · USDC on Base</div>
+                <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Servify covers the gas.</p>
+            </div>
 
-            <div id="payment-status" class="payment-status"></div>
-
-            <p class="payment-note">Payment via x402 &mdash; USDC on Base. You sign a message, we pay the gas.</p>
+            <a href="/order" class="btn btn-secondary">← Back to order form</a>
         </div>
-
-        <a href="/order" class="btn btn-ghost">&larr; Back to order form</a>
     </div>
 </section>
-{% endblock %}
-
-{% block scripts %}
-<script src="/static/payment.js" defer></script>
 {% endblock %}

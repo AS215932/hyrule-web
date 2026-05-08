@@ -85,14 +85,14 @@ async def page_index(request: Request):
 async def page_services(request: Request):
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    return _render(request, "services.html", os_list=os_list)
+    return _render(request, "services.html", os_templates=os_list)
 
 
 @app.get("/order", response_class=HTMLResponse)
 async def page_order(request: Request):
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    return _render(request, "order.html", os_list=os_list)
+    return _render(request, "order.html", os_templates=os_list)
 
 
 @app.post("/order/review", response_class=HTMLResponse)
@@ -110,12 +110,20 @@ async def page_review(
     daily = tier["price"]
     total = daily * duration
 
+    order = {
+        "os": os,
+        "size": size,
+        "duration": duration,
+        "ssh_pubkey": ssh_pubkey,
+        "hostname": hostname,
+        "domain_mode": domain_mode,
+        "domain": domain,
+        "id": "order-draft",
+    }
+
     return _render(
         request, "review.html",
-        os=os, size=size, tier=tier, duration=duration,
-        ssh_pubkey=ssh_pubkey, hostname=hostname,
-        domain_mode=domain_mode, domain=domain,
-        daily_price=daily, total=total,
+        order=order, tier=tier, total=total,
     )
 
 
@@ -145,7 +153,7 @@ async def partial_price(
     )
 
 
-@app.get("/partials/status/{vm_id}", response_class=HTMLResponse)
+@app.get("/order/status/{vm_id}/partial", response_class=HTMLResponse)
 async def partial_status(request: Request, vm_id: str):
     data = await _fetch_api(request, f"/v1/vm/{vm_id}")
     return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)

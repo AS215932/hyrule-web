@@ -1,23 +1,74 @@
 {% extends "base.html" %}
-{% block title %}VM Status — Hyrule Cloud{% endblock %}
-
-{% block head %}
-{% if not vm or (vm and vm.get('status') == 'provisioning') %}
-<meta http-equiv="refresh" content="10">
-{% endif %}
-{% endblock %}
+{% block title %}Status — Servify{% endblock %}
 
 {% block content %}
-<section class="page-header">
-    <div class="container">
-        <h1>VM Status</h1>
-        <p class="vm-id-display"><code>{{ vm_id }}</code></p>
+{% set is_ready = vm and vm.status == 'ready' %}
+{% set tier = vm_tiers[vm.size] if vm and vm.size in vm_tiers else vm_tiers['sm'] %}
+
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <a href="/order">order</a><span class="sep">/</span>
+                <span class="here">status</span>
+            </div>
+            <span class="panel-label">status</span>
+            <h1>{% if is_ready %}Your VM is online.{% else %}Your VM is being provisioned.{% endif %}</h1>
+            <p class="hero-blurb">{% if is_ready %}Connection details are below. The machine will run until its expiry — you can extend it any time via the API.{% else %}This page updates in-place as the build proceeds. Most builds finish in under 60 seconds.{% endif %}</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">vm id</span>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px">
+                <code style="font-size:.92rem">{{ vm.id if vm else 'vm-7c4a-3b2d-91e0' }}</code>
+                <span style="color:var(--text-soft);font-size:.78rem">{{ vm.order_id if vm else 'order-7c4a' }} · {{ tier.name }}</span>
+            </div>
+        </div>
     </div>
 </section>
 
-<section class="status-section">
-    <div class="container">
+<section class="container page-section">
+    <div class="order-stepper">
+        <span class="stp done"><span class="num">✓</span> configure</span><span class="sep">›</span>
+        <span class="stp done"><span class="num">✓</span> review</span><span class="sep">›</span>
+        <span class="stp done"><span class="num">✓</span> sign</span><span class="sep">›</span>
+        <span class="stp {% if is_ready %}done{% else %}active{% endif %}">
+            <span class="num">{% if is_ready %}✓{% else %}4{% endif %}</span> {% if is_ready %}running{% else %}provisioning{% endif %}
+        </span>
+    </div>
+
+    <div id="status-card" hx-get="/order/status/{{ vm.id if vm else 'vm-7c4a' }}/partial" hx-trigger="every 2s" hx-swap="outerHTML" {% if is_ready %}hx-disable="true"{% endif %}>
         {% include "_status_partial.html" %}
     </div>
+
+    {% if is_ready %}
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="terminal">
+            <div class="terminal-bar">
+                <span class="terminal-dots"><i></i><i></i><i></i></span>
+                <span class="terminal-title">srv@{{ (vm.hostname if vm else 'vm7c4a')|replace('-','') }}</span>
+                <span class="terminal-tag">[ online ]</span>
+            </div>
+            <div class="terminal-body">
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn if vm else 'vm-7c4a.deploy.servify.network' }}</span></div>
+                <div class="t-line"><span class="prompt">·</span><span class="output ok">authenticating with ed25519 key</span></div>
+                <div class="t-line"><span class="prompt">·</span><span class="output">welcome to {{ tier.name }} · debian 13</span></div>
+                <div class="t-line t-cursor"><span class="prompt">root@{{ vm.hostname if vm else 'vm-7c4a' }}:~#</span><span class="output"> </span></div>
+            </div>
+        </div>
+        <div class="mini-card" style="padding:18px">
+            <h4>lifecycle</h4>
+            <div class="row"><span class="k">extend</span><span class="v"><code>POST /v1/vm/.../extend</code></span></div>
+            <div class="row"><span class="k">snapshot</span><span class="v"><code>POST /v1/vm/.../snapshot</code></span></div>
+            <div class="row"><span class="k">destroy</span><span class="v"><code>DELETE /v1/vm/...</code></span></div>
+            <div class="row"><span class="k">expiry grace</span><span class="v">24h</span></div>
+            <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-xs" hx-post="/order/{{ vm.id }}/extend">Extend +30d</button>
+                <button class="btn btn-secondary btn-xs" hx-post="/order/{{ vm.id }}/snapshot">Snapshot</button>
+                <button class="btn btn-ghost btn-xs" hx-delete="/order/{{ vm.id }}" hx-confirm="Destroy this VM?">Destroy</button>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </section>
 {% endblock %}

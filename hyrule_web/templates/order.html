@@ -1,125 +1,234 @@
 {% extends "base.html" %}
-{% block title %}Order a VM — Hyrule Cloud{% endblock %}
-
-{% set sel_size = request.query_params.get('size', 'sm') %}
-{% if sel_size not in vm_tiers %}{% set sel_size = 'sm' %}{% endif %}
-{% set sel_tier = vm_tiers[sel_size] %}
-{% set default_days = 30 %}
+{% block title %}Deploy a VM — Servify{% endblock %}
 
 {% block content %}
-<section class="page-header">
-    <div class="container">
-        <h1>Order a VM</h1>
-        <p>Configure your server and pay with your wallet.</p>
+{% set selected_size = request.query_params.get('size', 'sm') %}
+{% set tier = vm_tiers[selected_size] if selected_size in vm_tiers else vm_tiers['sm'] %}
+
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">order</span></div>
+            <span class="panel-label">deploy</span>
+            <h1>Configure the machine, then pay once.</h1>
+            <p class="hero-blurb">Servify keeps the form explicit: image, size, lifetime, SSH key, naming. No hidden wizard state, no progressive reveals.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">before you begin</span>
+            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted)">
+                <li>+ ed25519 or RSA public key</li>
+                <li>+ Auto subdomain or your own domain</li>
+                <li>+ Wallet with USDC on Base</li>
+            </ul>
+        </div>
     </div>
 </section>
 
-<section class="order-form">
-    <div class="container">
-        <form method="post" action="/order/review" id="order-form">
+<section class="container page-section">
+    <div class="order-stepper">
+        <span class="stp active"><span class="num">1</span> configure</span><span class="sep">›</span>
+        <span class="stp"><span class="num">2</span> review</span><span class="sep">›</span>
+        <span class="stp"><span class="num">3</span> sign</span><span class="sep">›</span>
+        <span class="stp"><span class="num">4</span> running</span>
+    </div>
 
-            <fieldset>
-                <legend>Operating System</legend>
-                <div class="radio-grid">
-                    {% for os in os_list %}
-                    <label class="radio-card">
-                        <input type="radio" name="os" value="{{ os.name }}"
-                               {% if os.get('default', false) %}checked{% endif %} required>
-                        <span class="radio-card-body">
-                            <span class="radio-card-title">{{ os.get('description', os.name) }}</span>
-                            <code>{{ os.name }}</code>
-                        </span>
-                    </label>
-                    {% endfor %}
-                </div>
-            </fieldset>
-
-            <fieldset>
-                <legend>Server Size</legend>
-                <div class="radio-grid radio-grid-4">
-                    {% for key, t in vm_tiers.items() %}
-                    <label class="radio-card size-card">
-                        <input type="radio" name="size" value="{{ key }}"
-                               {% if key == sel_size %}checked{% endif %}
-                               hx-post="/partials/price" hx-include="[name='duration']"
-                               hx-target="#price-display" hx-swap="innerHTML"
-                               required>
-                        <span class="radio-card-body">
-                            <span class="radio-card-title">{{ t.name }}</span>
-                            <span class="size-specs">
-                                <span>{{ t.vcpu }} vCPU{{ "s" if t.vcpu > 1 else "" }}</span>
-                                <span>{{ t.ram_mb // 1024 if t.ram_mb >= 1024 else t.ram_mb }} {{ "GB" if t.ram_mb >= 1024 else "MB" }}</span>
-                                <span>{{ t.disk_gb }} GB SSD</span>
+    <form action="/order/review" method="post" class="order-layout" data-order-form>
+        <div>
+            {% if os_templates %}
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">01</span> Operating system</h3>
+                    <span class="form-section-hint">cloud-init enabled · base images updated weekly</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="radio-grid grid-3">
+                        {% for os in os_templates %}
+                        <label class="opt-card">
+                            <input type="radio" name="os" value="{{ os.name }}" {% if os.default %}checked{% endif %}>
+                            <span class="body">
+                                <span class="opt-title">{{ os.description }}</span>
+                                <span class="opt-sub">{{ os.name }}</span>
                             </span>
-                            <span class="size-price">${{ "%.2f"|format(t.price) }}/day</span>
-                        </span>
-                    </label>
-                    {% endfor %}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </fieldset>
+            {% endif %}
+
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">02</span> Server size</h3>
+                    <span class="form-section-hint">scale up by destroying + redeploying</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="radio-grid grid-4">
+                        {% for key, t in vm_tiers.items() %}
+                        <label class="opt-card">
+                            <input type="radio" name="size" value="{{ key }}" {% if key == selected_size %}checked{% endif %} data-price="{{ t.price }}">
+                            <span class="body">
+                                <span class="opt-title">{{ t.name }}</span>
+                                <span class="opt-specs">
+                                    <span>{{ t.vcpu }} vCPU{% if t.vcpu > 1 %}s{% endif %}</span>
+                                    <span>{% if t.ram_mb >= 1024 %}{{ t.ram_mb // 1024 }} GB{% else %}{{ t.ram_mb }} MB{% endif %} RAM</span>
+                                    <span>{{ t.disk_gb }} GB SSD</span>
+                                </span>
+                                <span class="opt-price">${{ "%.2f"|format(t.price) }}/day</span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
             </fieldset>
 
-            <fieldset>
-                <legend>Duration</legend>
-                <div class="duration-input">
-                    <input type="number" name="duration" id="duration"
-                           value="{{ default_days }}" min="1" max="365" required
-                           hx-post="/partials/price" hx-include="[name='size']"
-                           hx-target="#price-display" hx-swap="innerHTML"
-                           hx-trigger="change, keyup changed delay:300ms">
-                    <span class="input-suffix">days</span>
-                </div>
-                <div class="duration-shortcuts">
-                    <button type="button" class="btn btn-xs"
-                            onclick="document.getElementById('duration').value=7;document.getElementById('duration').dispatchEvent(new Event('change'))">7d</button>
-                    <button type="button" class="btn btn-xs"
-                            onclick="document.getElementById('duration').value=30;document.getElementById('duration').dispatchEvent(new Event('change'))">30d</button>
-                    <button type="button" class="btn btn-xs"
-                            onclick="document.getElementById('duration').value=90;document.getElementById('duration').dispatchEvent(new Event('change'))">90d</button>
-                    <button type="button" class="btn btn-xs"
-                            onclick="document.getElementById('duration').value=365;document.getElementById('duration').dispatchEvent(new Event('change'))">365d</button>
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">03</span> Duration</h3>
+                    <span class="form-section-hint">extend later via API</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="duration-row">
+                        <div class="field">
+                            <label class="field-label" for="duration">days online</label>
+                            <div class="duration-input">
+                                <input id="duration" name="duration" type="number" min="1" max="365" value="30" style="padding-right:50px">
+                                <span class="suffix">days</span>
+                            </div>
+                        </div>
+                        <div class="duration-shortcuts" data-duration-chips>
+                            {% for d in [7, 30, 90, 180, 365] %}
+                            <button type="button" class="dur-chip" data-days="{{ d }}" {% if d == 30 %}data-on="true"{% endif %}>{{ d }}d</button>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
             </fieldset>
 
-            <fieldset>
-                <legend>SSH Public Key</legend>
-                <textarea name="ssh_pubkey" rows="3" required
-                          placeholder="ssh-ed25519 AAAA... user@host"></textarea>
-                <p class="field-hint">Your ed25519 or RSA public key for root SSH access.</p>
-            </fieldset>
-
-            <fieldset>
-                <legend>Hostname <span class="optional">(optional)</span></legend>
-                <input type="text" name="hostname" placeholder="my-server"
-                       pattern="[a-z0-9][a-z0-9\-]*[a-z0-9]">
-                <p class="field-hint">Lowercase letters, numbers, hyphens. Auto-assigned if empty.</p>
-            </fieldset>
-
-            <fieldset>
-                <legend>Domain</legend>
-                <div class="radio-stack">
-                    <label class="radio-inline">
-                        <input type="radio" name="domain_mode" value="auto" checked>
-                        Auto subdomain <code>*.deploy.servify.network</code> <span class="tag">Free</span>
-                    </label>
-                    <label class="radio-inline">
-                        <input type="radio" name="domain_mode" value="custom">
-                        Custom domain
-                    </label>
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">04</span> SSH public key</h3>
+                    <span class="form-section-hint">ed25519 recommended</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="field">
+                        <textarea name="ssh_pubkey" rows="3" placeholder="ssh-ed25519 AAAA... user@host" required></textarea>
+                        <span class="field-hint">Pasted as-is. Used as the only authorized key for root.</span>
+                    </div>
                 </div>
-                <input type="text" name="domain" placeholder="example.com" class="mt-1"
-                       aria-label="Custom domain name">
             </fieldset>
 
-            <div class="order-summary">
-                <h3>Estimated Cost</h3>
-                <div id="price-display" class="price-display">
-                    <span class="price-amount">${{ "%.2f"|format(sel_tier.price * default_days) }}</span>
-                    <span class="price-detail">{{ default_days }} days &times; ${{ "%.2f"|format(sel_tier.price) }}/day</span>
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">05</span> Hostname <span style="color:var(--text-soft);font-size:.74rem;font-weight:400">(optional)</span></h3>
+                    <span class="form-section-hint">auto-assigned if blank</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="field">
+                        <input type="text" name="hostname" placeholder="my-server" pattern="[a-z0-9-]+">
+                        <span class="field-hint">Lowercase letters, digits, hyphens.</span>
+                    </div>
                 </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+                <legend><div class="form-section-head">
+                    <h3><span class="ix">06</span> Domain</h3>
+                    <span class="form-section-hint">point an AAAA record any time</span>
+                </div></legend>
+                <div class="form-section-body">
+                    <div class="radio-stack">
+                        <label class="radio-line active">
+                            <input type="radio" name="domain_mode" value="auto" checked>
+                            <span>Auto subdomain</span>
+                            <code>*.deploy.servify.network</code>
+                            <span class="free-tag">free</span>
+                        </label>
+                        <label class="radio-line">
+                            <input type="radio" name="domain_mode" value="custom">
+                            <span>Custom domain</span>
+                            <input type="text" name="domain" placeholder="example.com"
+                                   style="flex:1;margin-left:auto;min-width:180px;background:rgba(0,0,0,.35);border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;color:var(--text);font-family:var(--font-mono);font-size:.82rem">
+                        </label>
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="form-actions">
+                <a href="/" class="btn btn-secondary">Cancel</a>
+                <span class="spacer"></span>
+                <span class="helper">total: $<span data-summary-total>{{ "%.2f"|format(tier.price * 30) }}</span> USDC</span>
+                <button type="submit" class="btn btn-primary btn-lg">Review order →</button>
             </div>
+        </div>
 
-            <button type="submit" class="btn btn-primary btn-lg">Review Order</button>
-        </form>
-    </div>
+        <aside class="live-summary">
+            <div class="summary-panel">
+                <span class="panel-label">live estimate</span>
+                <div class="summary-amount">
+                    <span class="num">$<span data-summary-total>{{ "%.2f"|format(tier.price * 30) }}</span></span>
+                    <span class="unit">USDC</span>
+                </div>
+                <div class="summary-detail"><span data-summary-days>30</span> days × $<span data-summary-rate>{{ "%.2f"|format(tier.price) }}</span>/day</div>
+                <div class="summary-sep"></div>
+                <div class="summary-row"><span class="k">Tier</span><span class="v" data-summary-tier>{{ tier.name }}</span></div>
+                <div class="summary-row"><span class="k">vCPU</span><span class="v" data-summary-vcpu>{{ tier.vcpu }}</span></div>
+                <div class="summary-row"><span class="k">RAM</span><span class="v" data-summary-ram>{% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %}</span></div>
+                <div class="summary-row"><span class="k">Disk</span><span class="v" data-summary-disk>{{ tier.disk_gb }} GB</span></div>
+                <div class="summary-pulse">live · updates as you type</div>
+            </div>
+            <div class="summary-panel">
+                <span class="panel-label">payment rail</span>
+                <p style="color:var(--text-muted);font-size:.84rem;margin-top:8px;line-height:1.6">
+                    USDC on Base via x402. You sign a gasless EIP-3009 authorization on the next screen.
+                </p>
+            </div>
+        </aside>
+    </form>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  const f = document.querySelector('[data-order-form]');
+  if (!f) return;
+  const $ = (s, r=f) => r.querySelector(s);
+  const $$ = (s, r=f) => r.querySelectorAll(s);
+  const fmt = (n) => n.toFixed(2);
+  function refresh() {
+    const size = ($('input[name=size]:checked')||{}).value || 'sm';
+    const sizeInput = $(`input[name=size][value="${size}"]`);
+    const days = parseInt($('#duration').value, 10) || 1;
+    const rate = parseFloat(sizeInput && sizeInput.dataset.price || '0.10');
+    const card = sizeInput && sizeInput.closest('.opt-card');
+    const title = card && card.querySelector('.opt-title');
+    const specs = card && card.querySelectorAll('.opt-specs > span');
+    $$('[data-summary-total]').forEach(el => el.textContent = fmt(rate * days));
+    const setText = (sel, val) => { const el = $(sel); if (el) el.textContent = val; };
+    setText('[data-summary-days]', days);
+    setText('[data-summary-rate]', fmt(rate));
+    if (title) setText('[data-summary-tier]', title.textContent);
+    if (specs && specs.length >= 3) {
+      setText('[data-summary-vcpu]', specs[0].textContent.replace(/[^0-9]/g, ''));
+      setText('[data-summary-ram]',  specs[1].textContent.replace(' RAM',''));
+      setText('[data-summary-disk]', specs[2].textContent.replace(' SSD','').replace(' GB','') + ' GB');
+    }
+  }
+  f.addEventListener('input', refresh);
+  $$('[data-duration-chips] .dur-chip').forEach(b => b.addEventListener('click', () => {
+    $('#duration').value = b.dataset.days;
+    $$('[data-duration-chips] .dur-chip').forEach(x => x.removeAttribute('data-on'));
+    b.setAttribute('data-on', 'true');
+    refresh();
+  }));
+  // domain radio activation
+  f.addEventListener('change', (e) => {
+    if (e.target.name === 'domain_mode') {
+      $$('.radio-line').forEach(r => r.classList.remove('active'));
+      e.target.closest('.radio-line').classList.add('active');
+    }
+  });
+  refresh();
+})();
+</script>
 {% endblock %}

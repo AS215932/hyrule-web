@@ -1,62 +1,46 @@
-{# Status box partial — rendered inline on first load and swapped by HTMX thereafter #}
-{% if vm %}
-    {% set status = vm.get('status', 'unknown') %}
-{% else %}
-    {% set status = 'loading' %}
-{% endif %}
+{# Partial: poll-replaceable inner of the status card. #}
+{% set is_ready = vm and vm.status == 'ready' %}
+{% set is_error = vm and vm.status == 'error' %}
+{% set phase    = vm.phase if vm and vm.phase is not none else 0 %}
+{% set elapsed  = vm.elapsed_s if vm else 0 %}
+{% set steps = [
+    ('order received',        '0.1s'),
+    ('image staged',          '1.6s'),
+    ('instance booting',      '1.6s'),
+    ('network attached',      '1.8s'),
+    ('ssh ready · vm online', '1.0s'),
+] %}
 
-{% set cls_map = {
-    'provisioning': 'status-pending',
-    'ready': 'status-ok',
-    'running': 'status-ok',
-    'failed': 'status-error',
-    'suspended': 'status-warn',
-    'destroyed': 'status-error',
-    'loading': 'status-pending',
-} %}
-{% set cls = cls_map.get(status, 'status-pending') %}
-
-<div class="status-box {{ cls }}"
-     {% if status in ('provisioning', 'loading') %}
-     hx-get="/partials/status/{{ vm_id }}"
-     hx-trigger="every 5s"
+<div id="status-card" class="status-card {% if is_ready %}ok{% elif is_error %}error{% else %}pending{% endif %}"
+     hx-get="/order/status/{{ vm.id if vm else 'vm-7c4a' }}/partial"
+     hx-trigger="every 2s"
      hx-swap="outerHTML"
-     {% endif %}>
-
-    <div class="status-header">
-        <span class="status-indicator"></span>
-        <span class="status-label">{{ status | upper }}</span>
+     {% if is_ready or is_error %}hx-disable="true"{% endif %}>
+    <div class="status-row">
+        <span class="status-dot"></span>
+        <span class="status-label">{% if is_ready %}READY{% elif is_error %}ERROR{% else %}PROVISIONING{% endif %}</span>
+        <span class="status-meta">elapsed {{ elapsed }}s · region {{ vm.region if vm else 'eu-west-amsterdam' }}</span>
     </div>
 
-    {% if status in ('ready', 'running') %}
-    <div class="status-details terminal-block">
-        {% if vm.hostname %}<p><span class="label">hostname </span> <code>{{ vm.hostname }}</code></p>{% endif %}
-        {% if vm.ipv6 %}<p><span class="label">ipv6     </span> <code>{{ vm.ipv6 }}</code></p>{% endif %}
-        {% if vm.ssh %}<p><span class="label">connect  </span> <code>{{ vm.ssh }}</code></p>{% endif %}
-        {% if vm.expires_at %}<p><span class="label">expires  </span> <code>{{ vm.expires_at }}</code></p>{% endif %}
+    {% if is_ready %}
+    <div class="kv-block">
+        <div class="kv"><span class="k">hostname</span><span class="v"><code>{{ vm.fqdn }}</code></span><button class="copy" data-copy="{{ vm.fqdn }}">copy</button></div>
+        <div class="kv"><span class="k">ipv6</span><span class="v"><code>{{ vm.ipv6 }}</code></span><button class="copy" data-copy="{{ vm.ipv6 }}">copy</button></div>
+        <div class="kv"><span class="k">connect</span><span class="v"><code>ssh root@{{ vm.fqdn }}</code></span><button class="copy" data-copy="ssh root@{{ vm.fqdn }}">copy</button></div>
+        <div class="kv"><span class="k">expires</span><span class="v"><code>{{ vm.expires_at }}</code></span><span></span></div>
+        <div class="kv"><span class="k">api</span><span class="v"><code>GET /v1/vm/{{ vm.id }}</code></span><button class="copy" data-copy="GET /v1/vm/{{ vm.id }}">copy</button></div>
     </div>
-
-    {% elif status == 'provisioning' %}
-    <div class="provision-progress">
-        <p>Your VM is being provisioned. This typically takes about 60 seconds.</p>
-        <div class="progress-bar"><div class="progress-fill"></div></div>
+    {% else %}
+    <div class="timeline">
+        {% for label, dur in steps %}
+        {% set cls = 'done' if loop.index0 < phase else ('active' if loop.index0 == phase else 'pending') %}
+        <div class="timeline-row {{ cls }}">
+            <span class="ts">{% if loop.index0 < phase %}✓{% elif loop.index0 == phase %}▸{% else %}·{% endif %}</span>
+            <span class="msg">{{ label }}</span>
+            <span class="dur">{% if loop.index0 <= phase %}{{ dur }}{% else %}…{% endif %}</span>
+        </div>
+        {% endfor %}
     </div>
-
-    {% elif status == 'failed' %}
-    <div class="error-details">
-        <p>{{ vm.get('error', 'An error occurred during provisioning.') }}</p>
-    </div>
-
-    {% elif status == 'loading' %}
-    <p class="loading-msg">Connecting to API&hellip;</p>
-
-    {% elif status == 'suspended' %}
-    <div class="warn-details">
-        <p>This VM has been suspended due to expiry. Use the API to extend it.</p>
-        {% if vm.expires_at %}<p><code>POST /v1/vm/{{ vm_id }}/extend</code></p>{% endif %}
-    </div>
-
-    {% elif status == 'destroyed' %}
-    <p>This VM has been destroyed.</p>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
     {% endif %}
 </div>

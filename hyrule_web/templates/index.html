@@ -1,74 +1,191 @@
 {% extends "base.html" %}
-{% block title %}Hyrule Cloud — Bare-metal VMs, Crypto-native{% endblock %}
+{% block title %}Servify — bare-metal VMs, crypto-native{% endblock %}
 
 {% block content %}
-<section class="hero">
-    <div class="container">
-        <h1>Bare-metal VMs.<br>Pay-as-you-go.<br><span class="accent">Crypto-native.</span></h1>
-        <p class="hero-sub">No KYC. No lock-in. Full root access. USDC payments on Base.</p>
-        <div class="hero-actions">
-            <a href="/order" class="btn btn-primary btn-lg">Order a VM</a>
-            <a href="/services" class="btn btn-ghost">View Pricing</a>
+<section class="container hero">
+    <div class="hero-grid">
+        <div class="panel hero-main">
+            <span class="hero-tag">
+                <span class="tag-dot">▲</span>
+                <span>srv://hyrule-net · operator-grade compute</span>
+            </span>
+            <h1 class="hero-title">Bare-metal VMs.<br><em class="pink">Crypto-native checkout.</em><br>Root in 60 seconds.</h1>
+            <p class="hero-blurb">Servify hands you root, IPv6, and a single-shot x402 USDC checkout. The website is a thin shell over the API your automation already wants to call.</p>
+            <div class="hero-actions">
+                <a href="/order" class="btn btn-primary btn-lg"><span>Deploy a VM</span> <span aria-hidden="true">→</span></a>
+                <a href="/services" class="btn btn-secondary btn-lg">Browse plans</a>
+                <a href="/order?size=xs" class="btn btn-ghost"><code>$0.05/day starter →</code></a>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-num"><em>~</em>60s</span>
+                    <span class="hero-stat-label">to root prompt</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num">$0.05<em>/d</em></span>
+                    <span class="hero-stat-label">entry tier</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-num">IPv6<em>+NAT64</em></span>
+                    <span class="hero-stat-label">global by default</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-side">
+            <div class="terminal">
+                <div class="terminal-bar">
+                    <span class="terminal-dots"><i></i><i></i><i></i></span>
+                    <span class="terminal-title">srv@hyrule  ~  deploy</span>
+                    <span class="terminal-tag">[ live ]</span>
+                </div>
+                <div class="terminal-body">
+                    <div class="t-line"><span class="prompt">$</span><span class="output">srv deploy --size sm --os debian-13 --days 30</span></div>
+                    <div class="t-line"><span class="prompt">·</span><span class="output">tier <span class="val">Basic</span> · 1 vCPU · 1 GB · 20 GB SSD</span></div>
+                    <div class="t-line"><span class="prompt">·</span><span class="output">price <span class="val">$0.10/day</span> × 30 = <span class="val">$3.00 USDC</span></span></div>
+                    <div class="t-line"><span class="prompt">·</span><span class="output">awaiting wallet signature…</span></div>
+                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">x402 settled · gas covered</span></div>
+                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">vm-7c4a provisioning</span></div>
+                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">ipv6 2a0e:1c0:cafe::7c4a</span></div>
+                    <div class="t-line t-cursor"><span class="prompt">$</span><span class="output">ssh root@vm-7c4a.deploy.servify.network</span></div>
+                </div>
+            </div>
+            <div class="mini-card">
+                <h4>runtime snapshot</h4>
+                <div class="row"><span class="k">api latency</span><span class="v">{{ runtime.api_ms if runtime else 24 }}ms</span></div>
+                <div class="row"><span class="k">build queue</span><span class="v">{{ runtime.queue if runtime else 3 }} jobs</span></div>
+                <div class="row"><span class="k">avg provision</span><span class="v">{{ runtime.avg_provision if runtime else 58 }}s</span></div>
+                <div class="row"><span class="k">live machines</span><span class="v">{{ "{:,}".format(runtime.live_vms) if runtime else "1,284" }}</span></div>
+            </div>
         </div>
     </div>
 </section>
 
-<section class="features">
-    <div class="container">
-        <div class="feature-grid">
-            <div class="feature-card">
-                <div class="feature-icon">&loz;</div>
-                <h3>Crypto Payments</h3>
-                <p>Pay with USDC on Base via x402. Gasless signing&nbsp;&mdash; you never pay transaction fees.</p>
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">why teams pick us</span>
+        <h2>Built like an operations tool, not a marketing site.</h2>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <span class="num">01</span>
+            <h3>Wallet-native checkout</h3>
+            <p>Pay USDC on Base via x402. The flow stays in-browser; gas is covered.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">02</span>
+            <h3>API-first by default</h3>
+            <p>The website is a thin shell over the API your automation already wants.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">03</span>
+            <h3>Root means root</h3>
+            <p>No buildpacks, no managed runtime, no synthetic guardrails. Own the stack.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">04</span>
+            <h3>Daily pricing</h3>
+            <p>Every plan is per-day. No contract-shaped surprises, no minimums.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">vm tiers</span>
+            <h2>Pick the footprint and keep moving.</h2>
+        </div>
+        <div class="heading-side">
+            All prices are in USDC, billed daily. Provisioning, DNS subdomain, and wallet checkout are included. Resize at any time by extending or destroying the VM.
+        </div>
+    </div>
+    {% include "_tier_grid.html" %}
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">deploy flow</span>
+        <h2>Three steps from blank page to SSH prompt.</h2>
+    </div>
+    <div class="steps">
+        <div class="step">
+            <span class="step-num">01</span>
+            <h3 class="step-title">Choose your image</h3>
+            <p class="step-body">Select OS template, server size, and runtime. Hostname and domain are optional.</p>
+            <div class="step-cmd"><span class="prompt">$</span> srv plan --size sm --days 30</div>
+        </div>
+        <div class="step">
+            <span class="step-num">02</span>
+            <h3 class="step-title">Sign the payment</h3>
+            <p class="step-body">Connect a browser wallet, review the x402 request, sign a gasless USDC authorization.</p>
+            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009)</div>
+        </div>
+        <div class="step">
+            <span class="step-num">03</span>
+            <h3 class="step-title">Track the build</h3>
+            <p class="step-body">Status updates in-place until the VM is ready and your SSH command is live.</p>
+            <div class="step-cmd"><span class="prompt">▸</span> vm.7c4a → READY (58s)</div>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">programmable</span>
+        <h2>The same flow, callable.</h2>
+    </div>
+    <div class="api-preview">
+        <div class="api-side">
+            <h3>One endpoint. Real machines.</h3>
+            <p>The website mirrors the public API. Anything you can click here, an agent can POST.</p>
+            <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm</code></span></div>
+            <div class="row"><span class="k">Auth</span><span><code>X-Payment</code> · x402</span></div>
+            <div class="row"><span class="k">Settlement</span><span>USDC · Base · gasless</span></div>
+            <div class="row"><span class="k">Latency</span><span>p50 24ms · p99 110ms</span></div>
+        </div>
+        <div class="api-code" data-api-tabs>
+            <div class="api-code-tabs">
+                <button class="api-code-tab" data-active="true" data-tab="curl">curl</button>
+                <button class="api-code-tab" data-tab="js">js</button>
+                <button class="api-code-tab" data-tab="py">py</button>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">&#x27C1;</div>
-                <h3>API-First</h3>
-                <p>Built for AI agents and automation. Human-friendly web interface on top.</p>
+            <div data-tab-panel="curl">
+                <div><span class="pcom"># deploy in one shot</span></div>
+                <div><span class="pmeth">curl</span> <span class="ppath">https://api.servify.network/v1/vm</span> \</div>
+                <div>&nbsp;&nbsp;-H <span class="pstr">"X-Payment: $(srv pay 3.00 --base usdc)"</span> \</div>
+                <div>&nbsp;&nbsp;-d <span class="pstr">'{"size":"sm","days":30,"os":"debian-13","ssh_pubkey":"…"}'</span></div>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">&#x25C7;</div>
-                <h3>Bare Metal</h3>
-                <p>Full root access over SSH. No runtime restrictions, no buildpacks, no vendor lock-in.</p>
+            <div data-tab-panel="js" hidden>
+                <div><span class="pcom">// agent-friendly TS client</span></div>
+                <div><span class="pmeth">await</span> servify.<span class="ppath">vm.create</span>({</div>
+                <div>&nbsp;&nbsp;<span class="pkey">size</span>: <span class="pstr">'sm'</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">days</span>: <span class="pnum">30</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">os</span>: <span class="pstr">'debian-13'</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">ssh_pub</span>: pubkey,</div>
+                <div>}, { signer });</div>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">&#x25B3;</div>
-                <h3>Simple Pricing</h3>
-                <p>Per-day billing from $0.05/day. No hidden fees, no surprises, no minimum commitment.</p>
+            <div data-tab-panel="py" hidden>
+                <div><span class="pcom"># python — same call</span></div>
+                <div><span class="pmeth">vm</span> = servify.vm.create(</div>
+                <div>&nbsp;&nbsp;<span class="pkey">size</span>=<span class="pstr">"sm"</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">days</span>=<span class="pnum">30</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">os</span>=<span class="pstr">"debian-13"</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">ssh_pubkey</span>=key,</div>
+                <div>)</div>
             </div>
         </div>
     </div>
 </section>
 
-<section class="pricing-preview">
-    <div class="container">
-        <h2>Pricing</h2>
-        <div class="tier-grid">
-            {% for key, t in vm_tiers.items() %}
-            <div class="tier-card{% if key == 'sm' %} tier-popular{% endif %}">
-                {% if key == 'sm' %}<span class="tier-badge">Popular</span>{% endif %}
-                <h3 class="tier-name">{{ t.name }}</h3>
-                <div class="tier-price"><span class="amount">${{ "%.2f"|format(t.price) }}</span>/day</div>
-                <ul class="tier-specs">
-                    <li>{{ t.vcpu }} vCPU{{ "s" if t.vcpu > 1 else "" }}</li>
-                    <li>{{ t.ram_mb // 1024 if t.ram_mb >= 1024 else t.ram_mb }} {{ "GB" if t.ram_mb >= 1024 else "MB" }} RAM</li>
-                    <li>{{ t.disk_gb }} GB SSD</li>
-                    <li>IPv6 included</li>
-                    <li>Auto DNS subdomain</li>
-                </ul>
-                <a href="/order?size={{ key }}" class="btn btn-outline">Select</a>
-            </div>
-            {% endfor %}
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">deploy now</span>
+        <h2>Bring an SSH key and a wallet.</h2>
+        <p>Servify handles the rest — provisioning, DNS, gas. You get root.</p>
+        <div class="cta-actions">
+            <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
+            <a href="/services" class="btn btn-secondary btn-lg">Read the specs</a>
         </div>
-        <p class="pricing-note">All prices in USDC. Paid via x402 protocol&nbsp;&mdash; gasless wallet signing.</p>
-    </div>
-</section>
-
-<section class="cta">
-    <div class="container">
-        <h2>Ready to deploy?</h2>
-        <p>Spin up a VM in under 60 seconds. All you need is an SSH key and a wallet.</p>
-        <a href="/order" class="btn btn-primary btn-lg">Get Started</a>
     </div>
 </section>
 {% endblock %}

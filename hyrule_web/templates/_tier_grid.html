@@ -1,0 +1,25 @@
+{# Reusable VM tier grid — used by index + services. Expects `vm_tiers` dict. #}
+<div class="tier-grid">
+    {% for key, t in vm_tiers.items() %}
+    {% set popular = key == 'sm' %}
+    <div class="tier-card{% if popular %} popular{% endif %}">
+        {% if popular %}<span class="tier-badge">Most selected</span>{% endif %}
+        <span class="tier-name">{{ t.name }}</span>
+        <div class="tier-display">
+            <span class="tier-amount">${{ "%.2f"|format(t.price) }}</span>
+            <span class="tier-unit">/day</span>
+        </div>
+        <ul class="tier-specs">
+            <li><span class="k">vCPU</span><span class="v">{{ t.vcpu }}</span></li>
+            <li><span class="k">RAM</span><span class="v">{% if t.ram_mb >= 1024 %}{{ t.ram_mb // 1024 }} GB{% else %}{{ t.ram_mb }} MB{% endif %}</span></li>
+            <li><span class="k">Disk</span><span class="v">{{ t.disk_gb }} GB</span></li>
+            <li><span class="k">Network</span><span class="v">IPv6+NAT64</span></li>
+        </ul>
+        <div class="tier-foot">
+            <span class="month">≈ ${{ "%.2f"|format(t.price * 30) }} / month</span>
+            <span>≈ ${{ "%.2f"|format(t.price * 365) }} / year</span>
+        </div>
+        <a href="/order?size={{ key }}" class="btn {% if popular %}btn-primary{% else %}btn-secondary{% endif %}">Select {{ t.name }}</a>
+    </div>
+    {% endfor %}
+</div>

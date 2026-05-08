@@ -4,20 +4,56 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
-    <title>{% block title %}Hyrule Cloud{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Servify provides crypto-native bare-metal VM deployment with clear pricing and fast provisioning.{% endblock %}">
+    <title>{% block title %}Servify — bare-metal VMs, crypto-native{% endblock %}</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▲</text></svg>">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/static/style.css">
     {% block head %}{% endblock %}
 </head>
-<body hx-boost="true">
+<body data-density="comfortable" data-font="mono" data-tone="technical" data-ornaments="on" hx-boost="true">
     <header class="site-header">
-        <nav>
-            <a href="/" class="logo">▲ <span>Hyrule Cloud</span></a>
-            <ul class="nav-links">
-                <li><a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}>Services</a></li>
-                <li><a href="/order"{% if request.url.path.startswith('/order') %} aria-current="page"{% endif %} class="btn btn-sm btn-primary">Order a VM</a></li>
-            </ul>
-        </nav>
+        <div class="container site-header-inner">
+            <a href="/" class="brand" aria-label="Servify home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" width="16" height="16">
+                        <path d="M3 5l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8 11h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
+                </span>
+                <span class="brand-name">
+                    <strong>Servify</strong>
+                    <small>bare-metal · ipv6 · x402</small>
+                </span>
+            </a>
+            <nav class="site-nav" aria-label="Primary">
+                <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}><span class="nav-num">01</span><span>Home</span></a>
+                <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}><span class="nav-num">02</span><span>Services</span></a>
+                <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Deploy</span></a>
+                <a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Status</span></a>
+            </nav>
+            <div class="header-tools">
+                <span class="status-pill" title="API healthy">api · 24ms</span>
+                <button class="cmdk-trigger" type="button" data-cmdk-trigger aria-label="Open command palette">
+                    <span class="cmdk-glyph">⌕</span>
+                    <span>jump to…</span>
+                    <kbd>⌘K</kbd>
+                </button>
+            </div>
+        </div>
+        <div class="container">
+            <div class="header-marquee" aria-hidden="true">
+                <span>ipv6 first</span>
+                <span>x402 checkout</span>
+                <span>agent ready</span>
+                <span>tor friendly</span>
+                <span>as215932</span>
+            </div>
+        </div>
     </header>
 
     <main>
@@ -26,15 +62,56 @@
 
     <footer class="site-footer">
         <div class="container">
-            <p>Hyrule Cloud &mdash; <a href="https://as215932.net/">AS215932</a> &mdash; Bare-metal VMs, crypto-native</p>
-            <p class="footer-links">
-                <a href="/api/pricing">API</a>
-                <a href="https://as215932.net/">Network</a>
-            </p>
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="brand">
+                        <span class="brand-mark" aria-hidden="true">
+                            <svg viewBox="0 0 16 16" width="16" height="16">
+                                <path d="M3 5l3 3-3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M8 11h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                        <span class="brand-name">
+                            <strong>Servify</strong>
+                            <small>srv://hyrule-net</small>
+                        </span>
+                    </div>
+                    <small>Servify runs on <a href="https://as215932.net/">AS215932</a> and focuses on direct VM deployment without the usual hosting ceremony.</small>
+                </div>
+                <div class="footer-col">
+                    <h5>Product</h5>
+                    <a href="/">Overview</a>
+                    <a href="/services">Services</a>
+                    <a href="/order">Deploy</a>
+                    <a href="/order/status">Status</a>
+                </div>
+                <div class="footer-col">
+                    <h5>Developers</h5>
+                    <a href="/api/pricing">Pricing API</a>
+                    <a href="/api/docs">REST API</a>
+                    <a href="/docs/x402">x402 spec</a>
+                    <a href="/docs/cli">CLI <code>srv</code></a>
+                </div>
+                <div class="footer-col">
+                    <h5>Network</h5>
+                    <a href="https://as215932.net/">AS215932</a>
+                    <a href="/status">Network status</a>
+                    <a href="/pgp">PGP key</a>
+                    <a href="#">.onion mirror</a>
+                </div>
+            </div>
+            <pre class="ascii">  ┌─ srv ─────────────────────────────────────────────────────────────────────┐
+  │  bare-metal compute / crypto-native checkout / agent-ready API           │
+  └───────────────────────────────────────────────────────────────────────────┘</pre>
+            <div class="footer-end">
+                <span>servify.network — a thin layer over a real machine</span>
+                <span>© 2026 · MIT-0 frontend</span>
+            </div>
         </div>
     </footer>
 
     <script src="/static/htmx.min.js" defer></script>
+    <script src="/static/cmdk.js" defer></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
