@@ -74,7 +74,10 @@
     });
     listEl.innerHTML = html;
     listEl.querySelectorAll('.cmdk-row').forEach(r => {
-      r.addEventListener('mouseenter', () => { active = parseInt(r.dataset.i, 10); render(); });
+      r.addEventListener('mouseenter', () => {
+        const i = parseInt(r.dataset.i, 10);
+        if (active !== i) { active = i; render(); }
+      });
       r.addEventListener('click', () => run(items[parseInt(r.dataset.i, 10)]));
     });
   }

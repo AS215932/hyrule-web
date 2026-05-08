@@ -453,6 +453,10 @@ main { position: relative; z-index: 1; }
 
 /* ─── command palette ──────────────────────────────────────────────────── */
 
+.cmdk-overlay[hidden] {
+  display: none !important;
+}
+
 .cmdk-overlay {
   position: fixed;
   inset: 0;
