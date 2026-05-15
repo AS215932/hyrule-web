@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Review order — Servify{% endblock %}
+{% block title %}Review order — Hyrule Cloud{% endblock %}
 
 {% block content %}
 {% set tier = vm_tiers[order.size] if order and order.size in vm_tiers else vm_tiers['sm'] %}
@@ -53,7 +53,7 @@
                 <div class="manifest-v">{% if order and order.hostname %}<code>{{ order.hostname }}</code>{% else %}<em style="color:var(--text-soft)">auto-assigned</em>{% endif %}</div>
 
                 <div class="manifest-k">domain</div>
-                <div class="manifest-v">{% if order and order.domain %}<code>{{ order.domain }}</code>{% else %}auto subdomain · <code>*.deploy.servify.network</code>{% endif %}</div>
+                <div class="manifest-v">{% if order and order.domain %}<code>{{ order.domain }}</code>{% else %}auto subdomain · <code>*.deploy.hyrule.host</code>{% endif %}</div>
 
                 <div class="manifest-k">ssh key</div>
                 <div class="manifest-v"><code style="word-break:break-all;font-size:.78rem">{{ (order.ssh_pubkey if order else 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIK8h3p5z+sample…')[:80] }}{% if order and order.ssh_pubkey and order.ssh_pubkey|length > 80 %}…{% endif %}</code></div>
@@ -82,7 +82,7 @@
                     <button type="submit" class="btn btn-primary btn-lg btn-block" data-pay-button>Pay ${{ "%.2f"|format(total) }} with wallet</button>
                 </form>
                 <div class="wallet-status">sign once · gasless · USDC on Base</div>
-                <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Servify covers the gas.</p>
+                <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Hyrule Cloud covers the gas.</p>
             </div>
 
             <a href="/order" class="btn btn-secondary">← Back to order form</a>

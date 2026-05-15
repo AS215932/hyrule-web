@@ -1,5 +1,5 @@
 /**
- * x402 browser payment flow for Servify.
+ * x402 browser payment flow for Hyrule Cloud.
  *
  * Handles wallet connection, EIP-712 signing (EIP-3009 TransferWithAuthorization),
  * and x402 payment header construction. ~150 lines, zero dependencies.

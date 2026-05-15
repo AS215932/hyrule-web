@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Deploy a VM — Servify{% endblock %}
+{% block title %}Deploy a VM — Hyrule Cloud{% endblock %}
 
 {% block content %}
 {% set selected_size = request.query_params.get('size', 'sm') %}
@@ -11,7 +11,7 @@
             <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">order</span></div>
             <span class="panel-label">deploy</span>
             <h1>Configure the machine, then pay once.</h1>
-            <p class="hero-blurb">Servify keeps the form explicit: image, size, lifetime, SSH key, naming. No hidden wizard state, no progressive reveals.</p>
+            <p class="hero-blurb">Hyrule Cloud keeps the form explicit: image, size, lifetime, SSH key, naming. No hidden wizard state, no progressive reveals.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label" style="margin-bottom:8px;display:inline-flex">before you begin</span>
@@ -140,7 +140,7 @@
                         <label class="radio-line active">
                             <input type="radio" name="domain_mode" value="auto" checked>
                             <span>Auto subdomain</span>
-                            <code>*.deploy.servify.network</code>
+                            <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
                         <label class="radio-line">

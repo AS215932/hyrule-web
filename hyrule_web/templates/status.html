@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Status — Servify{% endblock %}
+{% block title %}Status — Hyrule Cloud{% endblock %}
 
 {% block content %}
 {% set is_ready = vm and vm.status == 'ready' %}
@@ -50,7 +50,7 @@
                 <span class="terminal-tag">[ online ]</span>
             </div>
             <div class="terminal-body">
-                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn if vm else 'vm-7c4a.deploy.servify.network' }}</span></div>
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn if vm else 'vm-7c4a.deploy.hyrule.host' }}</span></div>
                 <div class="t-line"><span class="prompt">·</span><span class="output ok">authenticating with ed25519 key</span></div>
                 <div class="t-line"><span class="prompt">·</span><span class="output">welcome to {{ tier.name }} · debian 13</span></div>
                 <div class="t-line t-cursor"><span class="prompt">root@{{ vm.hostname if vm else 'vm-7c4a' }}:~#</span><span class="output"> </span></div>

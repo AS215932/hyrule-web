@@ -1,4 +1,4 @@
-"""Configuration for the Servify web frontend."""
+"""Configuration for the Hyrule Cloud web frontend."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Servify web frontend — lightweight, server-rendered, Tor-friendly."""
+"""Hyrule Cloud web frontend — lightweight, server-rendered, Tor-friendly."""
 
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
     await app.state.http.aclose()
 
 
-app = FastAPI(title="Servify", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="Hyrule Cloud", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -175,6 +175,7 @@ async def partial_status(request: Request, vm_id: str):
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_api(request: Request, path: str):
     client: httpx.AsyncClient = request.app.state.http
+    api_path = path[3:] if path.startswith("v1/") else path
 
     forward_headers: dict[str, str] = {}
     for key in request.headers:
@@ -190,7 +191,7 @@ async def proxy_api(request: Request, path: str):
     try:
         resp = await client.request(
             method=request.method,
-            url=f"/v1/{path}",
+            url=f"/v1/{api_path}",
             headers=forward_headers,
             content=body if body else None,
         )

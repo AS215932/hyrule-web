@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Services — Servify{% endblock %}
+{% block title %}Services — Hyrule Cloud{% endblock %}
 
 {% block content %}
 <section class="container">
@@ -15,7 +15,7 @@
             <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted)">
                 <li>+ Root SSH with your public key</li>
                 <li>+ IPv6 + NAT64/DNS64 to reach IPv4</li>
-                <li>+ Auto subdomain on <code>deploy.servify.network</code></li>
+                <li>+ Auto subdomain on <code>deploy.hyrule.host</code></li>
                 <li>+ 1–365 day runtimes, extendable</li>
             </ul>
         </div>
@@ -43,7 +43,7 @@
             ('Access',       'Full SSH root via your ed25519 or RSA public key. No shared hosting abstractions.'),
             ('Firewall',     'SSH, HTTP, HTTPS open by default. SMTP blocked outbound to keep abuse handling sane.'),
             ('Networking',   'Global IPv6 with NAT64/DNS64 available for IPv4 destinations that still need reaching.'),
-            ('DNS',          'Auto subdomain on deploy.servify.network. Custom domains via simple AAAA record.'),
+            ('DNS',          'Auto subdomain on deploy.hyrule.host. Custom domains via simple AAAA record.'),
             ('Lifecycle',    '1–365 day runtimes. Extend at any time; expired VMs keep a 24-hour grace.'),
             ('Provisioning', 'Most builds finish in ~60 seconds. The status page updates as the VM comes online.'),
         ] %}

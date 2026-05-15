@@ -1,4 +1,4 @@
-/* Servify command palette — vanilla port of the React CmdK.
+/* Hyrule Cloud command palette — vanilla port of the React CmdK.
    Trigger: any element with [data-cmdk-trigger], or ⌘K / Ctrl+K. */
 (function () {
   const COMMANDS = [
@@ -31,7 +31,7 @@
         <div class="cmdk-list"></div>
         <div class="cmdk-foot">
           <span><kbd>↑</kbd> <kbd>↓</kbd> navigate · <kbd>↵</kbd> open · <kbd>esc</kbd> close</span>
-          <span>servify · cmdk</span>
+          <span>hyrule · cmdk</span>
         </div>
       </div>`;
     document.body.appendChild(overlay);

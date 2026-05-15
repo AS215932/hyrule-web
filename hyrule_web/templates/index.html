@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Servify — bare-metal VMs, crypto-native{% endblock %}
+{% block title %}Hyrule Cloud — bare-metal VMs, crypto-native{% endblock %}
 
 {% block content %}
 <section class="container hero">
@@ -10,7 +10,7 @@
                 <span>srv://hyrule-net · Agentic AI enabled, MCP supported compute</span>
             </span>
             <h1 class="hero-title">Bare-metal VMs.<br><em class="pink">Crypto-native checkout.</em><br>Root in 60 seconds.</h1>
-            <p class="hero-blurb">Servify hands you root, IPv6, and a single-shot x402 USDC checkout. The website is a thin shell over the API your automation already wants to call.</p>
+            <p class="hero-blurb">Hyrule Cloud hands you root, IPv6, and a single-shot x402 USDC checkout. The website is a thin shell over the API your automation already wants to call.</p>
             <div class="hero-actions">
                 <a href="/order" class="btn btn-primary btn-lg"><span>Deploy a VM</span> <span aria-hidden="true">→</span></a>
                 <a href="/services" class="btn btn-secondary btn-lg">Browse plans</a>
@@ -46,7 +46,7 @@
                     <div class="t-line"><span class="prompt">✓</span><span class="output ok">x402 settled · gas covered</span></div>
                     <div class="t-line"><span class="prompt">✓</span><span class="output ok">vm-7c4a provisioning</span></div>
                     <div class="t-line"><span class="prompt">✓</span><span class="output ok">ipv6 2a0e:1c0:cafe::7c4a</span></div>
-                    <div class="t-line t-cursor"><span class="prompt">$</span><span class="output">ssh root@vm-7c4a.deploy.servify.network</span></div>
+                    <div class="t-line t-cursor"><span class="prompt">$</span><span class="output">ssh root@vm-7c4a.deploy.hyrule.host</span></div>
                 </div>
             </div>
             <div class="mini-card">
@@ -151,13 +151,13 @@
             </div>
             <div data-tab-panel="curl">
                 <div><span class="pcom"># deploy in one shot</span></div>
-                <div><span class="pmeth">curl</span> <span class="ppath">https://api.servify.network/v1/vm</span> \</div>
+                <div><span class="pmeth">curl</span> <span class="ppath">https://cloud.hyrule.host/v1/vm</span> \</div>
                 <div>&nbsp;&nbsp;-H <span class="pstr">"X-Payment: $(srv pay 3.00 --base usdc)"</span> \</div>
                 <div>&nbsp;&nbsp;-d <span class="pstr">'{"size":"sm","days":30,"os":"debian-13","ssh_pubkey":"…"}'</span></div>
             </div>
             <div data-tab-panel="js" hidden>
                 <div><span class="pcom">// agent-friendly TS client</span></div>
-                <div><span class="pmeth">await</span> servify.<span class="ppath">vm.create</span>({</div>
+                <div><span class="pmeth">await</span> hyrule.<span class="ppath">vm.create</span>({</div>
                 <div>&nbsp;&nbsp;<span class="pkey">size</span>: <span class="pstr">'sm'</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">days</span>: <span class="pnum">30</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">os</span>: <span class="pstr">'debian-13'</span>,</div>
@@ -166,7 +166,7 @@
             </div>
             <div data-tab-panel="py" hidden>
                 <div><span class="pcom"># python — same call</span></div>
-                <div><span class="pmeth">vm</span> = servify.vm.create(</div>
+                <div><span class="pmeth">vm</span> = hyrule.vm.create(</div>
                 <div>&nbsp;&nbsp;<span class="pkey">size</span>=<span class="pstr">"sm"</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">days</span>=<span class="pnum">30</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">os</span>=<span class="pstr">"debian-13"</span>,</div>
@@ -181,7 +181,7 @@
     <div class="cta">
         <span class="panel-label">deploy now</span>
         <h2>Bring an SSH key and a wallet.</h2>
-        <p>Servify handles the rest — provisioning, DNS, gas. You get root.</p>
+        <p>Hyrule Cloud handles the rest — provisioning, DNS, gas. You get root.</p>
         <div class="cta-actions">
             <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
             <a href="/services" class="btn btn-secondary btn-lg">Read the specs</a>
