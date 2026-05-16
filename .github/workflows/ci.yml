@@ -24,14 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
+      # actions/setup-python has no Debian 13 build for 3.12; the runner
+      # ships system Python 3.13 which satisfies the project's
+      # requires-python = ">=3.12" and matches the web VM in production.
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
-      - name: Sync deps
+      - name: Sync deps (system python)
         run: ~/.local/bin/uv sync --frozen --group dev
 
       - name: Ruff
