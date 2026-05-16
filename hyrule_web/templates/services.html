@@ -1,6 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Services — Hyrule Cloud{% endblock %}
 
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {% for code, t in vm_tiers.items() -%}
+    {
+      "@type": "Product",
+      "@id": "https://hyrule.host/services#tier-{{ code }}",
+      "name": "Hyrule Cloud {{ t.name }} VM",
+      "description": "{{ t.vcpu }} vCPU, {{ t.ram_mb }} MB RAM, {{ t.disk_gb }} GB disk. IPv6-first bare-metal VM on AS215932, daily pricing, 1–365 day runtimes.",
+      "brand": {"@type": "Brand", "name": "Hyrule Cloud"},
+      "offers": {
+        "@type": "Offer",
+        "price": "{{ '%.2f'|format(t.price) }}",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+          "@type": "UnitPriceSpecification",
+          "price": "{{ '%.2f'|format(t.price) }}",
+          "priceCurrency": "USD",
+          "unitCode": "DAY",
+          "referenceQuantity": {"@type": "QuantitativeValue", "value": 1, "unitCode": "DAY"}
+        },
+        "availability": "https://schema.org/InStock",
+        "url": "https://hyrule.host/order"
+      }
+    }{{ "," if not loop.last else "" }}
+    {% endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
 {% block content %}
 <section class="container">
     <div class="page-hero">
