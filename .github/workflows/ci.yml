@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref. Per-branch grouping so a push to main
+# doesn't kill an open PR's CI on a different branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Branch protection requires this exact check name. Don't rename without
+    # updating the rule in repo settings.
+    name: test
+    runs-on: [self-hosted, linux, x64, hyrule]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Sync deps
+        run: ~/.local/bin/uv sync --frozen --group dev
+
+      - name: Ruff
+        run: ~/.local/bin/uv run ruff check .
+
+      - name: Mypy (strict)
+        run: ~/.local/bin/uv run mypy hyrule_web/
+
+      - name: Pytest + 90% line+branch coverage gate
+        run: |
+          ~/.local/bin/uv run pytest \
+            --cov=hyrule_web \
+            --cov-report=term-missing \
+            --cov-branch \
+            --cov-fail-under=90
