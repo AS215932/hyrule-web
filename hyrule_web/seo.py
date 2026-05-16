@@ -45,7 +45,7 @@ LLMS_TXT = """\
   Standard, and Performance plans with explicit vCPU / RAM / disk and
   daily USD pricing. SSH root access via your public key.
 - [Order a VM](https://hyrule.host/order): single-page order flow.
-  Inputs: OS, size, duration (1–365 days), SSH public key, optional
+  Inputs: OS, size, duration (1-365 days), SSH public key, optional
   hostname and custom domain.
 
 ## API
@@ -66,7 +66,7 @@ LLMS_TXT = """\
 - Global IPv6 with NAT64/DNS64
 - Automatic subdomain on `deploy.hyrule.host` (custom domains via AAAA)
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
-- 1–365 day runtimes, extendable, 24-hour grace after expiry
+- 1-365 day runtimes, extendable, 24-hour grace after expiry
 """
 
 

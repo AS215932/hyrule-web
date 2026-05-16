@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import httpx
 import structlog
@@ -39,7 +40,7 @@ BASE_DIR = Path(__file__).parent
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.http = httpx.AsyncClient(
         base_url=settings.api_base_url,
         timeout=30,
@@ -54,21 +55,26 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
-def _render(request: Request, name: str, **kwargs):
+def _render(request: Request, name: str, **kwargs: Any) -> Response:
     """Render a template with common context variables."""
-    ctx = {"vm_tiers": VM_TIERS, **kwargs}
+    ctx: dict[str, Any] = {"vm_tiers": VM_TIERS, **kwargs}
     return templates.TemplateResponse(request, name, ctx)
 
 
-async def _fetch_api(request: Request, path: str):
+async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
     """GET a JSON endpoint from the backend API, return parsed dict or None."""
     try:
         resp = await request.app.state.http.get(path)
         if resp.status_code == 200:
-            return resp.json()
+            data: dict[str, Any] = resp.json()
+            return data
         log.warn("api_non_200", path=path, status=resp.status_code)
     except httpx.HTTPError as exc:
-        log.error("api_fetch_failed", path=path, error={"type": type(exc).__name__, "message": str(exc)})
+        log.error(
+            "api_fetch_failed",
+            path=path,
+            error={"type": type(exc).__name__, "message": str(exc)},
+        )
     return None
 
 
@@ -78,27 +84,27 @@ async def _fetch_api(request: Request, path: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def page_index(request: Request):
+async def page_index(request: Request) -> Response:
     runtime = {
         "api_ms": 24, "queue": 3, "avg_provision": 58, "live_vms": 1284
     }
     return _render(request, "index.html", runtime=runtime)
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def page_dashboard(request: Request):
+async def page_dashboard(request: Request) -> Response:
     return _render(request, "dashboard.html")
 
 
 
 @app.get("/services", response_class=HTMLResponse)
-async def page_services(request: Request):
+async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     return _render(request, "services.html", os_templates=os_list)
 
 
 @app.get("/order", response_class=HTMLResponse)
-async def page_order(request: Request):
+async def page_order(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     return _render(request, "order.html", os_templates=os_list)
@@ -114,7 +120,7 @@ async def page_review(
     hostname: Annotated[str, Form()] = "",
     domain_mode: Annotated[str, Form()] = "auto",
     domain: Annotated[str, Form()] = "",
-):
+) -> Response:
     tier = VM_TIERS.get(size, VM_TIERS["sm"])
     daily = tier["price"]
     total = daily * duration
@@ -137,7 +143,7 @@ async def page_review(
 
 
 @app.get("/order/status/{vm_id}", response_class=HTMLResponse)
-async def page_status(request: Request, vm_id: str):
+async def page_status(request: Request, vm_id: str) -> Response:
     data = await _fetch_api(request, f"/v1/vm/{vm_id}")
     return _render(request, "status.html", vm_id=vm_id, vm=data)
 
@@ -151,7 +157,7 @@ async def page_status(request: Request, vm_id: str):
 async def partial_price(
     size: Annotated[str, Form()] = "sm",
     duration: Annotated[str, Form()] = "30",
-):
+) -> HTMLResponse:
     tier = VM_TIERS.get(size, VM_TIERS["sm"])
     daily = tier["price"]
     days = max(1, min(365, int(duration) if duration.isdigit() else 30))
@@ -163,7 +169,7 @@ async def partial_price(
 
 
 @app.get("/order/status/{vm_id}/partial", response_class=HTMLResponse)
-async def partial_status(request: Request, vm_id: str):
+async def partial_status(request: Request, vm_id: str) -> Response:
     data = await _fetch_api(request, f"/v1/vm/{vm_id}")
     return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)
 
@@ -194,7 +200,7 @@ async def llms() -> str:
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def proxy_api(request: Request, path: str):
+async def proxy_api(request: Request, path: str) -> Response:
     client: httpx.AsyncClient = request.app.state.http
     api_path = path[3:] if path.startswith("v1/") else path
 
@@ -240,7 +246,7 @@ async def proxy_api(request: Request, path: str):
 # ---------------------------------------------------------------------------
 
 
-def main():
+def main() -> None:
     import uvicorn
 
     uvicorn.run(
