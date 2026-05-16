@@ -15,3 +15,43 @@ dependencies = [
 
 [project.scripts]
 hyrule-web = "hyrule_web.app:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5",
+    "respx>=0.21",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Stray scratch files at repo root from earlier work — not part of the package.
+extend-exclude = ["app_patch.py", "links_patch.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+branch = true
+source = ["hyrule_web"]
+
+[tool.coverage.report]
+fail_under = 90
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+]
+show_missing = true
