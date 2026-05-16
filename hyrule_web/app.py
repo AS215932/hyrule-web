@@ -11,11 +11,12 @@ from typing import Annotated
 import httpx
 import structlog
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
+from .seo import LLMS_TXT, ROBOTS_TXT, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
 # contract (hyrule-infra/docs/application-logging.md). systemd-journald
@@ -165,6 +166,26 @@ async def partial_price(
 async def partial_status(request: Request, vm_id: str):
     data = await _fetch_api(request, f"/v1/vm/{vm_id}")
     return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)
+
+
+# ---------------------------------------------------------------------------
+# SEO surface — robots.txt, sitemap.xml, llms.txt
+# ---------------------------------------------------------------------------
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+async def robots() -> str:
+    return ROBOTS_TXT
+
+
+@app.get("/sitemap.xml")
+async def sitemap() -> Response:
+    return Response(content=render_sitemap_xml(app), media_type="application/xml")
+
+
+@app.get("/llms.txt", response_class=PlainTextResponse)
+async def llms() -> str:
+    return LLMS_TXT
 
 
 # ---------------------------------------------------------------------------
