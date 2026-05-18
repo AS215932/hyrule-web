@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import urllib.parse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -156,9 +157,12 @@ async def page_status(request: Request, vm_id: str) -> Response:
         host = request.headers.get("host", "")
         # Routed via Caddy on proxy → api:8402. The cloud subdomain serves
         # the api directly so the management URL is the canonical form an
-        # agent or curl would use.
+        # agent or curl would use. Token is URL-encoded — current tokens are
+        # `hyr_vm_<32 base62>` (no reserved chars), but encoding now keeps the
+        # URL well-formed if the token shape ever picks up `&`, `?`, or `=`.
         management_url = (
-            f"{scheme}://cloud.{host.removeprefix('www.')}/v1/vm/{vm_id}?token={token}"
+            f"{scheme}://cloud.{host.removeprefix('www.')}/v1/vm/{vm_id}"
+            f"?token={urllib.parse.quote(token, safe='')}"
         )
     return _render(
         request, "status.html",
