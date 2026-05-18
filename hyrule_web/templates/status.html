@@ -5,6 +5,31 @@
 {% set is_ready = vm and vm.status == 'ready' %}
 {% set tier = vm_tiers[vm.size] if vm and vm.size in vm_tiers else vm_tiers['sm'] %}
 
+{% if management_url %}
+<section class="container" style="margin-top:24px">
+    <div class="mini-card" style="padding:18px;border:2px solid var(--warn,#c84);background:rgba(200,68,0,0.06)">
+        <span class="panel-label" style="color:var(--warn,#c84)">save this once — cannot be shown again</span>
+        <h3 style="margin:6px 0 10px 0;font-size:1.05rem">Anonymous VM management URL</h3>
+        <p style="margin:0 0 12px 0;color:var(--text-soft);font-size:.9rem">
+            You ordered this VM without an account. The URL below is the
+            <strong>only</strong> way to reboot, extend, view logs, or destroy it.
+            Save it now — we do not store it and cannot recover it.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <code id="mgmt-url" style="word-break:break-all;flex:1;min-width:260px;padding:8px 10px;background:var(--surface,#1a1a1a);border-radius:4px;font-size:.82rem">{{ management_url }}</code>
+            <button type="button" class="btn btn-secondary btn-xs"
+                    onclick="navigator.clipboard.writeText(document.getElementById('mgmt-url').textContent);this.textContent='copied';">copy</button>
+            <a class="btn btn-ghost btn-xs"
+               href="data:text/plain;charset=utf-8,{{ management_url | urlencode }}"
+               download="hyrule-{{ vm_id }}-management-url.txt">download .txt</a>
+        </div>
+        <p style="margin:12px 0 0 0;color:var(--text-soft);font-size:.78rem">
+            Already an account holder? Sign up later and claim this VM with the same URL.
+        </p>
+    </div>
+</section>
+{% endif %}
+
 <section class="container">
     <div class="page-hero">
         <div>

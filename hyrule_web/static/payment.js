@@ -87,7 +87,12 @@
             if (firstResp.status !== 402) {
                 if (firstResp.ok) {
                     var okResult = await firstResp.json();
-                    window.location.href = "/order/status/" + okResult.vm_id;
+                    // Block A0: forward the one-time management_token via
+                    // ?token= so the status page can render the save-once
+                    // banner. okResult.management_token is present only
+                    // on a successful (non-402) /api/vm/create response.
+                    var okTok = okResult.management_token ? ("?token=" + encodeURIComponent(okResult.management_token)) : "";
+                    window.location.href = "/order/status/" + okResult.vm_id + okTok;
                     return;
                 }
                 var errBody = await firstResp.json().catch(function () { return {}; });
@@ -194,7 +199,11 @@
             setStatus("Payment successful! Redirecting\u2026", "payment-ok");
 
             setTimeout(function () {
-                window.location.href = "/order/status/" + result.vm_id;
+                // Block A0: forward the one-time management_token so the
+                // status page surfaces the save-once banner. Without it,
+                // the operator has no way to manage their anon VM later.
+                var tok = result.management_token ? ("?token=" + encodeURIComponent(result.management_token)) : "";
+                window.location.href = "/order/status/" + result.vm_id + tok;
             }, 1000);
 
         } catch (err) {
