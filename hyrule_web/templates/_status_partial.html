@@ -28,7 +28,7 @@
         <div class="kv"><span class="k">ipv6</span><span class="v"><code>{{ vm.ipv6 }}</code></span><button class="copy" data-copy="{{ vm.ipv6 }}">copy</button></div>
         <div class="kv"><span class="k">connect</span><span class="v"><code>ssh root@{{ vm.fqdn }}</code></span><button class="copy" data-copy="ssh root@{{ vm.fqdn }}">copy</button></div>
         <div class="kv"><span class="k">expires</span><span class="v"><code>{{ vm.expires_at }}</code></span><span></span></div>
-        <div class="kv"><span class="k">api</span><span class="v"><code>GET /v1/vm/{{ vm.id }}</code></span><button class="copy" data-copy="GET /v1/vm/{{ vm.id }}">copy</button></div>
+        <div class="kv"><span class="k">api</span><span class="v"><code>GET /v1/vm/{{ vm.id }}/status</code></span><button class="copy" data-copy="GET /v1/vm/{{ vm.id }}/status">copy</button></div>
     </div>
     {% else %}
     <div class="timeline">

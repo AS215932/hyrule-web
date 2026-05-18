@@ -144,8 +144,26 @@ async def page_review(
 
 @app.get("/order/status/{vm_id}", response_class=HTMLResponse)
 async def page_status(request: Request, vm_id: str) -> Response:
-    data = await _fetch_api(request, f"/v1/vm/{vm_id}")
-    return _render(request, "status.html", vm_id=vm_id, vm=data)
+    # Block A0: status page calls the sanitized public endpoint. The
+    # legacy /v1/vm/{id} is now management-gated and would 404 here.
+    data = await _fetch_api(request, f"/v1/vm/{vm_id}/status")
+    # If the URL carries ?token=hyr_vm_..., the user just landed from a
+    # fresh anon order. Surface the management URL banner exactly once.
+    token = request.query_params.get("token")
+    management_url = None
+    if token and token.startswith("hyr_vm_"):
+        scheme = request.url.scheme
+        host = request.headers.get("host", "")
+        # Routed via Caddy on proxy → api:8402. The cloud subdomain serves
+        # the api directly so the management URL is the canonical form an
+        # agent or curl would use.
+        management_url = (
+            f"{scheme}://cloud.{host.removeprefix('www.')}/v1/vm/{vm_id}?token={token}"
+        )
+    return _render(
+        request, "status.html",
+        vm_id=vm_id, vm=data, management_url=management_url,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +188,8 @@ async def partial_price(
 
 @app.get("/order/status/{vm_id}/partial", response_class=HTMLResponse)
 async def partial_status(request: Request, vm_id: str) -> Response:
-    data = await _fetch_api(request, f"/v1/vm/{vm_id}")
+    # Block A0: same sanitized public endpoint as the full page.
+    data = await _fetch_api(request, f"/v1/vm/{vm_id}/status")
     return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)
 
 
