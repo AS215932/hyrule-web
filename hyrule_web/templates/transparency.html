@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}Transparency — Hyrule Cloud infra inventory{% endblock %}
+{% block meta_description %}Full inventory of the AS215932 infrastructure Hyrule Cloud runs on: hosts, routing, peering, jurisdiction, monitoring stack. Solo operator, public configs.{% endblock %}
+
+{% block head_meta %}
+{{ super() }}
+<link rel="alternate" type="application/atom+xml" title="Hyrule Cloud" href="/sitemap.xml">
+{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "Transparency", "item": "https://hyrule.host/transparency"}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">transparency</span></div>
+            <span class="panel-label">infra truth</span>
+            <h1>The full inventory. No marketing diagrams.</h1>
+            <p class="hero-blurb">Everything Hyrule Cloud runs on — hosts, addresses, routing, peers, jurisdiction. Because "we run our own ASN" is a claim you should be able to verify.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">at a glance</span>
+            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted)">
+                <li>+ ASN <strong>AS215932</strong> — RIPE</li>
+                <li>+ Prefix <code>2a0c:b641:b50::/44</code></li>
+                <li>+ Operator: solo, jurisdiction NL</li>
+                <li>+ Compute: OVH FR · Routing: NL+DE</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">routers</span>
+        <h2>BGP edge.</h2>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <span class="num">01</span>
+            <h3>cr1.nl1</h3>
+            <p><strong>FreeBSD + FRRouting</strong> at Servperso NL. Router-ID 1.1.1.1. Loopback <code>2a0c:b641:b50::a</code>.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">02</span>
+            <h3>cr1.de1</h3>
+            <p><strong>FreeBSD + FRRouting</strong> at Servperso DE. Router-ID 2.2.2.2. Loopback <code>2a0c:b641:b50::b</code>.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">03</span>
+            <h3>rtr</h3>
+            <p><strong>Debian 13 + FRRouting</strong> at OVH FR. Router-ID 0.0.0.13. Loopback <code>2a0c:b641:b50::d</code>. Overlay VRF for customer VM isolation.</p>
+        </div>
+    </div>
+    <p style="margin-top:16px;color:var(--text-soft);font-size:.85rem">All three are full-mesh WireGuard-linked over their respective underlays. BGP enforces AS-path filters that drop our own ASN, private ASNs (16- and 32-bit), and paths over 200 chars.</p>
+{% if network %}
+    <div class="fleet-live" style="margin-top:16px;display:flex;gap:24px;flex-wrap:wrap;font-size:.85rem;color:var(--text-soft)">
+        {% if network.bgp_peers_established is not none %}
+            <span><strong style="color:var(--text)">{{ network.bgp_peers_established }}</strong> BGP peers established</span>
+        {% endif %}
+        {% if network.ipv6_prefixes_announced is not none %}
+            <span><strong style="color:var(--text)">{{ network.ipv6_prefixes_announced }}</strong> IPv6 prefixes announced</span>
+        {% endif %}
+        {% if network.nat64_sessions_active is not none %}
+            <span><strong style="color:var(--text)">{{ network.nat64_sessions_active }}</strong> NAT64 sessions active</span>
+        {% endif %}
+        {% if network.transit_providers %}
+            <span>Transit: <strong style="color:var(--text)">{{ network.transit_providers | join(", ") }}</strong></span>
+        {% endif %}
+        <span style="opacity:.6;font-size:.75rem">source: {{ network._source }}</span>
+    </div>
+{% endif %}
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">service VMs</span>
+        <h2>Bare-metal-style VMs on a single XCP-NG host.</h2>
+    </div>
+    <table class="manifest-rows" style="display:table;width:100%;border-collapse:collapse">
+        <thead>
+            <tr style="color:var(--text-soft);text-align:left;font-size:.8rem">
+                <th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)">Host</th>
+                <th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)">Role</th>
+                <th style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08)">Address (infra /64)</th>
+            </tr>
+        </thead>
+        <tbody style="font-size:.88rem">
+            <tr><td style="padding:8px 12px"><code>rtr</code></td><td style="padding:8px 12px">Edge router, firewall, NAT64, DNS64</td><td style="padding:8px 12px"><code>::1</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>dns</code></td><td style="padding:8px 12px">Authoritative DNS (Knot)</td><td style="padding:8px 12px"><code>::10</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>api</code></td><td style="padding:8px 12px">hyrule-cloud + Postgres</td><td style="padding:8px 12px"><code>::20</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>web</code></td><td style="padding:8px 12px">hyrule-web (this site)</td><td style="padding:8px 12px"><code>::30</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>proxy</code></td><td style="padding:8px 12px">Caddy TLS termination (DNS-01 via Knot)</td><td style="padding:8px 12px"><code>::40</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>mon</code></td><td style="padding:8px 12px">Prometheus + Icinga2</td><td style="padding:8px 12px"><code>::50</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>vpn</code></td><td style="padding:8px 12px">WireGuard VPN (customer-facing)</td><td style="padding:8px 12px"><code>::60</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>xoa</code></td><td style="padding:8px 12px">Xen Orchestra (XAPI control plane)</td><td style="padding:8px 12px"><code>::70</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>vault</code></td><td style="padding:8px 12px">HashiCorp Vault (secrets)</td><td style="padding:8px 12px"><code>::c0</code></td></tr>
+            <tr><td style="padding:8px 12px"><code>noc</code></td><td style="padding:8px 12px">Autonomous triage agent + MCP server</td><td style="padding:8px 12px"><code>::a0</code></td></tr>
+        </tbody>
+    </table>
+    <p style="margin-top:16px;color:var(--text-soft);font-size:.85rem">Customer VMs live in a separate <code>/48</code> (<code>2a0c:b641:b51::/48</code>), one <code>/64</code> per VM, on a different VRF. The router enforces no traffic between customer-VMs and infra-VMs at the nftables layer.</p>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">monitoring</span>
+        <h2>Visibility we run on, not vendor dashboards.</h2>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <span class="num">01</span>
+            <h3>node_exporter on every host</h3>
+            <p>Day-one Ansible role; no host ships without it. Scraped by Prometheus on <code>mon</code>.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">02</span>
+            <h3>Icinga2 service checks</h3>
+            <p>Reachability, BGP session state, DNS SOA, TLS expiry, NAT64 reachability via <code>jool stats</code>.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">03</span>
+            <h3>Autonomous NOC</h3>
+            <p><code>noc-agent</code> on the <code>noc</code> VM consumes Alertmanager + Icinga events, triages with PydanticAI, posts to Discord. Read-only today.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">04</span>
+            <h3>External monitor</h3>
+            <p><code>extmon</code> lives off-network deliberately. Catches the embarrassing failure mode where the whole AS goes dark.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">data we collect</span>
+        <h2>What we hold, and what we don't.</h2>
+    </div>
+    <div class="review-layout">
+        <div class="manifest">
+            <div class="manifest-head"><span>we collect</span><span class="badge">minimal</span></div>
+            <div class="manifest-rows">
+                <div class="manifest-k">vm_id</div><div class="manifest-v">opaque random identifier</div>
+                <div class="manifest-k">VM config</div><div class="manifest-v">size, OS, duration, ports you opened</div>
+                <div class="manifest-k">ssh pubkey</div><div class="manifest-v">your public key (you provide it)</div>
+                <div class="manifest-k">payer wallet</div><div class="manifest-v">EVM address only, if you paid via x402</div>
+                <div class="manifest-k">account_id</div><div class="manifest-v"><code>H&lt;10 hex&gt;</code>, only if you signed up</div>
+                <div class="manifest-k">password hash</div><div class="manifest-v">argon2id (irreversible)</div>
+                <div class="manifest-k">/64 prefix hash</div><div class="manifest-v">sha256 of your IPv6 /64 + pepper, for abuse rate-limit only</div>
+            </div>
+        </div>
+        <div class="manifest">
+            <div class="manifest-head"><span>we don't collect</span><span class="badge" style="background:#0f3">never</span></div>
+            <div class="manifest-rows">
+                <div class="manifest-k">email</div><div class="manifest-v">no signup field exists</div>
+                <div class="manifest-k">phone</div><div class="manifest-v">no signup field exists</div>
+                <div class="manifest-k">name</div><div class="manifest-v">never asked</div>
+                <div class="manifest-k">address</div><div class="manifest-v">never asked</div>
+                <div class="manifest-k">payment KYC</div><div class="manifest-v">x402, BTC, XMR — wallet is the customer</div>
+                <div class="manifest-k">full IP</div><div class="manifest-v">only /64 prefix, sha256-hashed</div>
+                <div class="manifest-k">VM contents</div><div class="manifest-v">bare VM; no agent, no introspection</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">jurisdiction & repos</span>
+        <h2>Who, where, and what's public.</h2>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <span class="num">01</span>
+            <h3>Operator</h3>
+            <p>Solo operator in the Netherlands. Customer-facing identity is <code>hyrule.host</code>; infrastructure identity is <code>servify.network</code>; routing identity is <code>as215932.net</code>.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">02</span>
+            <h3>Compute jurisdiction</h3>
+            <p>XCP-NG host at OVH France. Service VMs all live on that same host. Customer VMs are isolated by VRF.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">03</span>
+            <h3>Public repos</h3>
+            <p>The full infra config lives under <a href="https://github.com/AS215932"><code>github.com/AS215932</code></a>. Hyrule Cloud's API and frontend are open-source companions.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">04</span>
+            <h3>Reachable</h3>
+            <p>x402 service manifest at <code>/.well-known/x402.json</code>. <code>llms.txt</code> at <code>/llms.txt</code>. PGP, .onion mirror, status page on the way.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">deploy</span>
+        <h2>Now that you've seen the infra, ship something on it.</h2>
+        <div class="cta-actions">
+            <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
+            <a href="/faq" class="btn btn-secondary btn-lg">Read the FAQ</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Sign up — Hyrule Cloud{% endblock %}
+{% block meta_description %}Sign up for a Hyrule Cloud account. No email, no PII — just a random handle and a password you set.{% endblock %}
+
+{% block content %}
+<section class="container page-section">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <span class="here">sign up</span>
+            </div>
+            <span class="panel-label">signup</span>
+            <h1>No email. No phone. No PII.</h1>
+            <p class="hero-blurb">
+                We generate a random handle (<code>H&lt;10 hex&gt;</code>). You pick a password.
+                That's the whole account. If you lose the password AND the recovery code, the
+                account is unrecoverable — we cannot reset it for you.
+            </p>
+        </div>
+    </div>
+
+    <div class="mini-card" style="max-width:560px;padding:24px;margin-top:24px">
+        {% if error %}
+        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/signup">
+            <div class="form-section">
+                <label for="password"><strong>Password</strong> <small>(min 12 chars; use a passphrase)</small></label>
+                <input id="password" name="password" type="password" required minlength="12" autocomplete="new-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="password_confirm"><strong>Confirm password</strong></label>
+                <input id="password_confirm" name="password_confirm" type="password" required minlength="12" autocomplete="new-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+                <a href="/login" class="btn btn-ghost btn-xs">Already have an account?</a>
+                <button type="submit" class="btn btn-primary">Create account</button>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

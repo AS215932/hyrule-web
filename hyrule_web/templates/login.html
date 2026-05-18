@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Login — Hyrule Cloud{% endblock %}
+{% block meta_description %}Log in to your Hyrule Cloud dashboard.{% endblock %}
+
+{% block content %}
+<section class="container page-section">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <span class="here">login</span>
+            </div>
+            <span class="panel-label">login</span>
+            <h1>Log in.</h1>
+            <p class="hero-blurb">No email recovery — if you lose your password, use your <a href="/recover">recovery code</a>.</p>
+        </div>
+    </div>
+
+    <div class="mini-card" style="max-width:480px;padding:24px;margin-top:24px">
+        {% if error %}
+        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login">
+            <div class="form-section">
+                <label for="account_id"><strong>Account ID</strong></label>
+                <input id="account_id" name="account_id" type="text" required minlength="11" maxlength="11"
+                       pattern="H[0-9A-Fa-f]{10}" placeholder="H0123456789" autocomplete="username"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace;text-transform:uppercase">
+            </div>
+            <div class="form-section">
+                <label for="password"><strong>Password</strong></label>
+                <input id="password" name="password" type="password" required autocomplete="current-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+                <a href="/signup" class="btn btn-ghost btn-xs">New here? Sign up</a>
+                <button type="submit" class="btn btn-primary">Log in</button>
+            </div>
+            <div style="margin-top:12px;text-align:right">
+                <a href="/recover" style="font-size:.85em;color:var(--text-soft)">Forgot password?</a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

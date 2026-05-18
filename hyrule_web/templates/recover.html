@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Password recovery — Hyrule Cloud{% endblock %}
+{% block meta_description %}Reset your Hyrule Cloud password using your one-time recovery code.{% endblock %}
+
+{% block content %}
+<section class="container page-section">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <span class="here">recover</span>
+            </div>
+            <span class="panel-label">recover</span>
+            <h1>Password recovery.</h1>
+            <p class="hero-blurb">
+                Use the recovery code we showed you at signup. The code is single-use; on
+                success we revoke all sessions and issue a fresh code (save the new one too).
+            </p>
+        </div>
+    </div>
+
+    <div class="mini-card" style="max-width:560px;padding:24px;margin-top:24px">
+        {% if error %}
+        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="payment-status payment-ok" style="margin-bottom:16px">
+            Password reset. Save this new recovery code:
+            <div class="kv" style="margin-top:8px"><span class="k">code</span><span class="v"><code style="word-break:break-all">{{ success.new_recovery_code }}</code></span></div>
+            <a href="/login" class="btn btn-primary btn-xs" style="margin-top:12px">Continue to login</a>
+        </div>
+        {% else %}
+        <form method="post" action="/recover">
+            <div class="form-section">
+                <label for="account_id"><strong>Account ID</strong></label>
+                <input id="account_id" name="account_id" type="text" required minlength="11" maxlength="11"
+                       pattern="H[0-9A-Fa-f]{10}" placeholder="H0123456789"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace;text-transform:uppercase">
+            </div>
+            <div class="form-section">
+                <label for="recovery_code"><strong>Recovery code</strong></label>
+                <input id="recovery_code" name="recovery_code" type="text" required
+                       placeholder="hyr-rec-..."
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="new_password"><strong>New password</strong> <small>(min 12 chars)</small></label>
+                <input id="new_password" name="new_password" type="password" required minlength="12"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="new_password_confirm"><strong>Confirm new password</strong></label>
+                <input id="new_password_confirm" name="new_password_confirm" type="password" required minlength="12"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+                <a href="/login" class="btn btn-ghost btn-xs">Back to login</a>
+                <button type="submit" class="btn btn-primary">Reset password</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
