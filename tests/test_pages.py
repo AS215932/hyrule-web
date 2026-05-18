@@ -20,9 +20,15 @@ def test_index(client: TestClient) -> None:
     _assert_html_with_canonical(r)
 
 
-def test_dashboard(client: TestClient) -> None:
-    r = client.get("/dashboard")
-    _assert_html_with_canonical(r)
+def test_dashboard_redirects_to_login_when_not_authed(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: /dashboard hits backend /v1/me. Without a session, backend
+    returns 401 and the page handler redirects to /login."""
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(401))
+    r = client.get("/dashboard", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/login"
 
 
 def test_services_uses_api_data_when_present(

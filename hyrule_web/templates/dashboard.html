@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Hyrule Cloud{% endblock %}
+{% block meta_description %}Manage your Hyrule Cloud VMs, claim anonymous orders, and rotate credentials.{% endblock %}
+
 {% block content %}
 <section class="container">
     <div class="page-hero">
@@ -7,9 +9,124 @@
             <div class="crumbs">
                 <a href="/">~</a><span class="sep">/</span><span class="here">dashboard</span>
             </div>
-            <span class="panel-label">Dashboard</span>
-            <h1>Manage your Virtual Machines</h1>
+            <span class="panel-label">dashboard</span>
+            <h1>Your VMs.</h1>
+            {% if me %}
+            <p class="hero-blurb">
+                Account <code>{{ me.account_id }}</code> ·
+                {{ me.vm_count }} active VM{{ '' if me.vm_count == 1 else 's' }} ·
+                member since {{ me.created_at[:10] }}
+            </p>
+            {% endif %}
         </div>
+        <div class="hero-side-card">
+            <form method="post" action="/logout" style="margin:0">
+                <button type="submit" class="btn btn-ghost btn-xs">Log out</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+{% if error %}
+<section class="container page-section">
+    <div class="payment-status payment-error">{{ error }}</div>
+</section>
+{% endif %}
+
+<section class="container page-section">
+    <h2 style="margin-bottom:12px">Active VMs</h2>
+    {% if vms %}
+    <div class="mini-card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;font-family:JetBrains Mono,monospace;font-size:.9em">
+            <thead>
+                <tr style="background:rgba(255,255,255,0.04);text-align:left">
+                    <th style="padding:10px 12px">vm_id</th>
+                    <th style="padding:10px 12px">status</th>
+                    <th style="padding:10px 12px">os</th>
+                    <th style="padding:10px 12px">size</th>
+                    <th style="padding:10px 12px">ipv6</th>
+                    <th style="padding:10px 12px">expires</th>
+                    <th style="padding:10px 12px">actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vm in vms %}
+                <tr style="border-top:1px solid rgba(255,255,255,0.06)">
+                    <td style="padding:10px 12px"><code style="font-size:.85em">{{ vm.vm_id }}</code></td>
+                    <td style="padding:10px 12px">
+                        <span class="status-pill">{{ vm.status }}</span>
+                    </td>
+                    <td style="padding:10px 12px">{{ vm.os or '—' }}</td>
+                    <td style="padding:10px 12px">{{ vm.size or '—' }}</td>
+                    <td style="padding:10px 12px"><code style="font-size:.85em">{{ vm.ipv6 or '—' }}</code></td>
+                    <td style="padding:10px 12px">{{ (vm.expires_at[:10] if vm.expires_at else '—') }}</td>
+                    <td style="padding:10px 12px;white-space:nowrap">
+                        <a href="/order/status/{{ vm.vm_id }}" class="btn btn-ghost btn-xs">view</a>
+                        <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/reboot" style="display:inline">
+                            <button class="btn btn-secondary btn-xs" type="submit">reboot</button>
+                        </form>
+                        <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/destroy" style="display:inline"
+                              onsubmit="return confirm('Destroy {{ vm.vm_id }}? This cannot be undone.')">
+                            <button class="btn btn-ghost btn-xs" type="submit">destroy</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="mini-card" style="padding:24px;text-align:center;color:var(--text-soft)">
+        <p>No VMs yet. <a href="/order">Order one →</a></p>
+        <p style="font-size:.9em;margin-top:8px">
+            Already have an anon-checkout VM? <a href="#claim">Claim it below</a> with the management token.
+        </p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="container page-section" id="claim">
+    <h2 style="margin-bottom:12px">Claim an anonymous VM</h2>
+    <div class="mini-card" style="max-width:640px;padding:20px">
+        <p style="color:var(--text-soft);margin:0 0 16px">
+            Paste the <code>vm_id</code> and management token from the anon checkout success page. Once claimed, the VM moves to this account and the token is burned.
+        </p>
+        <form method="post" action="/dashboard/claim">
+            <div class="form-section">
+                <label for="claim_vm_id"><strong>VM ID</strong></label>
+                <input id="claim_vm_id" name="vm_id" required placeholder="vm_..."
+                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="claim_token"><strong>Management token</strong></label>
+                <input id="claim_token" name="token" required placeholder="hyr_vm_..."
+                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+            </div>
+            <button type="submit" class="btn btn-primary btn-xs">Claim VM</button>
+        </form>
+    </div>
+</section>
+
+<section class="container page-section">
+    <h2 style="margin-bottom:12px">Security</h2>
+    <div class="mini-card" style="max-width:640px;padding:20px">
+        <h4 style="margin-top:0">Change password</h4>
+        <form method="post" action="/dashboard/password">
+            <div class="form-section">
+                <label for="cur_pw"><strong>Current password</strong></label>
+                <input id="cur_pw" name="current_password" type="password" required
+                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="new_pw"><strong>New password</strong> <small>(min 12 chars)</small></label>
+                <input id="new_pw" name="new_password" type="password" required minlength="12"
+                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+            </div>
+            <button type="submit" class="btn btn-secondary btn-xs">Change password</button>
+        </form>
+        <p style="color:var(--text-soft);font-size:.85em;margin-top:14px">
+            Changing your password revokes all other active sessions on this account.
+        </p>
     </div>
 </section>
 {% endblock %}

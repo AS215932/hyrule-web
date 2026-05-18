@@ -75,9 +75,18 @@
                 <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}><span class="nav-num">02</span><span>Services</span></a>
                 <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Deploy</span></a>
                 <a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Status</span></a>
+                {% if request.cookies.get('hyr_sess') %}
+                <a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Dashboard</span></a>
+                {% else %}
+                <a href="/login"{% if request.url.path == '/login' or request.url.path == '/signup' %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Login</span></a>
+                {% endif %}
             </nav>
             <div class="header-tools">
-                <span class="status-pill" title="API healthy">api · 24ms</span>
+                {% if runtime and runtime.api_p50_ms is not none %}
+                <span class="status-pill" title="API p50 latency — per-worker rolling window">api · {{ runtime.api_p50_ms }}ms</span>
+                {% else %}
+                <span class="status-pill" title="API latency unknown">api · —</span>
+                {% endif %}
                 <button class="cmdk-trigger" type="button" data-cmdk-trigger aria-label="Open command palette">
                     <span class="cmdk-glyph">⌕</span>
                     <span>jump to…</span>
@@ -123,21 +132,26 @@
                     <a href="/">Overview</a>
                     <a href="/services">Services</a>
                     <a href="/order">Deploy</a>
-                    <a href="/order/status">Status</a>
+                    {% if request.cookies.get('hyr_sess') %}
+                    <a href="/dashboard">Dashboard</a>
+                    {% else %}
+                    <a href="/login">Login</a>
+                    <a href="/signup">Sign up</a>
+                    {% endif %}
                 </div>
                 <div class="footer-col">
-                    <h5>Developers</h5>
-                    <a href="#">Pricing API</a>
-                    <a href="#">REST API</a>
-                    <a href="#">x402 spec</a>
-                    <a href="#">CLI <code>srv</code></a>
+                    <h5>Open</h5>
+                    <a href="/transparency">Transparency</a>
+                    <a href="/faq">FAQ</a>
+                    <a href="/llms.txt"><code>llms.txt</code></a>
+                    <a href="/sitemap.xml">Sitemap</a>
                 </div>
                 <div class="footer-col">
                     <h5>Network</h5>
                     <a href="https://as215932.net/">AS215932</a>
-                    <a href="#">Network status</a>
-                    <a href="#">PGP key</a>
-                    <a href="#">.onion mirror</a>
+                    <a href="/transparency">Infra inventory</a>
+                    <a href="/.well-known/x402.json">x402 manifest</a>
+                    <a href="/transparency">.onion mirror (TBD)</a>
                 </div>
             </div>
             <pre class="ascii">  ┌─ srv ─────────────────────────────────────────────────────────────────────┐

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Hyrule Cloud — bare-metal VMs, crypto-native{% endblock %}
+{% block title %}Hyrule Cloud — no-KYC bare-metal VMs on AS215932{% endblock %}
+{% block meta_description %}IPv6-native bare-metal VMs on AS215932. No email, no phone, no PII. Pay with USDC, BTC, or XMR. Root SSH in ~60 seconds.{% endblock %}
 
 {% block content %}
 <section class="container hero">
@@ -7,19 +8,19 @@
         <div class="panel hero-main">
             <span class="hero-tag">
                 <span class="tag-dot">▲</span>
-                <span>srv://hyrule-net · Agentic AI enabled, MCP supported compute</span>
+                <span>srv://hyrule-net · AS215932 · IPv6-native · x402-ready</span>
             </span>
-            <h1 class="hero-title">Bare-metal VMs.<br><em class="pink">Crypto-native checkout.</em><br>Root in 60 seconds.</h1>
-            <p class="hero-blurb">Hyrule Cloud hands you root, IPv6, and a single-shot x402 USDC checkout. The website is a thin shell over the API your automation already wants to call.</p>
+            <h1 class="hero-title">No email. No phone.<br><em class="pink">No PII.</em><br>Just a VM.</h1>
+            <p class="hero-blurb">Hyrule Cloud doesn't ask who you are because we never wanted to know. Random handle and a password you set — or pay with crypto and skip the account altogether. We hand you root, an IPv6, and an SSH prompt.</p>
             <div class="hero-actions">
                 <a href="/order" class="btn btn-primary btn-lg"><span>Deploy a VM</span> <span aria-hidden="true">→</span></a>
                 <a href="/services" class="btn btn-secondary btn-lg">Browse plans</a>
-                <a href="/order?size=xs" class="btn btn-ghost"><code>$0.05/day starter →</code></a>
+                <a href="/transparency" class="btn btn-ghost"><code>see the infra →</code></a>
             </div>
             <div class="hero-stats">
                 <div class="hero-stat">
-                    <span class="hero-stat-num"><em>~</em>60s</span>
-                    <span class="hero-stat-label">to root prompt</span>
+                    <span class="hero-stat-num">{% if runtime and runtime.avg_provision_seconds %}<em>~</em>{{ runtime.avg_provision_seconds }}s{% else %}<em>~</em>60s{% endif %}</span>
+                    <span class="hero-stat-label">avg to root prompt</span>
                 </div>
                 <div class="hero-stat">
                     <span class="hero-stat-num">$0.05<em>/d</em></span>
@@ -45,16 +46,16 @@
                     <div class="t-line"><span class="prompt">·</span><span class="output">awaiting wallet signature…</span></div>
                     <div class="t-line"><span class="prompt">✓</span><span class="output ok">x402 settled · gas covered</span></div>
                     <div class="t-line"><span class="prompt">✓</span><span class="output ok">vm-7c4a provisioning</span></div>
-                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">ipv6 2a0e:1c0:cafe::7c4a</span></div>
+                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">ipv6 2a0c:b641:b51:7c4a::1</span></div>
                     <div class="t-line t-cursor"><span class="prompt">$</span><span class="output">ssh root@vm-7c4a.deploy.hyrule.host</span></div>
                 </div>
             </div>
             <div class="mini-card">
-                <h4>runtime snapshot</h4>
-                <div class="row"><span class="k">api latency</span><span class="v">{{ runtime.api_ms if runtime else 24 }}ms</span></div>
-                <div class="row"><span class="k">build queue</span><span class="v">{{ runtime.queue if runtime else 3 }} jobs</span></div>
-                <div class="row"><span class="k">avg provision</span><span class="v">{{ runtime.avg_provision if runtime else 58 }}s</span></div>
-                <div class="row"><span class="k">live machines</span><span class="v">{{ "{:,}".format(runtime.live_vms) if runtime else "1,284" }}</span></div>
+                <h4>runtime snapshot <small style="color:var(--text-soft);font-weight:normal">· {{ runtime.api_p50_source if runtime else "fallback" }}</small></h4>
+                <div class="row"><span class="k">api p50</span><span class="v">{% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">build queue</span><span class="v">{% if runtime and runtime.build_queue is not none %}{{ runtime.build_queue }} jobs{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">avg provision</span><span class="v">{% if runtime and runtime.avg_provision_seconds is not none %}{{ runtime.avg_provision_seconds }}s{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">live machines</span><span class="v">{% if runtime and runtime.live_vms is not none %}{{ "{:,}".format(runtime.live_vms) }}{% else %}—{% endif %}</span></div>
             </div>
         </div>
     </div>
@@ -62,29 +63,39 @@
 
 <section class="container page-section">
     <div class="section-heading">
-        <span class="panel-label">why teams pick us</span>
-        <h2>Built like an operations tool, not a marketing site.</h2>
+        <span class="panel-label">infra truth</span>
+        <h2>We run our own ASN. Not a reseller.</h2>
     </div>
     <div class="feature-grid">
         <div class="feature-card">
             <span class="num">01</span>
-            <h3>Wallet-native checkout</h3>
-            <p>Pay USDC on Base via x402. The flow stays in-browser; gas is covered.</p>
+            <h3>Our own ASN</h3>
+            <p>AS215932 on RIPE. Prefix <code>2a0c:b641:b50::/44</code>. Transit via AS34872 + AS210233. Routing policy lives in this same repo.</p>
         </div>
         <div class="feature-card">
             <span class="num">02</span>
-            <h3>API-first by default</h3>
-            <p>The website is a thin shell over the API your automation already wants.</p>
+            <h3>IPv6-native + NAT64</h3>
+            <p>Every VM gets a routable /128 inside <code>2a0c:b641:b51::/48</code>. NAT64 + DNS64 on rtr reaches IPv4 destinations transparently.</p>
         </div>
         <div class="feature-card">
             <span class="num">03</span>
-            <h3>Root means root</h3>
-            <p>No buildpacks, no managed runtime, no synthetic guardrails. Own the stack.</p>
+            <h3>Boring open stack</h3>
+            <p>FRR, Knot, XCP-NG, Caddy, OpenBSD, nftables, WireGuard, Prometheus, Vault. No proprietary control plane. <a href="/transparency">See the inventory →</a></p>
         </div>
         <div class="feature-card">
             <span class="num">04</span>
-            <h3>Daily pricing</h3>
-            <p>Every plan is per-day. No contract-shaped surprises, no minimums.</p>
+            <h3>Crypto-native, no KYC</h3>
+            <p>USDC on facilitator-verified chains, plus BTC and XMR. The chain list is fetched from the backend at order time — never hardcoded in the UI.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">05</span>
+            <h3>x402 for agents</h3>
+            <p>The API ships a `/.well-known/x402.json` manifest. Agents can discover, price, and pay per-call. <code>POST /v1/vm/create</code> with an `X-Payment` header is the whole flow.</p>
+        </div>
+        <div class="feature-card">
+            <span class="num">06</span>
+            <h3>Solo-operated, transparent</h3>
+            <p>One operator in NL, compute in OVH FR, routing across Servperso NL+DE. Every config is in a public-shaped repo. <a href="/faq">Read the FAQ →</a></p>
         </div>
     </div>
 </section>
@@ -96,7 +107,7 @@
             <h2>Pick the footprint and keep moving.</h2>
         </div>
         <div class="heading-side">
-            All prices are in USDC, billed daily. Provisioning, DNS subdomain, and wallet checkout are included. Resize at any time by extending or destroying the VM.
+            All prices are in USD, billed daily. Pay USDC (Base, Polygon, Arbitrum), BTC, or XMR at checkout. No account required.
         </div>
     </div>
     {% include "_tier_grid.html" %}
@@ -116,15 +127,15 @@
         </div>
         <div class="step">
             <span class="step-num">02</span>
-            <h3 class="step-title">Sign the payment</h3>
-            <p class="step-body">Connect a browser wallet, review the x402 request, sign a gasless USDC authorization.</p>
-            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009)</div>
+            <h3 class="step-title">Pay your way</h3>
+            <p class="step-body">USDC via x402 (gasless signature) or send BTC/XMR to a one-time deposit address. Overpay is fine; underpay queues for review.</p>
+            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009) · btc:bc1q… · xmr:8B…</div>
         </div>
         <div class="step">
             <span class="step-num">03</span>
-            <h3 class="step-title">Track the build</h3>
-            <p class="step-body">Status updates in-place until the VM is ready and your SSH command is live.</p>
-            <div class="step-cmd"><span class="prompt">▸</span> vm.7c4a → READY (58s)</div>
+            <h3 class="step-title">Save your one-time URL</h3>
+            <p class="step-body">Anon orders return a save-once management link. Want a dashboard? Sign up with a random handle — still no email.</p>
+            <div class="step-cmd"><span class="prompt">▸</span> /order/manage/vm_…?token=hyr_vm_…</div>
         </div>
     </div>
 </section>
@@ -136,12 +147,12 @@
     </div>
     <div class="api-preview">
         <div class="api-side">
-            <h3>Native x402 and crypto payments with no KYC.</h3>
+            <h3>x402 + multi-rail crypto. No KYC, no API tickets to file.</h3>
             <p>The website mirrors the public API. Anything you can click here, an agent can POST.</p>
-            <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm</code></span></div>
-            <div class="row"><span class="k">Auth</span><span><code>X-Payment</code> · x402</span></div>
-            <div class="row"><span class="k">Settlement</span><span>USDC · Base · gasless</span></div>
-            <div class="row"><span class="k">Latency</span><span>p50 24ms · p99 110ms</span></div>
+            <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
+            <div class="row"><span class="k">Auth</span><span><code>X-Payment</code> · x402 (EVM) or scoped API key (D)</span></div>
+            <div class="row"><span class="k">Settlement</span><span>USDC · Base · Polygon · Arbitrum · gasless</span></div>
+            <div class="row"><span class="k">Latency</span><span>p50 {% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %} <small style="color:var(--text-soft)">· per-worker</small></span></div>
         </div>
         <div class="api-code" data-api-tabs>
             <div class="api-code-tabs">
@@ -151,24 +162,24 @@
             </div>
             <div data-tab-panel="curl">
                 <div><span class="pcom"># deploy in one shot</span></div>
-                <div><span class="pmeth">curl</span> <span class="ppath">https://cloud.hyrule.host/v1/vm</span> \</div>
+                <div><span class="pmeth">curl</span> <span class="ppath">https://cloud.hyrule.host/v1/vm/create</span> \</div>
                 <div>&nbsp;&nbsp;-H <span class="pstr">"X-Payment: $(srv pay 3.00 --base usdc)"</span> \</div>
-                <div>&nbsp;&nbsp;-d <span class="pstr">'{"size":"sm","days":30,"os":"debian-13","ssh_pubkey":"…"}'</span></div>
+                <div>&nbsp;&nbsp;-d <span class="pstr">'{"size":"sm","duration_days":30,"os":"debian-13","ssh_pubkey":"…"}'</span></div>
             </div>
             <div data-tab-panel="js" hidden>
                 <div><span class="pcom">// agent-friendly TS client</span></div>
                 <div><span class="pmeth">await</span> hyrule.<span class="ppath">vm.create</span>({</div>
                 <div>&nbsp;&nbsp;<span class="pkey">size</span>: <span class="pstr">'sm'</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">days</span>: <span class="pnum">30</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">duration_days</span>: <span class="pnum">30</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">os</span>: <span class="pstr">'debian-13'</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">ssh_pub</span>: pubkey,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">ssh_pubkey</span>: pubkey,</div>
                 <div>}, { signer });</div>
             </div>
             <div data-tab-panel="py" hidden>
                 <div><span class="pcom"># python — same call</span></div>
                 <div><span class="pmeth">vm</span> = hyrule.vm.create(</div>
                 <div>&nbsp;&nbsp;<span class="pkey">size</span>=<span class="pstr">"sm"</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">days</span>=<span class="pnum">30</span>,</div>
+                <div>&nbsp;&nbsp;<span class="pkey">duration_days</span>=<span class="pnum">30</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">os</span>=<span class="pstr">"debian-13"</span>,</div>
                 <div>&nbsp;&nbsp;<span class="pkey">ssh_pubkey</span>=key,</div>
                 <div>)</div>
@@ -180,11 +191,11 @@
 <section class="container page-section">
     <div class="cta">
         <span class="panel-label">deploy now</span>
-        <h2>Bring an SSH key and a wallet.</h2>
-        <p>Hyrule Cloud handles the rest — provisioning, DNS, gas. You get root.</p>
+        <h2>Bring an SSH key and a wallet. That's it.</h2>
+        <p>No email confirmation. No KYC form. No business plan. Hyrule Cloud handles provisioning, DNS, gas — you get root.</p>
         <div class="cta-actions">
             <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
-            <a href="/services" class="btn btn-secondary btn-lg">Read the specs</a>
+            <a href="/transparency" class="btn btn-secondary btn-lg">See the infra</a>
         </div>
     </div>
 </section>

@@ -20,7 +20,7 @@
         </div>
         <div class="hero-side-card">
             <span class="panel-label" style="margin-bottom:8px;display:inline-flex">checkout rail</span>
-            <p style="color:var(--text-muted);margin-top:8px;line-height:1.6">Payment uses x402 with USDC on Base. You sign an authorization; gas is handled for you.</p>
+            <p style="color:var(--text-muted);margin-top:8px;line-height:1.6">Payment uses x402 with USDC. Pick any supported EVM chain; you sign one authorization and we settle the transfer.</p>
         </div>
     </div>
 </section>
@@ -77,16 +77,64 @@
             <div class="wallet-card">
                 <span class="panel-label" style="justify-content:center">wallet confirmation</span>
                 <div class="wallet-amount">pay <em>${{ "%.2f"|format(total) }}</em> USDC</div>
-                <form method="post" action="/order/pay" hx-post="/order/pay" hx-target=".wallet-card">
-                    <input type="hidden" name="order_id" value="{{ order.id if order else '' }}">
-                    <button type="submit" class="btn btn-primary btn-lg btn-block" data-pay-button>Pay ${{ "%.2f"|format(total) }} with wallet</button>
+
+                {# Hidden form: payment.js gathers these via FormData. #}
+                <form id="order-data" onsubmit="return false">
+                    <input type="hidden" name="os" value="{{ order.os if order else '' }}">
+                    <input type="hidden" name="size" value="{{ order.size if order else '' }}">
+                    <input type="hidden" name="duration_days" value="{{ order.duration if order else '' }}">
+                    <input type="hidden" name="ssh_pubkey" value="{{ order.ssh_pubkey if order else '' }}">
+                    <input type="hidden" name="hostname" value="{{ order.hostname if order else '' }}">
+                    <input type="hidden" name="domain_mode" value="{{ order.domain_mode if order else 'auto' }}">
+                    <input type="hidden" name="domain" value="{{ order.domain if order else '' }}">
                 </form>
-                <div class="wallet-status">sign once · gasless · USDC on Base</div>
-                <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Hyrule Cloud covers the gas.</p>
+
+                {# Block E: payment-method tabs. Radio inputs keep this a
+                   zero-JS-framework toggle — payment.js reads .checked. #}
+                <div class="form-section" style="margin:0 0 12px">
+                    <span class="panel-label" style="display:block;margin-bottom:6px">payment method</span>
+                    <div role="tablist" style="display:flex;gap:6px;flex-wrap:wrap">
+                        <label style="flex:1;min-width:90px;text-align:center;padding:8px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:.85rem">
+                            <input type="radio" name="payment-method" value="evm" checked style="margin-right:4px">USDC (EVM)
+                        </label>
+                        <label style="flex:1;min-width:90px;text-align:center;padding:8px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:.85rem">
+                            <input type="radio" name="payment-method" value="btc" style="margin-right:4px">BTC
+                        </label>
+                        <label style="flex:1;min-width:90px;text-align:center;padding:8px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:.85rem">
+                            <input type="radio" name="payment-method" value="xmr" style="margin-right:4px">XMR
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section" style="margin:0 0 12px">
+                    <label for="payment-chain" style="display:block;font-size:.85rem;color:var(--text-soft);margin-bottom:4px">Pay on</label>
+                    <select id="payment-chain" style="width:100%;padding:8px;font-family:JetBrains Mono,monospace;background:rgba(0,0,0,0.3);color:var(--text);border:1px solid rgba(255,255,255,0.1);border-radius:8px" disabled>
+                        <option>loading networks…</option>
+                    </select>
+                </div>
+
+                <button type="button" id="pay-btn" class="btn btn-primary btn-lg btn-block" disabled>
+                    Pay ${{ "%.2f"|format(total) }} USDC
+                </button>
+                <div id="payment-status" class="payment-status" role="status" aria-live="polite"></div>
+
+                {# Block E: native-crypto deposit card is rendered into here
+                   by payment-native.js when BTC/XMR is selected and pay-btn
+                   is pressed. Empty when in EVM mode. #}
+                <div id="payment-native-render" style="display:none;margin-top:12px"></div>
+
+                <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009 for USDC. For BTC/XMR you broadcast from your own wallet; overpay is fine, late-paid re-quotes within 1% slippage.</p>
             </div>
 
             <a href="/order" class="btn btn-secondary">← Back to order form</a>
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/payment-evm.js" defer></script>
+<script src="/static/payment-svm.js" defer></script>
+<script src="/static/payment-native.js" defer></script>
+<script src="/static/payment.js" defer></script>
 {% endblock %}

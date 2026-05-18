@@ -5,6 +5,39 @@
 {% set is_ready = vm and vm.status == 'ready' %}
 {% set tier = vm_tiers[vm.size] if vm and vm.size in vm_tiers else vm_tiers['sm'] %}
 
+{# Block A0: management-token save-now banner.
+   Hidden by default. The inline JS at the bottom of this template reveals
+   the block iff sessionStorage has a token for this vm_id (i.e. this is
+   the user's very first view of the status page after order completion). #}
+<section class="container" id="mgmt-save-banner" style="display:none">
+    <div class="mini-card" style="padding:20px;border:2px solid var(--warn,#f59e0b);background:rgba(245,158,11,0.05)">
+        <h3 style="margin-top:0;color:var(--warn,#f59e0b)">⚠ Save your management URL — it cannot be shown again</h3>
+        <p style="color:var(--text-soft);margin:8px 0 16px">
+            You ordered anonymously, so this URL is the ONLY way to reboot, extend, or destroy this VM.
+            We do not store it in cleartext — if you lose it, you can still see the VM's status page,
+            but you cannot manage it. Save it now.
+        </p>
+        <div class="kv-block" style="margin-bottom:12px">
+            <div class="kv">
+                <span class="k">management url</span>
+                <span class="v"><code id="mgmt-url" style="word-break:break-all"></code></span>
+                <button class="copy btn-xs" data-mgmt-copy="url">copy</button>
+            </div>
+            <div class="kv">
+                <span class="k">token only</span>
+                <span class="v"><code id="mgmt-token" style="word-break:break-all"></code></span>
+                <button class="copy btn-xs" data-mgmt-copy="token">copy</button>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button id="mgmt-download" class="btn btn-secondary btn-xs">Download as .txt</button>
+            <button id="mgmt-dismiss" class="btn btn-ghost btn-xs" disabled>
+                <input type="checkbox" id="mgmt-confirm" style="margin-right:6px"> I have saved it
+            </button>
+        </div>
+    </div>
+</section>
+
 <section class="container">
     <div class="page-hero">
         <div>
@@ -71,4 +104,74 @@
     </div>
     {% endif %}
 </section>
+
+<script>
+// Block A0: surface the one-time management URL/token from sessionStorage.
+// The vm_id is in the URL path; payment.js wrote the secret under "hyr_vm_mgmt:<vm_id>".
+(function () {
+    var vmId = {{ vm_id|tojson }};
+    var key = "hyr_vm_mgmt:" + vmId;
+    var raw;
+    try { raw = sessionStorage.getItem(key); } catch (e) { return; }
+    if (!raw) return;
+    var stash;
+    try { stash = JSON.parse(raw); } catch (e) { return; }
+    if (!stash || !stash.token) return;
+
+    var banner = document.getElementById("mgmt-save-banner");
+    var urlEl = document.getElementById("mgmt-url");
+    var tokenEl = document.getElementById("mgmt-token");
+    if (!banner || !urlEl || !tokenEl) return;
+
+    urlEl.textContent = stash.url || ("(no URL — present token as ?token=" + stash.token + ")");
+    tokenEl.textContent = stash.token;
+    banner.style.display = "block";
+
+    // Copy buttons
+    Array.prototype.forEach.call(
+        document.querySelectorAll("[data-mgmt-copy]"),
+        function (btn) {
+            btn.addEventListener("click", function () {
+                var what = btn.getAttribute("data-mgmt-copy");
+                var value = what === "url" ? urlEl.textContent : tokenEl.textContent;
+                navigator.clipboard.writeText(value).then(function () {
+                    var orig = btn.textContent;
+                    btn.textContent = "copied";
+                    setTimeout(function () { btn.textContent = orig; }, 1200);
+                });
+            });
+        }
+    );
+
+    // Download as .txt
+    document.getElementById("mgmt-download").addEventListener("click", function () {
+        var content =
+            "Hyrule Cloud VM management credentials\n" +
+            "=====================================\n\n" +
+            "VM ID:           " + vmId + "\n" +
+            "Status URL:      " + window.location.origin + "/order/status/" + vmId + "\n" +
+            "Management URL:  " + (stash.url || "(present token via Authorization: Bearer)") + "\n" +
+            "Management Token: " + stash.token + "\n\n" +
+            "Issued:          " + new Date(stash.issued || Date.now()).toISOString() + "\n\n" +
+            "Keep this safe. We cannot recover it for you. Without this token,\n" +
+            "you cannot reboot/extend/destroy this VM — only view its status.\n";
+        var blob = new Blob([content], { type: "text/plain" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "hyrule-" + vmId + "-credentials.txt";
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    });
+
+    // Gate the dismiss button on the checkbox so users acknowledge they saved.
+    var confirm = document.getElementById("mgmt-confirm");
+    var dismiss = document.getElementById("mgmt-dismiss");
+    confirm.addEventListener("change", function () { dismiss.disabled = !confirm.checked; });
+    dismiss.addEventListener("click", function () {
+        if (!confirm.checked) return;
+        try { sessionStorage.removeItem(key); } catch (e) {}
+        banner.style.display = "none";
+    });
+})();
+</script>
 {% endblock %}

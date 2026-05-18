@@ -65,14 +65,27 @@ def test_proxy_drops_hop_by_hop_and_unknown_headers(
         "/api/pay",
         headers={
             "X-Custom-Random": "leak-me",       # not in allowlist
-            "Authorization": "Bearer secret",   # not in allowlist
         },
         json={},
     )
     assert r.status_code == 200
     seen = route.calls.last.request.headers
     assert "x-custom-random" not in seen
-    assert "authorization" not in seen
+
+
+def test_proxy_forwards_authorization_header(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A0: Bearer auth must be forwarded so management tokens
+    (hyr_vm_...) and future account API keys (hyr_sk_...) reach the backend."""
+    route = mocked_api.delete("/v1/vm/vm-abc").mock(return_value=httpx.Response(200))
+    r = client.delete(
+        "/api/vm/vm-abc",
+        headers={"Authorization": "Bearer hyr_vm_test123"},
+    )
+    assert r.status_code == 200
+    seen = route.calls.last.request.headers
+    assert seen.get("authorization") == "Bearer hyr_vm_test123"
 
 
 def test_proxy_forwards_request_body(
