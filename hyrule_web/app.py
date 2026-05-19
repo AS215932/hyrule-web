@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 import urllib.parse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,8 +13,8 @@ from typing import Annotated, Any
 
 import httpx
 import structlog
-from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -56,10 +57,44 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+# Block B: frontend-side 15s cache so per-page renders never hit the backend
+# in a hot loop. The backend already caches /v1/stats/runtime at 20s; we stack
+# a smaller TTL here so the header pill stays responsive even if the backend
+# is briefly unavailable (the previous value lingers as a stale-on-error
+# fallback).
+_RUNTIME_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_RUNTIME_TTL_SECONDS = 15
+
+
 def _render(request: Request, name: str, **kwargs: Any) -> Response:
-    """Render a template with common context variables."""
+    """Render a template with common context variables.
+
+    Injects the most recent `runtime` value (Block B) into every template so
+    `base.html`'s header pill can render without each handler having to fetch
+    /v1/stats/runtime itself. When the runtime fetch fails the value is None
+    and the template falls back to the `api · —` placeholder.
+    """
     ctx: dict[str, Any] = {"vm_tiers": VM_TIERS, **kwargs}
+    if "runtime" not in ctx:
+        ctx["runtime"] = _RUNTIME_CACHE.get("value")
     return templates.TemplateResponse(request, name, ctx)
+
+
+async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
+    """Pull /v1/stats/runtime, cache for 15s. Stale-on-error: if the fetch
+    fails we serve the last good value rather than punching a hole through
+    to None — better UX than a flicker between a real number and a dash."""
+    now = time.time()
+    cached: dict[str, Any] | None = _RUNTIME_CACHE.get("value")
+    if cached is not None and now < float(_RUNTIME_CACHE["expires_at"]):
+        return cached
+    data = await _fetch_api(request, "/v1/stats/runtime")
+    if data is not None:
+        _RUNTIME_CACHE["value"] = data
+        _RUNTIME_CACHE["expires_at"] = now + _RUNTIME_TTL_SECONDS
+        return data
+    # Hold the last good value past its TTL when the backend is down.
+    return cached
 
 
 async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
@@ -79,6 +114,48 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
     return None
 
 
+async def _api_request(
+    request: Request,
+    path: str,
+    *,
+    method: str = "GET",
+    json: dict[str, Any] | None = None,
+    forward_cookie: bool = True,
+) -> httpx.Response | None:
+    """Issue a backend call from a server-side handler, optionally forwarding
+    the browser's session cookie so account-scoped endpoints work.
+
+    Returns the raw httpx.Response (not just parsed JSON) so the caller can
+    inspect status codes and pass Set-Cookie back via _copy_set_cookie."""
+    client: httpx.AsyncClient = request.app.state.http
+    headers: dict[str, str] = {}
+    if forward_cookie:
+        cookie = request.headers.get("cookie")
+        if cookie:
+            headers["cookie"] = cookie
+    try:
+        return await client.request(method=method, url=path, headers=headers, json=json)
+    except httpx.HTTPError as exc:
+        log.error("api_request_failed", path=path, method=method, error=str(exc))
+        return None
+
+
+def _copy_set_cookie(backend_resp: httpx.Response, response: Response) -> None:
+    """Copy backend Set-Cookie headers onto our outgoing response so login/
+    register sessions reach the browser. Preserves multiple Set-Cookie values
+    via raw_headers (a single Response.headers dict would collapse duplicates)."""
+    for k, v in backend_resp.headers.multi_items():
+        if k.lower() == "set-cookie":
+            response.raw_headers.append((b"set-cookie", v.encode("latin-1")))
+
+
+def _require_auth_ui() -> None:
+    """Wave 2 kill-switch — flip HYRULE_WEB_ENABLE_AUTH_UI=false to dark the
+    /signup /login /recover /dashboard surface without redeploying."""
+    if not settings.enable_auth_ui:
+        raise HTTPException(status_code=404)
+
+
 # ---------------------------------------------------------------------------
 # Pages
 # ---------------------------------------------------------------------------
@@ -86,15 +163,11 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
 
 @app.get("/", response_class=HTMLResponse)
 async def page_index(request: Request) -> Response:
-    runtime = {
-        "api_ms": 24, "queue": 3, "avg_provision": 58, "live_vms": 1284
-    }
+    """Block B: homepage pulls live runtime stats. Replaces the hardcoded
+    `api · 24ms / queue 3 / 58s / 1284 VMs` block with values from the
+    backend, cached for 15s and stale-on-error."""
+    runtime = await _refresh_runtime(request)
     return _render(request, "index.html", runtime=runtime)
-
-@app.get("/dashboard", response_class=HTMLResponse)
-async def page_dashboard(request: Request) -> Response:
-    return _render(request, "dashboard.html")
-
 
 
 @app.get("/services", response_class=HTMLResponse)
@@ -171,6 +244,222 @@ async def page_status(request: Request, vm_id: str) -> Response:
 
 
 # ---------------------------------------------------------------------------
+# Block A1 — auth pages (signup / login / logout / recover / dashboard)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/signup", response_class=HTMLResponse)
+async def page_signup(request: Request) -> Response:
+    _require_auth_ui()
+    return _render(request, "signup.html", error=None)
+
+
+@app.post("/signup", response_class=HTMLResponse)
+async def do_signup(
+    request: Request,
+    password: Annotated[str, Form()],
+    password_confirm: Annotated[str, Form()],
+) -> Response:
+    """Mirror the backend's password rules (min 12 chars) before round-tripping
+    so we can return an inline error without burning the per-IP signup quota
+    on /v1/auth/register."""
+    _require_auth_ui()
+    if password != password_confirm:
+        return _render(request, "signup.html", error="Passwords do not match.")
+    if len(password) < 12:
+        return _render(request, "signup.html", error="Password must be at least 12 characters.")
+
+    backend = await _api_request(
+        request, "/v1/auth/register", method="POST", json={"password": password}
+    )
+    if backend is None:
+        return _render(request, "signup.html", error="Backend unreachable. Try again.")
+    if backend.status_code == 429:
+        return _render(
+            request, "signup.html",
+            error="Too many signups from your network; try later.",
+        )
+    if backend.status_code != 200:
+        return _render(request, "signup.html", error="Signup failed. Try again.")
+
+    body = backend.json()
+    # signup_success is the *only* place the recovery code is ever shown.
+    # Render via _render so the Set-Cookie from /v1/auth/register can be
+    # attached to the same response object (browser is now logged in).
+    rendered = _render(
+        request, "signup_success.html",
+        account_id=body["account_id"],
+        recovery_code=body["recovery_code"],
+    )
+    _copy_set_cookie(backend, rendered)
+    return rendered
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def page_login(request: Request) -> Response:
+    _require_auth_ui()
+    return _render(request, "login.html", error=None)
+
+
+@app.post("/login", response_class=HTMLResponse)
+async def do_login(
+    request: Request,
+    account_id: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    backend = await _api_request(
+        request, "/v1/auth/login", method="POST",
+        json={"account_id": account_id.strip().upper(), "password": password},
+    )
+    if backend is None:
+        return _render(request, "login.html", error="Backend unreachable.")
+    if backend.status_code == 429:
+        return _render(request, "login.html", error="Too many login attempts; try later.")
+    if backend.status_code != 200:
+        return _render(request, "login.html", error="Invalid credentials.")
+
+    redirect = RedirectResponse("/dashboard", status_code=303)
+    _copy_set_cookie(backend, redirect)
+    return redirect
+
+
+@app.post("/logout", response_class=HTMLResponse)
+async def do_logout(request: Request) -> Response:
+    _require_auth_ui()
+    backend = await _api_request(request, "/v1/auth/logout", method="POST")
+    redirect = RedirectResponse("/", status_code=303)
+    # Even if the backend call fails (e.g. session already expired) the
+    # /v1/auth/logout endpoint sets an expiring cookie; forward it so the
+    # browser drops the stale hyr_sess cookie.
+    if backend is not None:
+        _copy_set_cookie(backend, redirect)
+    return redirect
+
+
+@app.get("/recover", response_class=HTMLResponse)
+async def page_recover(request: Request) -> Response:
+    _require_auth_ui()
+    return _render(request, "recover.html", error=None, success=None)
+
+
+@app.post("/recover", response_class=HTMLResponse)
+async def do_recover(
+    request: Request,
+    account_id: Annotated[str, Form()],
+    recovery_code: Annotated[str, Form()],
+    new_password: Annotated[str, Form()],
+    new_password_confirm: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    if new_password != new_password_confirm:
+        return _render(request, "recover.html", error="Passwords do not match.", success=None)
+    if len(new_password) < 12:
+        return _render(
+            request, "recover.html",
+            error="Password must be at least 12 characters.", success=None,
+        )
+
+    backend = await _api_request(
+        request, "/v1/auth/recover/code", method="POST",
+        json={
+            "account_id": account_id.strip().upper(),
+            "recovery_code": recovery_code.strip(),
+            "new_password": new_password,
+        },
+    )
+    if backend is None:
+        return _render(request, "recover.html", error="Backend unreachable.", success=None)
+    if backend.status_code == 429:
+        return _render(
+            request, "recover.html",
+            error="Too many recovery attempts; try later.", success=None,
+        )
+    if backend.status_code != 200:
+        return _render(
+            request, "recover.html",
+            error="Invalid recovery code or account ID.", success=None,
+        )
+
+    body = backend.json()
+    return _render(
+        request, "recover.html",
+        error=None,
+        success={
+            "account_id": body["account_id"],
+            "new_recovery_code": body["new_recovery_code"],
+        },
+    )
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def page_dashboard(request: Request) -> Response:
+    """Renders the signed-in dashboard. /v1/me 401 → redirect to /login. Any
+    other backend failure renders the shell with an error banner so the user
+    can still log out / claim a VM without a forced loop."""
+    _require_auth_ui()
+    me_resp = await _api_request(request, "/v1/me")
+    if me_resp is None or me_resp.status_code == 401:
+        return RedirectResponse("/login", status_code=303)
+    if me_resp.status_code != 200:
+        return _render(
+            request, "dashboard.html",
+            me=None, vms=[], error="Could not load account info.",
+        )
+    me = me_resp.json()
+    vms_resp = await _api_request(request, "/v1/me/vms")
+    vms = vms_resp.json().get("vms", []) if (vms_resp and vms_resp.status_code == 200) else []
+    return _render(request, "dashboard.html", me=me, vms=vms, error=None)
+
+
+# Block A1: dashboard mutation handlers — all server-side, all redirect back
+# to /dashboard on completion so the browser's history stays clean and the
+# user always lands on a fresh table read.
+
+
+@app.post("/dashboard/vms/{vm_id}/reboot")
+async def dash_reboot(request: Request, vm_id: str) -> Response:
+    _require_auth_ui()
+    await _api_request(request, f"/v1/vm/{vm_id}/reboot", method="POST")
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.post("/dashboard/vms/{vm_id}/destroy")
+async def dash_destroy(request: Request, vm_id: str) -> Response:
+    _require_auth_ui()
+    await _api_request(request, f"/v1/vm/{vm_id}", method="DELETE")
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.post("/dashboard/claim")
+async def dash_claim(
+    request: Request,
+    vm_id: Annotated[str, Form()],
+    token: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    await _api_request(
+        request, f"/v1/me/vms/{vm_id.strip()}/claim", method="POST",
+        json={"token": token.strip()},
+    )
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+@app.post("/dashboard/password")
+async def dash_change_password(
+    request: Request,
+    current_password: Annotated[str, Form()],
+    new_password: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    await _api_request(
+        request, "/v1/me/password", method="POST",
+        json={"current_password": current_password, "new_password": new_password},
+    )
+    return RedirectResponse("/dashboard", status_code=303)
+
+
+# ---------------------------------------------------------------------------
 # HTMX partials
 # ---------------------------------------------------------------------------
 
@@ -233,6 +522,12 @@ async def proxy_api(request: Request, path: str) -> Response:
         if lower in (
             "content-type", "accept",
             "x-payment", "x-dev-bypass", "payment-signature",
+            # Block A0: Bearer auth for hyr_vm_ management tokens (and
+            # future hyr_sk_ account API keys in Block D).
+            "authorization",
+            # Block A1: forward session cookies so the backend can resolve
+            # the current account on /me/* calls coming from the browser.
+            "cookie",
         ):
             forward_headers[key] = request.headers[key]
 
@@ -252,16 +547,23 @@ async def proxy_api(request: Request, path: str) -> Response:
             media_type="application/json",
         )
 
-    resp_headers: dict[str, str] = {}
-    for key, value in resp.headers.items():
-        if key.lower() not in ("transfer-encoding", "content-encoding", "content-length"):
-            resp_headers[key] = value
-
-    return Response(
+    # Build the proxied response. Starlette's Response constructor takes a
+    # dict for headers, which collapses duplicates — so we put the standard
+    # headers there and then append any Set-Cookie values via raw_headers,
+    # which preserves multiplicity (login can set hyr_sess + hyr_csrf in one).
+    skip = ("transfer-encoding", "content-encoding", "content-length", "set-cookie")
+    base_headers: dict[str, str] = {
+        k: v for k, v in resp.headers.items() if k.lower() not in skip
+    }
+    proxied = Response(
         content=resp.content,
         status_code=resp.status_code,
-        headers=resp_headers,
+        headers=base_headers,
     )
+    for k, v in resp.headers.multi_items():
+        if k.lower() == "set-cookie":
+            proxied.raw_headers.append((b"set-cookie", v.encode("latin-1")))
+    return proxied
 
 
 # ---------------------------------------------------------------------------

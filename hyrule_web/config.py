@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     port: int = 8080
     debug: bool = False
 
+    # Wave 2 (Block A1): gate the auth UI behind a flag so the deploy can be
+    # rolled back to "templates dark" by flipping HYRULE_WEB_ENABLE_AUTH_UI=false
+    # without redeploying the backend or running a migration. When false the
+    # /signup, /login, /recover, /dashboard routes return 404 and the header
+    # falls back to the pre-Wave-2 nav (no Login / Dashboard pills).
+    enable_auth_ui: bool = True
+
     model_config = {"env_prefix": "HYRULE_WEB_"}
 
 

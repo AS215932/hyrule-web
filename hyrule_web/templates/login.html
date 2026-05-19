@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Log in — Hyrule Cloud{% endblock %}
+{% block meta_description %}Log in to your Hyrule Cloud account.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span><span class="here">login</span>
+            </div>
+            <span class="panel-label">login</span>
+            <h1>Log in.</h1>
+            <p class="hero-blurb">Use your account ID and password.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="mini-card" style="max-width:480px;padding:24px">
+        {% if error %}
+        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/login">
+            <div class="form-section">
+                <label for="aid"><strong>Account ID</strong></label>
+                <input id="aid" name="account_id" required
+                       autocomplete="username" autocapitalize="characters"
+                       placeholder="ACCT_..."
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="pw"><strong>Password</strong></label>
+                <input id="pw" name="password" type="password" required
+                       autocomplete="current-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <button type="submit" class="btn btn-primary">Log in</button>
+        </form>
+        <p style="margin-top:16px;color:var(--text-soft);font-size:.85em">
+            No account? <a href="/signup">Sign up</a>.<br>
+            Lost your password? <a href="/recover">Use recovery code</a>.
+        </p>
+    </div>
+</section>
+{% endblock %}

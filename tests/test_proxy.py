@@ -65,14 +65,60 @@ def test_proxy_drops_hop_by_hop_and_unknown_headers(
         "/api/pay",
         headers={
             "X-Custom-Random": "leak-me",       # not in allowlist
-            "Authorization": "Bearer secret",   # not in allowlist
         },
         json={},
     )
     assert r.status_code == 200
     seen = route.calls.last.request.headers
     assert "x-custom-random" not in seen
-    assert "authorization" not in seen
+
+
+def test_proxy_forwards_authorization_header(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A0: Bearer auth must be forwarded so management tokens
+    (hyr_vm_...) reach the backend. Block D will add hyr_sk_ account keys
+    via the same path — keep the test now so the allowlist doesn't quietly
+    drop them later."""
+    route = mocked_api.delete("/v1/vm/vm-abc").mock(return_value=httpx.Response(200))
+    r = client.delete(
+        "/api/vm/vm-abc",
+        headers={"Authorization": "Bearer hyr_vm_test123"},
+    )
+    assert r.status_code == 200
+    seen = route.calls.last.request.headers
+    assert seen.get("authorization") == "Bearer hyr_vm_test123"
+
+
+def test_proxy_forwards_session_cookie(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: the browser session cookie must reach the backend so
+    /me/* calls (and any future account-scoped endpoint) can resolve the
+    current account. Without this, the dashboard would always 401."""
+    route = mocked_api.get("/v1/me").mock(return_value=httpx.Response(200, json={}))
+    r = client.get("/api/me", headers={"Cookie": "hyr_sess=abc123"})
+    assert r.status_code == 200
+    seen = route.calls.last.request.headers
+    assert "hyr_sess=abc123" in seen.get("cookie", "")
+
+
+def test_proxy_preserves_set_cookie_on_response(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: backend Set-Cookie headers (e.g. session issued at /login)
+    must round-trip to the browser as raw Set-Cookie headers, not be
+    collapsed by Starlette's headers dict."""
+    mocked_api.post("/v1/auth/login").mock(return_value=httpx.Response(
+        200,
+        headers={"set-cookie": "hyr_sess=secret; HttpOnly; Path=/; SameSite=Lax"},
+        json={},
+    ))
+    r = client.post("/api/auth/login", json={"account_id": "x", "password": "y"})
+    assert r.status_code == 200
+    # TestClient exposes Set-Cookie via the `cookies` jar — verify the cookie
+    # actually became a browser cookie, which is the property that matters.
+    assert r.cookies.get("hyr_sess") == "secret"
 
 
 def test_proxy_forwards_request_body(
