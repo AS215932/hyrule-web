@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Account created — Hyrule Cloud{% endblock %}
+{% block meta_description %}Your Hyrule Cloud account has been created. Save your recovery code now.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <a href="/signup">signup</a><span class="sep">/</span>
+                <span class="here">success</span>
+            </div>
+            <span class="panel-label">account created</span>
+            <h1>Save this once — it will not be shown again.</h1>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="mini-card" style="max-width:640px;padding:24px;border:2px solid var(--warn,#c84);background:rgba(200,68,0,0.06)">
+        <h3 style="margin:0 0 12px 0">Your recovery code</h3>
+        <p style="color:var(--text-soft);margin:0 0 16px 0">
+            This code, together with your account ID, lets you reset your password if
+            you lose it. <strong>We cannot recover it for you.</strong>
+            Store it in your password manager now.
+        </p>
+
+        <div class="form-section">
+            <label><strong>Account ID</strong></label>
+            <code id="acct-id" style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px;font-size:1rem">{{ account_id }}</code>
+        </div>
+
+        <div class="form-section">
+            <label><strong>Recovery code</strong></label>
+            <code id="recovery" style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px;font-size:1rem;word-break:break-all">{{ recovery_code }}</code>
+        </div>
+
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <button type="button" class="btn btn-secondary btn-xs"
+                    onclick="navigator.clipboard.writeText(document.getElementById('acct-id').textContent + '\n' + document.getElementById('recovery').textContent);this.textContent='copied';">
+                copy both
+            </button>
+            <a class="btn btn-ghost btn-xs"
+               href="data:text/plain;charset=utf-8,account_id%3D{{ account_id | urlencode }}%0Arecovery_code%3D{{ recovery_code | urlencode }}%0A"
+               download="hyrule-{{ account_id }}-recovery.txt">download .txt</a>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <p style="color:var(--text-soft)">
+        Once you have saved your recovery code,
+        <a href="/dashboard" class="btn btn-primary btn-xs" style="margin-left:8px">go to your dashboard →</a>
+    </p>
+</section>
+{% endblock %}

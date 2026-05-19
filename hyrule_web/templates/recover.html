@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Recover account — Hyrule Cloud{% endblock %}
+{% block meta_description %}Reset your Hyrule Cloud password using your one-time recovery code.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span><span class="here">recover</span>
+            </div>
+            <span class="panel-label">recover</span>
+            <h1>Reset password.</h1>
+            <p class="hero-blurb">
+                Use the recovery code you saved at signup. After a successful reset
+                we issue a fresh recovery code — your old one is burned.
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="mini-card" style="max-width:560px;padding:24px">
+        {% if success %}
+        <div class="payment-status payment-success" style="margin-bottom:16px">
+            Password reset. <strong>Save your new recovery code below — this is the only time it will be shown.</strong>
+        </div>
+        <div class="form-section">
+            <label><strong>Account ID</strong></label>
+            <code style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px">{{ success.account_id }}</code>
+        </div>
+        <div class="form-section">
+            <label><strong>New recovery code</strong></label>
+            <code id="new-rec" style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px;word-break:break-all">{{ success.new_recovery_code }}</code>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+            <button type="button" class="btn btn-secondary btn-xs"
+                    onclick="navigator.clipboard.writeText(document.getElementById('new-rec').textContent);this.textContent='copied';">
+                copy
+            </button>
+            <a class="btn btn-ghost btn-xs"
+               href="data:text/plain;charset=utf-8,{{ success.new_recovery_code | urlencode }}"
+               download="hyrule-{{ success.account_id }}-recovery.txt">download .txt</a>
+        </div>
+        <p><a href="/login" class="btn btn-primary btn-xs">Log in →</a></p>
+        {% else %}
+        {% if error %}
+        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        {% endif %}
+        <form method="post" action="/recover">
+            <div class="form-section">
+                <label for="aid"><strong>Account ID</strong></label>
+                <input id="aid" name="account_id" required
+                       autocapitalize="characters" placeholder="ACCT_..."
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="rec"><strong>Recovery code</strong></label>
+                <input id="rec" name="recovery_code" required
+                       placeholder="hyr-rec-..."
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="newpw"><strong>New password</strong> <small>(min 12 characters)</small></label>
+                <input id="newpw" name="new_password" type="password" required minlength="12"
+                       autocomplete="new-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <div class="form-section">
+                <label for="newpw2"><strong>Confirm new password</strong></label>
+                <input id="newpw2" name="new_password_confirm" type="password" required minlength="12"
+                       autocomplete="new-password"
+                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+            </div>
+            <button type="submit" class="btn btn-primary">Reset password</button>
+        </form>
+        <p style="margin-top:16px;color:var(--text-soft);font-size:.85em">
+            Remembered it? <a href="/login">Log in</a>.
+        </p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

@@ -20,9 +20,63 @@ def test_index(client: TestClient) -> None:
     _assert_html_with_canonical(r)
 
 
-def test_dashboard(client: TestClient) -> None:
+def test_dashboard_redirects_to_login_when_not_authed(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: /dashboard hits backend /v1/me. Without a session the backend
+    returns 401 and the page handler redirects to /login."""
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(401))
+    r = client.get("/dashboard", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/login"
+
+
+def test_dashboard_redirects_when_backend_unreachable(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: backend unreachable on /v1/me is treated the same as
+    not-authed — bounce to /login. A logged-in user retrying after a brief
+    outage will land back on /dashboard once the backend recovers."""
+    mocked_api.get("/v1/me").mock(side_effect=httpx.ConnectError("boom"))
+    r = client.get("/dashboard", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"] == "/login"
+
+
+def test_dashboard_renders_with_vms_when_authed(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: when /v1/me returns 200, the dashboard renders the VM table
+    sourced from /v1/me/vms."""
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(200, json={
+        "account_id": "ACCT_ABC",
+        "vm_count": 2,
+        "created_at": "2026-05-01T10:00:00+00:00",
+    }))
+    mocked_api.get("/v1/me/vms").mock(return_value=httpx.Response(200, json={
+        "vms": [
+            {"vm_id": "vm-aaa", "status": "ready", "os": "debian-13",
+             "size": "sm", "ipv6": "2a0c:b641::1", "expires_at": "2026-06-01T00:00:00+00:00"},
+            {"vm_id": "vm-bbb", "status": "ready", "os": "alpine-3.21",
+             "size": "md", "ipv6": "2a0c:b641::2", "expires_at": None},
+        ],
+    }))
     r = client.get("/dashboard")
     _assert_html_with_canonical(r)
+    assert "ACCT_ABC" in r.text
+    assert "vm-aaa" in r.text
+    assert "vm-bbb" in r.text
+
+
+def test_dashboard_renders_error_banner_when_me_5xxs(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Block A1: a 5xx on /v1/me (not 401) renders the dashboard shell with
+    an error banner instead of redirecting — the user can still log out."""
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(500))
+    r = client.get("/dashboard")
+    assert r.status_code == 200
+    assert "Could not load account info" in r.text
 
 
 def test_services_uses_api_data_when_present(

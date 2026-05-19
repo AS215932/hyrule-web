@@ -51,10 +51,10 @@
             </div>
             <div class="mini-card">
                 <h4>runtime snapshot</h4>
-                <div class="row"><span class="k">api latency</span><span class="v">{{ runtime.api_ms if runtime else 24 }}ms</span></div>
-                <div class="row"><span class="k">build queue</span><span class="v">{{ runtime.queue if runtime else 3 }} jobs</span></div>
-                <div class="row"><span class="k">avg provision</span><span class="v">{{ runtime.avg_provision if runtime else 58 }}s</span></div>
-                <div class="row"><span class="k">live machines</span><span class="v">{{ "{:,}".format(runtime.live_vms) if runtime else "1,284" }}</span></div>
+                <div class="row"><span class="k">api p50</span><span class="v">{% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">build queue</span><span class="v">{% if runtime and runtime.build_queue is not none %}{{ runtime.build_queue }} jobs{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">avg provision</span><span class="v">{% if runtime and runtime.avg_provision_seconds is not none %}{{ runtime.avg_provision_seconds }}s{% else %}—{% endif %}</span></div>
+                <div class="row"><span class="k">live machines</span><span class="v">{% if runtime and runtime.live_vms is not none %}{{ "{:,}".format(runtime.live_vms) }}{% else %}—{% endif %}</span></div>
             </div>
         </div>
     </div>

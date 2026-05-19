@@ -75,9 +75,18 @@
                 <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}><span class="nav-num">02</span><span>Services</span></a>
                 <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Deploy</span></a>
                 <a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Status</span></a>
+                {% if request.cookies.get('hyr_sess') %}
+                <a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Dashboard</span></a>
+                {% else %}
+                <a href="/login"{% if request.url.path == '/login' or request.url.path == '/signup' %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Login</span></a>
+                {% endif %}
             </nav>
             <div class="header-tools">
-                <span class="status-pill" title="API healthy">api · 24ms</span>
+                {% if runtime and runtime.api_p50_ms is not none %}
+                <span class="status-pill" title="API p50 latency — per-worker rolling window">api · {{ runtime.api_p50_ms }}ms</span>
+                {% else %}
+                <span class="status-pill" title="API latency unknown">api · —</span>
+                {% endif %}
                 <button class="cmdk-trigger" type="button" data-cmdk-trigger aria-label="Open command palette">
                     <span class="cmdk-glyph">⌕</span>
                     <span>jump to…</span>
