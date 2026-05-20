@@ -51,8 +51,9 @@ def test_payment_native_does_not_hardcode_chain_constants():
     """Same anti-hardcoding rule that applies to EVM — addresses + amounts
     come from the backend's /v1/intent/* response, never from JS."""
     src = (_STATIC / "payment-native.js").read_text()
-    # No magic Bitcoin address prefixes embedded
-    assert "bc1q" not in src or "bc1q\"" not in src
+    # No magic Bitcoin address prefixes embedded (single check — the original
+    # `... or ...` form was a tautology that always passed; Sourcery web#4).
+    assert "bc1q" not in src
     # No hardcoded BTC/XMR rates
     assert "65000" not in src
     assert "160.00" not in src
