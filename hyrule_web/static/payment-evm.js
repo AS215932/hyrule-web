@@ -44,12 +44,18 @@
             });
         } catch (switchErr) {
             if (switchErr.code === 4902) {
+                // Native gas token comes from the backend's /payments/networks
+                // (Polygon = POL, not ETH). Fall back to ETH only for an older
+                // backend that predates the native_currency field.
+                var nativeCurrency = network.native_currency || {
+                    name: "Ether", symbol: "ETH", decimals: 18,
+                };
                 await window.ethereum.request({
                     method: "wallet_addEthereumChain",
                     params: [{
                         chainId: chainIdHex,
                         chainName: network.display_name,
-                        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+                        nativeCurrency: nativeCurrency,
                         rpcUrls: [network.rpc_url].filter(Boolean),
                         blockExplorerUrls: [network.block_explorer_url].filter(Boolean),
                     }],

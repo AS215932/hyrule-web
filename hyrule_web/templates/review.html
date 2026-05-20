@@ -97,7 +97,7 @@
                 <form id="order-data" style="display:none">
                     <input type="hidden" name="os" value="{{ order.os if order else '' }}">
                     <input type="hidden" name="size" value="{{ order.size if order else '' }}">
-                    <input type="hidden" name="duration_days" value="{{ duration }}">
+                    <input type="hidden" name="duration_days" value="{{ order.duration if order else '' }}">
                     <input type="hidden" name="ssh_pubkey" value="{{ order.ssh_pubkey if order else '' }}">
                     <input type="hidden" name="hostname" value="{{ order.hostname if order else '' }}">
                     <input type="hidden" name="domain_mode" value="{{ order.domain_mode if order else 'auto' }}">

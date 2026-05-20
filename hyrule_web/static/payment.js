@@ -1,10 +1,11 @@
 /**
  * Chain dispatcher for Hyrule Cloud (Block C / Wave 3).
  *
- * The frontend pulls the supported chain list from /v1/payments/networks
- * (NEVER hardcodes — per [[feedback_verified_payment_chains]]), reads the
- * selected chain from the #payment-chain selector on review.html, and
- * routes to the right family adapter:
+ * The frontend pulls the supported chain list from the same-origin
+ * /api/payments/networks, which app.py proxies to the backend's canonical
+ * /v1/payments/networks (NEVER hardcodes — per [[feedback_verified_payment_chains]]),
+ * reads the selected chain from the #payment-chain selector on review.html,
+ * and routes to the right family adapter:
  *
  *   - family=evm → window.HyrulePayments.payWithEvm (payment-evm.js)
  *   - family=svm → window.HyrulePayments.payWithSolana (payment-svm.js, Wave 5)
@@ -49,6 +50,7 @@
 
     async function loadNetworks() {
         try {
+            // Same-origin: app.py proxies /api/* → backend /v1/* (see proxy_api).
             var resp = await fetch("/api/payments/networks");
             if (!resp.ok) throw new Error("networks: HTTP " + resp.status);
             var body = await resp.json();

@@ -34,8 +34,13 @@ def test_review_renders_chain_selector_and_dispatcher(client: TestClient) -> Non
     assert 'id="payment-chain-wrap"' in body
     assert 'id="order-data"' in body
     assert 'id="pay-btn"' in body
+
+    # The EVM adapter must load BEFORE the dispatcher: payment.js calls
+    # window.HyrulePayments.payWithEvm, which payment-evm.js defines. Wrong
+    # order → "EVM adapter not loaded" at click time.
     assert "/static/payment-evm.js" in body
     assert "/static/payment.js" in body
+    assert body.index("/static/payment-evm.js") < body.index("/static/payment.js")
 
 
 def test_review_does_not_hardcode_chain_in_html(client: TestClient) -> None:
@@ -64,3 +69,17 @@ def test_review_order_data_form_carries_all_fields(client: TestClient) -> None:
         'name="domain"',
     ):
         assert field in body, f"missing hidden field {field}"
+
+    # Presence isn't enough — the values must round-trip from the POST, or the
+    # dispatcher silently submits a broken order (e.g. duration_days="" → NaN).
+    for name, value in (
+        ("os", "debian-13"),
+        ("size", "sm"),
+        ("duration_days", "30"),
+        ("ssh_pubkey", "ssh-ed25519 AAAA"),
+        ("hostname", "test-host"),
+        ("domain_mode", "auto"),
+    ):
+        assert f'name="{name}" value="{value}"' in body, (
+            f"hidden field {name} should carry value {value!r}"
+        )
