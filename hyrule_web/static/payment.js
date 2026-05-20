@@ -1,219 +1,145 @@
 /**
- * x402 browser payment flow for Hyrule Cloud.
+ * Chain dispatcher for Hyrule Cloud (Block C / Wave 3).
  *
- * Handles wallet connection, EIP-712 signing (EIP-3009 TransferWithAuthorization),
- * and x402 payment header construction. ~150 lines, zero dependencies.
+ * The frontend pulls the supported chain list from the same-origin
+ * /api/payments/networks, which app.py proxies to the backend's canonical
+ * /v1/payments/networks (NEVER hardcodes — per [[feedback_verified_payment_chains]]),
+ * reads the selected chain from the #payment-chain selector on review.html,
+ * and routes to the right family adapter:
  *
- * Requires: MetaMask, Rabby, or any EIP-1193 browser wallet with USDC on Base.
+ *   - family=evm → window.HyrulePayments.payWithEvm (payment-evm.js)
+ *   - family=svm → window.HyrulePayments.payWithSolana (payment-svm.js, Wave 5)
+ *
+ * No chain config lives in JS. If the backend disables a chain in Vault,
+ * the selector loses it on the next page load — no JS change required.
  */
 
 (function () {
     "use strict";
 
-    var USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    var BASE_CHAIN_ID = 8453;
-
     var payBtn = document.getElementById("pay-btn");
     var statusEl = document.getElementById("payment-status");
+    var selector = document.getElementById("payment-chain");
+    var dataForm = document.getElementById("order-data");
 
     if (!payBtn || !statusEl) return;
+
+    var networksByKey = {};
 
     function setStatus(msg, cls) {
         statusEl.textContent = msg;
         statusEl.className = "payment-status " + (cls || "");
     }
 
+    function renderSelector(networks) {
+        if (!selector) return;
+        // Empty the placeholder option and add one per network.
+        selector.innerHTML = "";
+        networks.forEach(function (n) {
+            var opt = document.createElement("option");
+            opt.value = n.key;
+            opt.textContent = n.display_name + " · " + n.asset
+                + (n.testnet ? " (testnet)" : "");
+            selector.appendChild(opt);
+        });
+        // Only reveal the selector UI when there's a real choice. Single-
+        // chain deployments keep the visual identical to pre-Wave-3.
+        var wrap = document.getElementById("payment-chain-wrap");
+        if (wrap) wrap.style.display = networks.length > 1 ? "block" : "none";
+    }
+
+    async function loadNetworks() {
+        try {
+            // Same-origin: app.py proxies /api/* → backend /v1/* (see proxy_api).
+            var resp = await fetch("/api/payments/networks");
+            if (!resp.ok) throw new Error("networks: HTTP " + resp.status);
+            var body = await resp.json();
+            var networks = body.networks || [];
+            networks.forEach(function (n) {
+                networksByKey[n.key] = n;
+            });
+            renderSelector(networks);
+            if (!networks.length) {
+                setStatus("No payment chains enabled. Contact ops.", "payment-error");
+                payBtn.disabled = true;
+            }
+        } catch (err) {
+            setStatus(
+                "Could not load supported chains. Refresh to try again.",
+                "payment-error",
+            );
+            payBtn.disabled = true;
+            console.error("network-list fetch failed", err);
+        }
+    }
+
+    function selectedNetwork() {
+        if (selector && selector.value) {
+            return networksByKey[selector.value];
+        }
+        // No selector on the page (single-chain deployment) → fall back to
+        // the first network the backend advertises.
+        var keys = Object.keys(networksByKey);
+        if (keys.length) return networksByKey[keys[0]];
+        return null;
+    }
+
+    function orderBody() {
+        if (!dataForm) return {};
+        var fd = new FormData(dataForm);
+        var payload = {
+            os: fd.get("os"),
+            size: fd.get("size"),
+            duration_days: parseInt(fd.get("duration_days"), 10),
+            ssh_pubkey: fd.get("ssh_pubkey"),
+            domain_mode: fd.get("domain_mode") || "auto",
+        };
+        var hostname = fd.get("hostname");
+        if (hostname) payload.hostname = hostname;
+        if (fd.get("domain") && fd.get("domain_mode") === "custom") {
+            payload.domain = fd.get("domain");
+        }
+        return payload;
+    }
+
     payBtn.addEventListener("click", async function () {
-        if (!window.ethereum) {
-            setStatus("No wallet detected. Install MetaMask or Rabby to continue.", "payment-error");
+        var network = selectedNetwork();
+        if (!network) {
+            setStatus("No payment chain selected.", "payment-error");
             return;
         }
-
-        payBtn.disabled = true;
-        setStatus("Connecting wallet\u2026", "payment-pending");
-
-        try {
-            // 1. Connect wallet
-            var accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-            var from = accounts[0];
-
-            // 2. Switch to Base
-            try {
-                await window.ethereum.request({
-                    method: "wallet_switchEthereumChain",
-                    params: [{ chainId: "0x" + BASE_CHAIN_ID.toString(16) }],
-                });
-            } catch (switchErr) {
-                if (switchErr.code === 4902) {
-                    await window.ethereum.request({
-                        method: "wallet_addEthereumChain",
-                        params: [{
-                            chainId: "0x" + BASE_CHAIN_ID.toString(16),
-                            chainName: "Base",
-                            nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-                            rpcUrls: ["https://mainnet.base.org"],
-                            blockExplorerUrls: ["https://basescan.org"],
-                        }],
-                    });
-                } else {
-                    throw switchErr;
-                }
+        var ns = window.HyrulePayments || {};
+        if (network.family === "evm") {
+            if (typeof ns.payWithEvm !== "function") {
+                setStatus("EVM adapter not loaded.", "payment-error");
+                return;
             }
-
-            // 3. Gather order data from hidden form
-            var form = document.getElementById("order-data");
-            var fd = new FormData(form);
-            var orderPayload = {
-                os: fd.get("os"),
-                size: fd.get("size"),
-                duration_days: parseInt(fd.get("duration_days"), 10),
-                ssh_pubkey: fd.get("ssh_pubkey"),
-                domain_mode: fd.get("domain_mode") || "auto",
-            };
-            var hostname = fd.get("hostname");
-            if (hostname) orderPayload.hostname = hostname;
-            if (fd.get("domain") && fd.get("domain_mode") === "custom") {
-                orderPayload.domain = fd.get("domain");
-            }
-
-            // 4. First request — get 402 with payment requirements
-            setStatus("Requesting payment details\u2026", "payment-pending");
-            var firstResp = await fetch("/api/vm/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(orderPayload),
+            return ns.payWithEvm({
+                network: network,
+                button: payBtn,
+                statusEl: statusEl,
+                orderPath: "/api/vm/create",
+                body: orderBody(),
             });
-
-            if (firstResp.status !== 402) {
-                if (firstResp.ok) {
-                    var okResult = await firstResp.json();
-                    // Block A0: forward the one-time management_token via
-                    // ?token= so the status page can render the save-once
-                    // banner. okResult.management_token is present only
-                    // on a successful (non-402) /api/vm/create response.
-                    var okTok = okResult.management_token ? ("?token=" + encodeURIComponent(okResult.management_token)) : "";
-                    window.location.href = "/order/status/" + okResult.vm_id + okTok;
-                    return;
-                }
-                var errBody = await firstResp.json().catch(function () { return {}; });
-                throw new Error(errBody.detail || errBody.error || "API error: " + firstResp.status);
-            }
-
-            // 5. Parse x402 payment requirements from header
-            var paymentHeader = firstResp.headers.get("x-payment-required");
-            if (!paymentHeader) throw new Error("Missing X-PAYMENT-REQUIRED header in 402 response");
-
-            var paymentReq = JSON.parse(atob(paymentHeader));
-            var accept = paymentReq.accepts[0];
-
-            // Convert "$0.50" → 500000 (USDC has 6 decimals)
-            var priceStr = (accept.price || "0").replace("$", "");
-            var priceUsdc = Math.round(parseFloat(priceStr) * 1e6);
-
-            // 6. Build EIP-712 typed data for EIP-3009 TransferWithAuthorization
-            var nonce = "0x" + Array.from(crypto.getRandomValues(new Uint8Array(32)))
-                .map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-            var now = Math.floor(Date.now() / 1000);
-            var validAfter = String(now - 600);
-            var validBefore = String(now + 3600);
-            var payTo = accept.payTo || accept.pay_to;
-
-            var typedData = {
-                types: {
-                    EIP712Domain: [
-                        { name: "name", type: "string" },
-                        { name: "version", type: "string" },
-                        { name: "chainId", type: "uint256" },
-                        { name: "verifyingContract", type: "address" },
-                    ],
-                    TransferWithAuthorization: [
-                        { name: "from", type: "address" },
-                        { name: "to", type: "address" },
-                        { name: "value", type: "uint256" },
-                        { name: "validAfter", type: "uint256" },
-                        { name: "validBefore", type: "uint256" },
-                        { name: "nonce", type: "bytes32" },
-                    ],
-                },
-                domain: {
-                    name: "USD Coin",
-                    version: "2",
-                    chainId: BASE_CHAIN_ID,
-                    verifyingContract: USDC_BASE,
-                },
-                primaryType: "TransferWithAuthorization",
-                message: {
-                    from: from,
-                    to: payTo,
-                    value: String(priceUsdc),
-                    validAfter: validAfter,
-                    validBefore: validBefore,
-                    nonce: nonce,
-                },
-            };
-
-            // 7. Request wallet signature — this triggers the popup
-            setStatus("Please sign the payment in your wallet\u2026", "payment-pending");
-            var signature = await window.ethereum.request({
-                method: "eth_signTypedData_v4",
-                params: [from, JSON.stringify(typedData)],
-            });
-
-            // 8. Build x402 payment header
-            var paymentPayload = {
-                x402Version: 2,
-                scheme: accept.scheme || "exact",
-                network: accept.network,
-                payload: {
-                    authorization: {
-                        from: from,
-                        to: payTo,
-                        value: String(priceUsdc),
-                        validAfter: validAfter,
-                        validBefore: validBefore,
-                        nonce: nonce,
-                    },
-                    signature: signature,
-                },
-            };
-
-            var paymentB64 = btoa(JSON.stringify(paymentPayload));
-
-            // 9. Retry with payment
-            setStatus("Processing payment\u2026", "payment-pending");
-            var paidResp = await fetch("/api/vm/create", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-PAYMENT": paymentB64,
-                },
-                body: JSON.stringify(orderPayload),
-            });
-
-            if (!paidResp.ok) {
-                var paidErr = await paidResp.json().catch(function () { return {}; });
-                throw new Error(paidErr.detail || paidErr.error || "Payment failed: " + paidResp.status);
-            }
-
-            var result = await paidResp.json();
-            setStatus("Payment successful! Redirecting\u2026", "payment-ok");
-
-            setTimeout(function () {
-                // Block A0: forward the one-time management_token so the
-                // status page surfaces the save-once banner. Without it,
-                // the operator has no way to manage their anon VM later.
-                var tok = result.management_token ? ("?token=" + encodeURIComponent(result.management_token)) : "";
-                window.location.href = "/order/status/" + result.vm_id + tok;
-            }, 1000);
-
-        } catch (err) {
-            if (err.code === 4001) {
-                setStatus("Payment cancelled.", "payment-warn");
-            } else {
-                setStatus("Error: " + err.message, "payment-error");
-                console.error("x402 payment error:", err);
-            }
-            payBtn.disabled = false;
         }
+        if (network.family === "svm") {
+            if (typeof ns.payWithSolana !== "function") {
+                setStatus(
+                    "Solana support ships in Wave 5; pick an EVM chain.",
+                    "payment-warn",
+                );
+                return;
+            }
+            return ns.payWithSolana({
+                network: network,
+                button: payBtn,
+                statusEl: statusEl,
+                orderPath: "/api/vm/create",
+                body: orderBody(),
+            });
+        }
+        setStatus("Unsupported chain family: " + network.family, "payment-error");
     });
+
+    loadNetworks();
 })();

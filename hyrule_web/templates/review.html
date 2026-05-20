@@ -77,11 +77,40 @@
             <div class="wallet-card">
                 <span class="panel-label" style="justify-content:center">wallet confirmation</span>
                 <div class="wallet-amount">pay <em>${{ "%.2f"|format(total) }}</em> USDC</div>
-                <form method="post" action="/order/pay" hx-post="/order/pay" hx-target=".wallet-card">
-                    <input type="hidden" name="order_id" value="{{ order.id if order else '' }}">
-                    <button type="submit" class="btn btn-primary btn-lg btn-block" data-pay-button>Pay ${{ "%.2f"|format(total) }} with wallet</button>
+
+                {# Block C (Wave 3): the chain selector. JS populates the
+                   options from /api/payments/networks on page load — never
+                   hardcode the chain list here. Only renders the selector
+                   UI if there are multiple chains; single-chain deployments
+                   stay visually identical to the pre-Wave-3 flow. #}
+                <div id="payment-chain-wrap" class="form-section" style="display:none;text-align:left">
+                    <label for="payment-chain"><strong>Pay with</strong></label>
+                    <select id="payment-chain"
+                            style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+                        <option value="" disabled selected>Loading chains…</option>
+                    </select>
+                </div>
+
+                {# Hidden form carrying order fields for the JS dispatcher.
+                   Mirrors the manifest above so JS can post the same shape
+                   the backend wants on /api/vm/create. #}
+                <form id="order-data" style="display:none">
+                    <input type="hidden" name="os" value="{{ order.os if order else '' }}">
+                    <input type="hidden" name="size" value="{{ order.size if order else '' }}">
+                    <input type="hidden" name="duration_days" value="{{ order.duration if order else '' }}">
+                    <input type="hidden" name="ssh_pubkey" value="{{ order.ssh_pubkey if order else '' }}">
+                    <input type="hidden" name="hostname" value="{{ order.hostname if order else '' }}">
+                    <input type="hidden" name="domain_mode" value="{{ order.domain_mode if order else 'auto' }}">
+                    <input type="hidden" name="domain" value="{{ order.domain if order else '' }}">
                 </form>
-                <div class="wallet-status">sign once · gasless · USDC on Base</div>
+
+                <button id="pay-btn" type="button"
+                        class="btn btn-primary btn-lg btn-block">
+                    Pay ${{ "%.2f"|format(total) }} with wallet
+                </button>
+                <div id="payment-status" class="payment-status"></div>
+
+                <div class="wallet-status">sign once · gasless · USDC</div>
                 <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Hyrule Cloud covers the gas.</p>
             </div>
 
@@ -89,4 +118,9 @@
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/payment-evm.js" defer></script>
+<script src="/static/payment.js" defer></script>
 {% endblock %}
