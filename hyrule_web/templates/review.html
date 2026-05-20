@@ -76,7 +76,18 @@
 
             <div class="wallet-card">
                 <span class="panel-label" style="justify-content:center">wallet confirmation</span>
-                <div class="wallet-amount">pay <em>${{ "%.2f"|format(total) }}</em> USDC</div>
+                <div class="wallet-amount">pay <em>${{ "%.2f"|format(total) }}</em></div>
+
+                {# Block E (Wave 4): payment-method tabs. Radio inputs keep this
+                   JS-free until the dispatcher (payment.js) wires them: EVM shows
+                   the chain selector below; BTC/XMR hide it and reveal the native
+                   deposit card in #payment-native-render. #}
+                <fieldset id="payment-method-tabs" class="form-section" style="text-align:left;border:0;padding:0;margin:0 0 10px">
+                    <span class="panel-label" style="display:block;margin-bottom:6px">payment method</span>
+                    <label style="margin-right:14px"><input type="radio" name="payment-method" value="evm" checked style="margin-right:4px">USDC (EVM)</label>
+                    <label style="margin-right:14px"><input type="radio" name="payment-method" value="btc" style="margin-right:4px">Bitcoin</label>
+                    <label><input type="radio" name="payment-method" value="xmr" style="margin-right:4px">Monero</label>
+                </fieldset>
 
                 {# Block C (Wave 3): the chain selector. JS populates the
                    options from /api/payments/networks on page load — never
@@ -110,6 +121,11 @@
                 </button>
                 <div id="payment-status" class="payment-status"></div>
 
+                {# Block E (Wave 4): payment-native.js renders the BTC/XMR deposit
+                   card (address + amount + QR + live poll to PROVISIONED) here
+                   when the Bitcoin or Monero tab is active. #}
+                <div id="payment-native-render" style="display:none;margin-top:12px"></div>
+
                 <div class="wallet-status">sign once · gasless · USDC</div>
                 <p style="color:var(--text-soft);font-size:.76rem;margin:0">x402 + EIP-3009. The signature authorizes the transfer; Hyrule Cloud covers the gas.</p>
             </div>
@@ -122,5 +138,6 @@
 
 {% block scripts %}
 <script src="/static/payment-evm.js" defer></script>
+<script src="/static/payment-native.js" defer></script>
 <script src="/static/payment.js" defer></script>
 {% endblock %}
