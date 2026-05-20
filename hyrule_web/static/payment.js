@@ -1,17 +1,17 @@
 /**
- * Chain dispatcher for Hyrule Cloud (Block C / Wave 3).
+ * Payment dispatcher for Hyrule Cloud (Block C / Wave 3 + Block E / Wave 4).
  *
- * The frontend pulls the supported chain list from the same-origin
- * /api/payments/networks, which app.py proxies to the backend's canonical
- * /v1/payments/networks (NEVER hardcodes — per [[feedback_verified_payment_chains]]),
- * reads the selected chain from the #payment-chain selector on review.html,
- * and routes to the right family adapter:
+ * Top-level payment-method tabs (review.html: input[name="payment-method"]):
+ *   - evm      → USDC via x402. Pull the chain list from /api/payments/networks
+ *                (app.py proxies /api/* → backend /v1/*), populate #payment-chain,
+ *                and dispatch to window.HyrulePayments.payWithEvm (payment-evm.js).
+ *                family=svm is reserved for Wave 5 (payWithSolana).
+ *   - btc/xmr  → native intent. window.HyrulePaymentNative.pay (payment-native.js)
+ *                opens an /api/v1/intent/* deposit and polls it to PROVISIONED.
  *
- *   - family=evm → window.HyrulePayments.payWithEvm (payment-evm.js)
- *   - family=svm → window.HyrulePayments.payWithSolana (payment-svm.js, Wave 5)
- *
- * No chain config lives in JS. If the backend disables a chain in Vault,
- * the selector loses it on the next page load — no JS change required.
+ * No chain config or addresses live in JS — the EVM chain list comes from the
+ * backend and the BTC/XMR deposit details come from /v1/intent/*, never
+ * hardcoded here (per [[feedback_verified_payment_chains]]).
  */
 
 (function () {
@@ -21,10 +21,20 @@
     var statusEl = document.getElementById("payment-status");
     var selector = document.getElementById("payment-chain");
     var dataForm = document.getElementById("order-data");
+    // Block E: payment-method radios + the native deposit render slot.
+    var methodInputs = document.querySelectorAll('input[name="payment-method"]');
+    var nativeRender = document.getElementById("payment-native-render");
 
     if (!payBtn || !statusEl) return;
 
     var networksByKey = {};
+
+    function currentMethod() {
+        for (var i = 0; i < methodInputs.length; i++) {
+            if (methodInputs[i].checked) return methodInputs[i].value;
+        }
+        return "evm";
+    }
 
     function setStatus(msg, cls) {
         statusEl.textContent = msg;
@@ -42,10 +52,6 @@
                 + (n.testnet ? " (testnet)" : "");
             selector.appendChild(opt);
         });
-        // Only reveal the selector UI when there's a real choice. Single-
-        // chain deployments keep the visual identical to pre-Wave-3.
-        var wrap = document.getElementById("payment-chain-wrap");
-        if (wrap) wrap.style.display = networks.length > 1 ? "block" : "none";
     }
 
     async function loadNetworks() {
@@ -59,16 +65,17 @@
                 networksByKey[n.key] = n;
             });
             renderSelector(networks);
-            if (!networks.length) {
+            if (!networks.length && currentMethod() === "evm") {
                 setStatus("No payment chains enabled. Contact ops.", "payment-error");
-                payBtn.disabled = true;
             }
         } catch (err) {
-            setStatus(
-                "Could not load supported chains. Refresh to try again.",
-                "payment-error",
-            );
-            payBtn.disabled = true;
+            // Don't disable pay-btn outright — BTC/XMR don't need the chain list.
+            if (currentMethod() === "evm") {
+                setStatus(
+                    "Could not load supported chains. Refresh to try again.",
+                    "payment-error",
+                );
+            }
             console.error("network-list fetch failed", err);
         }
     }
@@ -102,7 +109,41 @@
         return payload;
     }
 
+    // Block E: toggle the EVM chain selector vs the native deposit slot based
+    // on the selected method tab. EVM shows #payment-chain-wrap; BTC/XMR hide
+    // it and reveal #payment-native-render.
+    function refreshMethodUI() {
+        var m = currentMethod();
+        var wrap = document.getElementById("payment-chain-wrap");
+        if (wrap) wrap.style.display = (m === "evm") ? "block" : "none";
+        if (nativeRender) {
+            nativeRender.style.display = (m === "btc" || m === "xmr") ? "block" : "none";
+            if (m === "evm") nativeRender.innerHTML = "";
+        }
+    }
+
+    Array.prototype.forEach.call(methodInputs, function (el) {
+        el.addEventListener("change", refreshMethodUI);
+    });
+
     payBtn.addEventListener("click", async function () {
+        var method = currentMethod();
+
+        // Block E: native BTC/XMR path — open an intent + poll. No chain.
+        if (method === "btc" || method === "xmr") {
+            if (!window.HyrulePaymentNative
+                || typeof window.HyrulePaymentNative.pay !== "function") {
+                setStatus("Native crypto adapter not loaded.", "payment-error");
+                return;
+            }
+            return window.HyrulePaymentNative.pay(method.toUpperCase(), {
+                orderForm: dataForm,
+                render: nativeRender,
+                onStatus: setStatus,
+            });
+        }
+
+        // EVM (Wave 3) path — USDC via x402.
         var network = selectedNetwork();
         if (!network) {
             setStatus("No payment chain selected.", "payment-error");
@@ -142,4 +183,5 @@
     });
 
     loadNetworks();
+    refreshMethodUI();
 })();
