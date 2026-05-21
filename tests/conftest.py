@@ -21,7 +21,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.app import _RUNTIME_CACHE, app
+from hyrule_web.app import _NETWORK_CACHE, _RUNTIME_CACHE, app
 from hyrule_web.config import settings
 
 
@@ -38,6 +38,31 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             "avg_provision_seconds": 60,
             "updated_at": "2026-05-19T00:00:00+00:00",
         }))
+        # Block C (Wave 3): default payment networks so /faq, /llms.txt and the
+        # review page render without each test re-wiring them. Override as needed.
+        rx.get("/v1/payments/networks").mock(return_value=httpx.Response(200, json={
+            "networks": [
+                {"key": "base", "display_name": "Base", "caip2": "eip155:8453",
+                 "family": "evm", "chain_id": 8453, "asset": "USDC",
+                 "token_address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                 "token_decimals": 6,
+                 "eip712_domain": {"name": "USD Coin", "version": "2"},
+                 "rpc_url": "https://mainnet.base.org",
+                 "block_explorer_url": "https://basescan.org",
+                 "testnet": False},
+            ],
+            "receiver_address": "",
+            "facilitator_url": "https://x402.org/facilitator",
+        }))
+        # Block H (Wave 5/6): default fleet stats for /transparency.
+        rx.get("/v1/stats/network").mock(return_value=httpx.Response(200, json={
+            "bgp_peers_established": 4,
+            "ipv6_prefixes_announced": 3,
+            "nat64_sessions_active": 1284,
+            "transit_providers": ["AS34872", "AS210233"],
+            "_source": "prometheus-http://[2a0c:b641:b50:2::50]:9090",
+            "updated_at": "2026-05-19T00:00:00+00:00",
+        }))
         yield rx
 
 
@@ -51,5 +76,7 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     """
     _RUNTIME_CACHE["value"] = None
     _RUNTIME_CACHE["expires_at"] = 0.0
+    _NETWORK_CACHE["value"] = None
+    _NETWORK_CACHE["expires_at"] = 0.0
     with TestClient(app) as c:
         yield c

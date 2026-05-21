@@ -1,8 +1,16 @@
-"""SEO foundation: robots.txt, sitemap.xml, llms.txt content."""
+"""SEO foundation: robots.txt, sitemap.xml, llms.txt content.
+
+Block G principle: never advertise a feature that isn't live. `LLMS_TXT` is
+built at request time from the backend's live `/v1/payments/networks` rather
+than a hardcoded chain list, so agents see exactly what they can actually
+pay with today.
+"""
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
+from typing import Any
 from xml.sax.saxutils import escape
 
 from fastapi import FastAPI
@@ -15,6 +23,8 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /partials/
+Disallow: /dashboard
+Disallow: /order/manage/
 
 # Agent crawlers — explicitly welcome
 User-agent: ClaudeBot
@@ -31,49 +41,127 @@ Allow: /
 Sitemap: https://hyrule.host/sitemap.xml
 """
 
-LLMS_TXT = """\
+
+_LLMS_TXT_PREAMBLE = """\
 # Hyrule Cloud
 
-> IPv6-native bare-metal VM provisioning on AS215932. Clear daily pricing,
-> fast provisioning (~60 seconds), crypto-native checkout via x402. Built
-> for developers and AI agents that need infrastructure on demand without
-> the usual hosting ceremony.
+> IPv6-native bare-metal VM provisioning on AS215932. No-KYC: a random
+> account handle and a password you set, or pay anonymously with crypto.
+> Clear daily pricing, ~60s provisioning, x402 for AI agents. The web
+> frontend is a thin shell over the API at /api/* (same origin).
+
+## Anonymity guarantees
+
+- No email collected, ever.
+- No phone, no name, no address.
+- Account handles are random `H<10 hex>`; you set the password.
+- Anon checkout: no account at all, one-shot management URL.
+- We store: VM config you provide, your SSH public key, the payer wallet
+  address (x402 EVM only), a sha256 of your /64 IPv6 prefix for abuse rate
+  limiting. That's it.
 
 ## Products
 
-- [VM tiers and pricing](https://hyrule.host/services): Starter, Basic,
-  Standard, and Performance plans with explicit vCPU / RAM / disk and
-  daily USD pricing. SSH root access via your public key.
+- [VM tiers and pricing](https://hyrule.host/services): explicit vCPU /
+  RAM / disk and daily USD pricing. SSH root access via your public key.
 - [Order a VM](https://hyrule.host/order): single-page order flow.
-  Inputs: OS, size, duration (1-365 days), SSH public key, optional
-  hostname and custom domain.
+- [Transparency](https://hyrule.host/transparency): operator,
+  jurisdiction, host inventory, BGP peering, monitoring stack.
+- [FAQ](https://hyrule.host/faq): no-KYC details, recovery, IPv6 reachability.
 
 ## API
 
-- Hyrule Cloud API base URL: published in the OpenAPI schema served by
-  the backend. The web frontend at https://hyrule.host proxies
-  `/api/*` to the same backend so browser clients hit the same origin.
+- Base URL published in the OpenAPI schema served by the backend. The web
+  frontend at https://hyrule.host proxies `/api/*` to the same backend so
+  browser clients hit the same origin.
+- x402 service manifest: https://cloud.hyrule.host/.well-known/x402.json
+"""
 
-## Network
 
-- [AS215932](https://as215932.net): the autonomous system Hyrule Cloud
-  runs on. IPv6-first; NAT64/DNS64 available for reaching IPv4
-  destinations.
-
+_LLMS_TXT_WHAT_SHIPS = """\
 ## What ships with each VM
 
 - Full SSH root access (ed25519 or RSA public key)
-- Global IPv6 with NAT64/DNS64
+- Global IPv6 with NAT64/DNS64 to reach IPv4 destinations
 - Automatic subdomain on `deploy.hyrule.host` (custom domains via AAAA)
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
 - 1-365 day runtimes, extendable, 24-hour grace after expiry
+
+## Network
+
+- [AS215932](https://as215932.net): IPv6-first autonomous system,
+  prefix `2a0c:b641:b50::/44`, RIPE-registered. Transit upstreams listed
+  on the transparency page.
 """
+
+
+def _render_payment_section(networks: Iterable[dict[str, Any]] | None) -> str:
+    """Build the payment-methods section from live network data.
+
+    If `networks` is None (backend unreachable), we render a deliberately
+    vague note instead of guessing a list. Better to under-promise than to
+    advertise a chain that may have been disabled.
+    """
+    if networks is None:
+        return (
+            "## Payment\n\n"
+            "- x402 USDC on facilitator-verified EVM chains. Query "
+            "`/api/v1/payments/networks` for the live list — this document "
+            "is rendered against backend state at request time.\n"
+            "- BTC and XMR via the native intent flow (when the intent "
+            "engine and infra are deployed; check `/faq`).\n"
+        )
+
+    network_list = list(networks)
+    if not network_list:
+        return (
+            "## Payment\n\n"
+            "- No EVM chains are currently enabled. Check "
+            "`/api/v1/payments/networks` for the live status.\n"
+        )
+
+    lines = ["## Payment", ""]
+    lines.append("- x402 USDC on the following facilitator-verified chains:")
+    for n in network_list:
+        display = n.get("display_name") or n.get("key", "?")
+        caip2 = n.get("caip2", "")
+        chain_id = n.get("chain_id")
+        suffix = f" (chain id {chain_id})" if chain_id else ""
+        lines.append(f"    - {display} — `{caip2}`{suffix}")
+    lines.append(
+        "- Anyone can also pay with BTC or XMR via the native intent flow "
+        "(`POST /api/v1/intent/create`). The frontend exposes BTC/XMR "
+        "tabs on the review page when those rails are live."
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def build_llms_txt(networks: Iterable[dict[str, Any]] | None = None) -> str:
+    """Compose llms.txt from the live config snapshot.
+
+    `networks` is the `networks` array from `/v1/payments/networks`. Pass
+    None to render a "ask the API" placeholder section instead.
+    """
+    return (
+        _LLMS_TXT_PREAMBLE
+        + "\n"
+        + _render_payment_section(networks)
+        + "\n"
+        + _LLMS_TXT_WHAT_SHIPS
+    )
 
 
 # Paths that exist as FastAPI routes but should not be in the sitemap:
 # either non-navigable (API proxy, HTMX partials), per-user dynamic
-# (status pages), or POST-only (order review), or empty stubs.
-_SITEMAP_EXCLUDE = {"/dashboard", "/robots.txt", "/sitemap.xml"}
+# (status pages), or POST-only (order review), or auth-gated surfaces.
+_SITEMAP_EXCLUDE = {
+    "/dashboard",
+    "/robots.txt",
+    "/sitemap.xml",
+    # Auth surfaces are reachable but uninteresting to crawlers.
+    "/logout",
+}
 
 
 def iter_sitemap_paths(app: FastAPI) -> list[str]:
@@ -88,6 +176,8 @@ def iter_sitemap_paths(app: FastAPI) -> list[str]:
         if "{" in path:
             continue
         if path.startswith("/api") or path.startswith("/partials"):
+            continue
+        if path.startswith("/dashboard"):
             continue
         if path in _SITEMAP_EXCLUDE:
             continue
@@ -111,3 +201,9 @@ def render_sitemap_xml(app: FastAPI) -> str:
         f"{urls}\n"
         "</urlset>\n"
     )
+
+
+# Backwards-compat: a hardcoded LLMS_TXT used to live here. Keeping the name
+# importable as the placeholder (no-networks-known) variant so any external
+# scrape that imported it directly still gets a sensible string.
+LLMS_TXT = build_llms_txt(networks=None)
