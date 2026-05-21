@@ -136,11 +136,22 @@
                 setStatus("Native crypto adapter not loaded.", "payment-error");
                 return;
             }
-            return window.HyrulePaymentNative.pay(method.toUpperCase(), {
-                orderForm: dataForm,
-                render: nativeRender,
-                onStatus: setStatus,
-            });
+            // await (not return): surface any rejection in the UI instead of
+            // leaking an unhandled promise rejection, matching the EVM path.
+            try {
+                await window.HyrulePaymentNative.pay(method.toUpperCase(), {
+                    orderForm: dataForm,
+                    render: nativeRender,
+                    onStatus: setStatus,
+                });
+            } catch (err) {
+                setStatus(
+                    "Error: " + (err && err.message ? err.message : err),
+                    "payment-error",
+                );
+                console.error("native payment error:", err);
+            }
+            return;
         }
 
         // EVM (Wave 3) path — USDC via x402.
