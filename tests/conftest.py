@@ -21,7 +21,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.app import _NETWORK_CACHE, _RUNTIME_CACHE, app
+from hyrule_web.app import _CATALOG_CACHE, _NETWORK_CACHE, _RUNTIME_CACHE, app
 from hyrule_web.config import settings
 
 
@@ -78,5 +78,7 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _RUNTIME_CACHE["expires_at"] = 0.0
     _NETWORK_CACHE["value"] = None
     _NETWORK_CACHE["expires_at"] = 0.0
+    _CATALOG_CACHE["value"] = None
+    _CATALOG_CACHE["expires_at"] = 0.0
     with TestClient(app) as c:
         yield c

@@ -68,6 +68,11 @@ _RUNTIME_TTL_SECONDS = 15
 # slowly and the backend already caches /v1/stats/network for 30s.
 _NETWORK_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _NETWORK_TTL_SECONDS = 30
+# Block G (Wave 6): payment-networks catalog for /faq + /llms.txt. Crawlers hit
+# llms.txt frequently — cache so we don't re-query the backend chain list per
+# request.
+_CATALOG_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_CATALOG_TTL_SECONDS = 60
 
 
 def _render(request: Request, name: str, **kwargs: Any) -> Response:
@@ -113,6 +118,21 @@ async def _refresh_network(request: Request) -> dict[str, Any] | None:
     if data is not None:
         _NETWORK_CACHE["value"] = data
         _NETWORK_CACHE["expires_at"] = now + _NETWORK_TTL_SECONDS
+        return data
+    return cached
+
+
+async def _refresh_networks(request: Request) -> dict[str, Any] | None:
+    """Pull /v1/payments/networks, cache 60s, stale-on-error. Shared by /faq and
+    /llms.txt so crawlers hitting llms.txt don't re-query the chain list each time."""
+    now = time.time()
+    cached: dict[str, Any] | None = _CATALOG_CACHE.get("value")
+    if cached is not None and now < float(_CATALOG_CACHE["expires_at"]):
+        return cached
+    data = await _fetch_api(request, "/v1/payments/networks")
+    if data is not None:
+        _CATALOG_CACHE["value"] = data
+        _CATALOG_CACHE["expires_at"] = now + _CATALOG_TTL_SECONDS
         return data
     return cached
 
@@ -531,7 +551,7 @@ async def page_faq(request: Request) -> Response:
     """FAQ + FAQPage JSON-LD (Block G). Only mentions live payment methods —
     the chain list comes from /v1/payments/networks, never hardcoded."""
     await _refresh_runtime(request)
-    networks = await _fetch_api(request, "/v1/payments/networks") or {"networks": []}
+    networks = await _refresh_networks(request) or {"networks": []}
     return _render(request, "faq.html", networks=networks.get("networks", []))
 
 
@@ -544,7 +564,7 @@ async def sitemap() -> Response:
 async def llms(request: Request) -> str:
     # Build from live backend state so the doc never advertises a disabled
     # chain (feedback_verified_payment_chains). None → "ask the API" note.
-    networks_resp = await _fetch_api(request, "/v1/payments/networks")
+    networks_resp = await _refresh_networks(request)
     networks = networks_resp.get("networks") if networks_resp else None
     return build_llms_txt(networks)
 

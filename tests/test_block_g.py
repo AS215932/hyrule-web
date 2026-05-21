@@ -172,6 +172,25 @@ def test_transparency_falls_back_when_network_endpoint_unavailable(
     assert "source: fallback" in r.text
 
 
+def test_transparency_serves_stale_network_data_on_backend_error(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """_refresh_network is stale-on-error: once the live numbers are cached, an
+    expired cache + an unreachable backend serves the last-good value rather
+    than punching through to the static fallback."""
+    # First request caches the live numbers (4 peers from the conftest default).
+    r1 = client.get("/transparency")
+    assert "4</strong> BGP peers" in r1.text
+    # Expire the cache and take the backend down.
+    from hyrule_web.app import _NETWORK_CACHE
+    _NETWORK_CACHE["expires_at"] = 0.0
+    mocked_api.get("/v1/stats/network").mock(side_effect=httpx.ConnectError("boom"))
+    # Stale-on-error: still the last-good 4 peers, not a hole.
+    r2 = client.get("/transparency")
+    assert r2.status_code == 200
+    assert "4</strong> BGP peers" in r2.text
+
+
 def test_base_header_pill_no_longer_hardcoded(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
@@ -205,6 +224,8 @@ def test_sitemap_excludes_dashboard_and_management_surfaces(client: TestClient) 
     body = r.text
     assert "/dashboard" not in body
     assert "/order/manage/" not in body
+    # /logout is a reachable GET but uninteresting to crawlers — excluded.
+    assert "/logout" not in body
 
 
 def test_sitemap_includes_auth_entry_points(client: TestClient) -> None:
