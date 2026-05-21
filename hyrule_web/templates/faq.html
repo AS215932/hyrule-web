@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}FAQ — Hyrule Cloud{% endblock %}
+{% block meta_description %}Hyrule Cloud FAQ: no-KYC details, recovery options, IPv6 reachability, payment methods, AI-agent compatibility.{% endblock %}
+
+{# Build the FAQ items here so both the visual list and the JSON-LD stay in sync. #}
+{% set live_chains = (networks or []) | map(attribute='display_name') | list %}
+{% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed at /api/v1/payments/networks" %}
+
+{% set faq_items = [
+    {
+        "q": "Do you require KYC?",
+        "a": "No. There is no email field, no phone field, no name field, and no identity verification at any point in our flow. You can place anonymous one-shot orders without an account; if you sign up, your username is a random " ~ "H&lt;10 hex&gt;" ~ " handle that we generate and you cannot change."
+    },
+    {
+        "q": "What payment methods do you accept?",
+        "a": "USDC via x402 on " ~ chain_sentence ~ ". BTC and XMR via our native intent flow (one-time deposit address per order, lenient overpay/late-pay policy). The chain list is read from the backend at order time — we never hardcode it in the UI."
+    },
+    {
+        "q": "What data do you collect about me?",
+        "a": "vm_id, the VM config you typed in, your SSH public key, the wallet address that paid (for x402 orders only), your random account handle and an argon2id password hash (if you signed up), and a sha256 of your /64 IPv6 prefix for abuse rate-limiting. We do not collect: email, phone, name, address, full IP, or anything inside your VM."
+    },
+    {
+        "q": "Where are you located? What jurisdiction applies?",
+        "a": "Solo operator in the Netherlands. Compute is at OVH France. Routing peers are in NL and DE. See /transparency for the full host inventory."
+    },
+    {
+        "q": "What if I lose my password?",
+        "a": "Two paths. (1) The recovery code we showed you once at signup — argon2id-hashed at rest, single-use, auto-rotated after consumption. (2) If you have ever settled an x402 EVM payment on the account, you can recover via wallet signature from the same wallet that paid. If you have neither, the account is unrecoverable — that is the cost of no-KYC."
+    },
+    {
+        "q": "Can you read what's running on my VM?",
+        "a": "No. The VM is bare: cloud-init drops your SSH key in and configures the firewall defaults, then we step out. There is no monitoring agent on customer VMs, no introspection API, no scheduled checks of disk contents."
+    },
+    {
+        "q": "Why IPv6-only? What if my client needs IPv4?",
+        "a": "We don't have IPv4 to spare — the OVH host gives us one /32, used by the router for NAT64 egress. Every VM gets a routable IPv6 /128 inside 2a0c:b641:b51::/48. NAT64 + DNS64 on the router translate to IPv4 destinations transparently. Inbound IPv4 to your VM is not available in v1."
+    },
+    {
+        "q": "How fast is provisioning, really?",
+        "a": "The homepage shows a live number computed from the backend's most recent " ~ "provisioned_at - created_at" ~ " values. Typical is ~60 seconds. Cold templates can take a little longer."
+    },
+    {
+        "q": "Can AI agents use Hyrule Cloud?",
+        "a": "Yes. We ship an x402 service manifest at /.well-known/x402.json so agents can discover, price, and pay per-call. POST /v1/vm/create with an X-Payment header is the whole flow. Scoped API keys (read, power, extend) for non-payment management land in plan Block D."
+    },
+    {
+        "q": "What does 'anonymous checkout' actually mean for the VM management?",
+        "a": "At order time we return a one-time management URL of the form /order/manage/{vm_id}?token=hyr_vm_…. The token cleartext is shown ONCE — save it. The token is sha256-hashed at rest; without it (or without an account that owns the VM), the management endpoints return 404. Status pages remain visible by vm_id alone."
+    },
+    {
+        "q": "What if I overpay on BTC/XMR?",
+        "a": "Overpay is fine — it provisions normally and the surplus stays in the receive wallet. Pay late but match a fresh rate quote within 1% slippage and it still provisions (LENIENT policy). Underpay queues the intent for manual review."
+    }
+] %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for item in faq_items %}
+    {
+      "@type": "Question",
+      "name": {{ item.q | tojson }},
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": {{ item.a | tojson }}
+      }
+    }{{ "," if not loop.last else "" }}
+    {% endfor %}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "FAQ", "item": "https://hyrule.host/faq"}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">faq</span></div>
+            <span class="panel-label">questions</span>
+            <h1>The questions worth answering up front.</h1>
+            <p class="hero-blurb">No marketing fluff. Each answer is what the system actually does — if it changes, this page changes with it.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">live chains</span>
+            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted);font-size:.85rem">
+                {% if networks %}
+                {% for n in networks %}
+                <li>+ {{ n.display_name }} <code style="font-size:.78rem;color:var(--text-soft)">{{ n.caip2 }}</code></li>
+                {% endfor %}
+                {% else %}
+                <li>+ <em>backend unreachable; check <code>/api/v1/payments/networks</code></em></li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div style="display:flex;flex-direction:column;gap:18px">
+    {% for item in faq_items %}
+        <details class="feature-card" {% if loop.index <= 2 %}open{% endif %} style="padding:18px 20px">
+            <summary style="cursor:pointer;font-weight:600;font-size:1.05rem">{{ item.q }}</summary>
+            <p style="margin-top:12px;color:var(--text-muted);line-height:1.65">{{ item.a | safe }}</p>
+        </details>
+    {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">still curious</span>
+        <h2>Read the infra, or just deploy.</h2>
+        <div class="cta-actions">
+            <a href="/transparency" class="btn btn-secondary btn-lg">Transparency</a>
+            <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

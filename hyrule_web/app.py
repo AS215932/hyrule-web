@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
-from .seo import LLMS_TXT, ROBOTS_TXT, render_sitemap_xml
+from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
 # contract (hyrule-infra/docs/application-logging.md). systemd-journald
@@ -64,6 +64,15 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # fallback).
 _RUNTIME_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _RUNTIME_TTL_SECONDS = 15
+# Block H (Wave 5/6): fleet stats for /transparency. Longer TTL — these move
+# slowly and the backend already caches /v1/stats/network for 30s.
+_NETWORK_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_NETWORK_TTL_SECONDS = 30
+# Block G (Wave 6): payment-networks catalog for /faq + /llms.txt. Crawlers hit
+# llms.txt frequently — cache so we don't re-query the backend chain list per
+# request.
+_CATALOG_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_CATALOG_TTL_SECONDS = 60
 
 
 def _render(request: Request, name: str, **kwargs: Any) -> Response:
@@ -94,6 +103,37 @@ async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
         _RUNTIME_CACHE["expires_at"] = now + _RUNTIME_TTL_SECONDS
         return data
     # Hold the last good value past its TTL when the backend is down.
+    return cached
+
+
+async def _refresh_network(request: Request) -> dict[str, Any] | None:
+    """Pull /v1/stats/network, cache for 30s. Stale-on-error, same as runtime.
+    The backend itself returns _source="fallback" on Prometheus failure, so
+    None here only means the backend itself is unreachable."""
+    now = time.time()
+    cached: dict[str, Any] | None = _NETWORK_CACHE.get("value")
+    if cached is not None and now < float(_NETWORK_CACHE["expires_at"]):
+        return cached
+    data = await _fetch_api(request, "/v1/stats/network")
+    if data is not None:
+        _NETWORK_CACHE["value"] = data
+        _NETWORK_CACHE["expires_at"] = now + _NETWORK_TTL_SECONDS
+        return data
+    return cached
+
+
+async def _refresh_networks(request: Request) -> dict[str, Any] | None:
+    """Pull /v1/payments/networks, cache 60s, stale-on-error. Shared by /faq and
+    /llms.txt so crawlers hitting llms.txt don't re-query the chain list each time."""
+    now = time.time()
+    cached: dict[str, Any] | None = _CATALOG_CACHE.get("value")
+    if cached is not None and now < float(_CATALOG_CACHE["expires_at"]):
+        return cached
+    data = await _fetch_api(request, "/v1/payments/networks")
+    if data is not None:
+        _CATALOG_CACHE["value"] = data
+        _CATALOG_CACHE["expires_at"] = now + _CATALOG_TTL_SECONDS
+        return data
     return cached
 
 
@@ -496,14 +536,37 @@ async def robots() -> str:
     return ROBOTS_TXT
 
 
+@app.get("/transparency", response_class=HTMLResponse)
+async def page_transparency(request: Request) -> Response:
+    """Infra-truth page: ASN, hosts, peering, jurisdiction (Block G). Live fleet
+    numbers (BGP peers, NAT64 sessions, IPv6 prefixes) come from
+    /v1/stats/network; falls back to the static shape when it's unreachable."""
+    await _refresh_runtime(request)
+    network = await _refresh_network(request)
+    return _render(request, "transparency.html", network=network)
+
+
+@app.get("/faq", response_class=HTMLResponse)
+async def page_faq(request: Request) -> Response:
+    """FAQ + FAQPage JSON-LD (Block G). Only mentions live payment methods —
+    the chain list comes from /v1/payments/networks, never hardcoded."""
+    await _refresh_runtime(request)
+    networks = await _refresh_networks(request) or {"networks": []}
+    return _render(request, "faq.html", networks=networks.get("networks", []))
+
+
 @app.get("/sitemap.xml")
 async def sitemap() -> Response:
     return Response(content=render_sitemap_xml(app), media_type="application/xml")
 
 
 @app.get("/llms.txt", response_class=PlainTextResponse)
-async def llms() -> str:
-    return LLMS_TXT
+async def llms(request: Request) -> str:
+    # Build from live backend state so the doc never advertises a disabled
+    # chain (feedback_verified_payment_chains). None → "ask the API" note.
+    networks_resp = await _refresh_networks(request)
+    networks = networks_resp.get("networks") if networks_resp else None
+    return build_llms_txt(networks)
 
 
 # ---------------------------------------------------------------------------
