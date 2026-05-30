@@ -137,7 +137,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/payment-evm.js" defer></script>
-<script src="/static/payment-native.js" defer></script>
-<script src="/static/payment.js" defer></script>
+{# Issue #14: payment dispatcher bundle (imports the EVM + native adapters). #}
+{{ vite_asset('payment') }}
 {% endblock %}

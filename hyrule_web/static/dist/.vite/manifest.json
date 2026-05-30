@@ -1,0 +1,17 @@
+{
+  "frontend/src/main.ts": {
+    "file": "assets/main-CXZowptf.js",
+    "name": "main",
+    "src": "frontend/src/main.ts",
+    "isEntry": true,
+    "css": [
+      "assets/main-C_Hm42oR.css"
+    ]
+  },
+  "frontend/src/payment.ts": {
+    "file": "assets/payment-CjaiD00_.js",
+    "name": "payment",
+    "src": "frontend/src/payment.ts",
+    "isEntry": true
+  }
+}

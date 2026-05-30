@@ -20,13 +20,17 @@ import respx
 from fastapi.testclient import TestClient
 
 _STATIC = Path(__file__).parent.parent / "hyrule_web" / "static"
+# Issue #14: the payment JS was migrated to TypeScript under frontend/src/ and is
+# now bundled by Vite. The wiring contract below is checked against the TS source
+# (the committed bundle is built from it).
+_FRONTEND_SRC = Path(__file__).parent.parent / "frontend" / "src"
 
 
 # --- Static asset shipping ---
 
 
 def test_payment_native_js_exists_and_exports_native_driver():
-    src = (_STATIC / "payment-native.js").read_text()
+    src = (_FRONTEND_SRC / "payment-native.ts").read_text()
     assert "window.HyrulePaymentNative" in src
     # Must call the two intent endpoints
     assert "/api/v1/intent/create" in src
@@ -36,7 +40,7 @@ def test_payment_native_js_exists_and_exports_native_driver():
 
 
 def test_payment_dispatcher_routes_by_method():
-    src = (_STATIC / "payment.js").read_text()
+    src = (_FRONTEND_SRC / "payment.ts").read_text()
     # Reads the payment-method radio set
     assert "payment-method" in src
     # Dispatches to both drivers: HyrulePayments.payWithEvm (Wave 3 EVM driver)
@@ -50,7 +54,7 @@ def test_payment_dispatcher_routes_by_method():
 def test_payment_native_does_not_hardcode_chain_constants():
     """Same anti-hardcoding rule that applies to EVM — addresses + amounts
     come from the backend's /v1/intent/* response, never from JS."""
-    src = (_STATIC / "payment-native.js").read_text()
+    src = (_FRONTEND_SRC / "payment-native.ts").read_text()
     # No magic Bitcoin address prefixes embedded (single check — the original
     # `... or ...` form was a tautology that always passed; Sourcery web#4).
     assert "bc1q" not in src
@@ -95,7 +99,9 @@ def test_review_page_loads_native_script(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
     r = _post_order(client)
-    assert "/static/payment-native.js" in r.text
+    # Issue #14: the native driver is bundled into the payment entry, loaded via
+    # the Vite manifest (vite_asset('payment')) rather than a standalone script.
+    assert "/static/dist/assets/payment-" in r.text
 
 
 # --- /api proxy forwards intent endpoints ---

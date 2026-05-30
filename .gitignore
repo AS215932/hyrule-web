@@ -1,10 +1,17 @@
-# Python
+# Python — anchored to repo root so the committed frontend bundle at
+# hyrule_web/static/dist/ is NOT ignored (the deploy ships it; see issue #14).
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
-dist/
-build/
+/dist/
+/build/
+
+# Node / frontend toolchain
+node_modules/
+# Built bundle IS committed (deploy git-checks-out the repo; no Node on host),
+# but source maps are not.
+hyrule_web/static/dist/**/*.map
 
 # Venv
 .venv/

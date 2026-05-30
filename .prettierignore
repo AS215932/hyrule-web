@@ -1,0 +1,9 @@
+hyrule_web/static/dist/
+hyrule_web/static/htmx.min.js
+# Legacy hand-written CSS — coexists in Phase 1, retired in the Phase 6 Tailwind
+# refresh; not worth a 1800-line reformat diff now.
+hyrule_web/static/style.css
+node_modules/
+package-lock.json
+# Server-rendered templates use Jinja; Prettier's HTML parser mangles {% %}.
+hyrule_web/templates/
