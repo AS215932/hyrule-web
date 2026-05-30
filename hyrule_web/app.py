@@ -151,7 +151,12 @@ def _render(request: Request, name: str, **kwargs: Any) -> Response:
     /v1/stats/runtime itself. When the runtime fetch fails the value is None
     and the template falls back to the `api · —` placeholder.
     """
-    ctx: dict[str, Any] = {"vm_tiers": VM_TIERS, **kwargs}
+    ctx: dict[str, Any] = {
+        "vm_tiers": VM_TIERS,
+        # Issue #14: public WalletConnect projectId for the base.html meta tag.
+        "wc_project_id": settings.walletconnect_project_id,
+        **kwargs,
+    }
     if "runtime" not in ctx:
         ctx["runtime"] = _RUNTIME_CACHE.get("value")
     return templates.TemplateResponse(request, name, ctx)

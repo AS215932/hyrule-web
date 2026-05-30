@@ -28,6 +28,9 @@
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="/static/style.css">
+    {# Issue #14: public WalletConnect/Reown projectId (client id, not a secret)
+       for the mobile EVM payment path. Empty → mobile WalletConnect disabled. #}
+    <meta name="walletconnect-project-id" content="{{ wc_project_id }}">
     {# Issue #14: Vite bundle (Tailwind + overflow guards + command palette). #}
     {{ vite_asset('main') }}
     {% block head %}{% endblock %}

@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # modules from it with HMR instead of the built bundle.
     vite_dev_server: str = ""
 
+    # Issue #14 (Phase 4): WalletConnect/Reown projectId for mobile EVM payments.
+    # This is a PUBLIC client id (Reown dashboard), surfaced to the browser via a
+    # <meta> tag — NOT a secret. Empty disables the mobile WalletConnect path
+    # (the injected-wallet + BTC/XMR paths still work).
+    walletconnect_project_id: str = ""
+
     model_config = {"env_prefix": "HYRULE_WEB_"}
 
 

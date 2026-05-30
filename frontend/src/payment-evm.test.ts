@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildTypedData, nonceHex32 } from "./payment-evm";
-import type { PaymentNetwork } from "./types";
+import { buildTypedData, getEvmProvider, nonceHex32 } from "./payment-evm";
+import type { Eip1193Provider, PaymentNetwork } from "./types";
 
 const network: PaymentNetwork = {
   key: "base",
@@ -62,5 +62,37 @@ describe("nonceHex32", () => {
 
   it("is random across calls", () => {
     expect(nonceHex32()).not.toBe(nonceHex32());
+  });
+});
+
+// Issue #14: getEvmProvider — injected wallet wins; otherwise WalletConnect
+// (lazy-loaded); otherwise null.
+describe("getEvmProvider", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+    vi.restoreAllMocks();
+  });
+
+  it("returns the injected provider when window.ethereum is present", async () => {
+    const injected: Eip1193Provider = { request: vi.fn() };
+    vi.stubGlobal("ethereum", injected);
+    await expect(getEvmProvider()).resolves.toBe(injected);
+  });
+
+  it("falls back to the lazy WalletConnect provider when no injected wallet", async () => {
+    vi.stubGlobal("ethereum", undefined);
+    const wc: Eip1193Provider = { request: vi.fn() };
+    vi.doMock("./walletconnect", () => ({ getWalletConnectProvider: async () => wc }));
+    // Re-import so the dynamic import() resolves the mocked module.
+    const mod = await import("./payment-evm");
+    await expect(mod.getEvmProvider()).resolves.toBe(wc);
+  });
+
+  it("returns null when neither injected nor WalletConnect is available", async () => {
+    vi.stubGlobal("ethereum", undefined);
+    vi.doMock("./walletconnect", () => ({ getWalletConnectProvider: async () => null }));
+    const mod = await import("./payment-evm");
+    await expect(mod.getEvmProvider()).resolves.toBeNull();
   });
 });

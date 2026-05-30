@@ -116,19 +116,35 @@ export function buildTypedData(
   };
 }
 
+/**
+ * Resolve an EIP-1193 provider: the injected wallet (desktop / wallet in-app
+ * browser) if present, otherwise WalletConnect (lazy-loaded — mobile), otherwise
+ * null. This is the issue-#14 fix for mobile, where there is no window.ethereum.
+ */
+export async function getEvmProvider(): Promise<Eip1193Provider | null> {
+  if (window.ethereum) return window.ethereum;
+  const { getWalletConnectProvider } = await import("./walletconnect");
+  return getWalletConnectProvider();
+}
+
 async function payWithEvm(opts: EvmPayOptions): Promise<void> {
   const { network, button, statusEl, orderPath, body } = opts;
-
-  if (!window.ethereum) {
-    setStatus(statusEl, "No wallet detected. Install MetaMask or Rabby.", "payment-error");
-    return;
-  }
-  const provider = window.ethereum;
 
   if (button) button.disabled = true;
   setStatus(statusEl, "Connecting wallet…", "payment-pending");
 
   try {
+    const provider = await getEvmProvider();
+    if (!provider) {
+      setStatus(
+        statusEl,
+        "No wallet available. On mobile, tap Pay to connect with WalletConnect or use the " +
+          "BTC/XMR tab; on desktop, install MetaMask or Rabby.",
+        "payment-error",
+      );
+      if (button) button.disabled = false;
+      return;
+    }
     const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
     const from = accounts[0];
 
