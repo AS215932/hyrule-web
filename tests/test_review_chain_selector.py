@@ -35,12 +35,11 @@ def test_review_renders_chain_selector_and_dispatcher(client: TestClient) -> Non
     assert 'id="order-data"' in body
     assert 'id="pay-btn"' in body
 
-    # The EVM adapter must load BEFORE the dispatcher: payment.js calls
-    # window.HyrulePayments.payWithEvm, which payment-evm.js defines. Wrong
-    # order → "EVM adapter not loaded" at click time.
-    assert "/static/payment-evm.js" in body
-    assert "/static/payment.js" in body
-    assert body.index("/static/payment-evm.js") < body.index("/static/payment.js")
+    # Issue #14: the dispatcher + EVM/native adapters are now a single Vite
+    # bundle. payment.ts imports payment-evm + payment-native, so the bundler
+    # guarantees the adapters register before the dispatcher runs (no more
+    # script-order footgun). Assert the payment bundle loads via the manifest.
+    assert "/static/dist/assets/payment-" in body
 
 
 def test_review_does_not_hardcode_chain_in_html(client: TestClient) -> None:

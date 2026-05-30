@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import sys
 import time
 import urllib.parse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -17,6 +19,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 
 from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
@@ -57,6 +60,71 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
+# ---------------------------------------------------------------------------
+# Vite asset manifest (issue #14)
+#
+# The frontend is built by Vite into static/dist/ with a manifest mapping entry
+# names to hashed filenames. `vite_asset()` renders the <script>/<link> tags for
+# an entry so templates don't hardcode hashed names. The built bundle is
+# committed and shipped by the Ansible deploy (no Node on the web host).
+# ---------------------------------------------------------------------------
+
+_DIST_DIR = BASE_DIR / "static" / "dist"
+_VITE_MANIFEST_PATH = _DIST_DIR / ".vite" / "manifest.json"
+# Friendly entry aliases → manifest keys (the Vite rollup input paths).
+_VITE_ENTRIES = {
+    "main": "frontend/src/main.ts",
+    "order": "frontend/src/order.ts",
+    "payment": "frontend/src/payment.ts",
+}
+
+
+@lru_cache(maxsize=1)
+def _vite_manifest() -> dict[str, Any]:
+    try:
+        data: Any = json.loads(_VITE_MANIFEST_PATH.read_text())
+    except (OSError, json.JSONDecodeError):
+        # No build present (e.g. fresh checkout before `npm run build`): render
+        # nothing rather than 500. CI's drift guard ensures dist/ is committed.
+        log.warning("vite_manifest_missing", path=str(_VITE_MANIFEST_PATH))
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def vite_asset(entry: str) -> Markup:
+    """Render the module <script> (+ its CSS and preloads) for a Vite entry.
+
+    `entry` is a friendly alias (see `_VITE_ENTRIES`) or a raw manifest key.
+    In dev (settings.debug + settings.vite_dev_server) it points at the Vite dev
+    server for HMR instead of the built bundle.
+    """
+    key = _VITE_ENTRIES.get(entry, entry)
+
+    if settings.debug and settings.vite_dev_server:
+        base = settings.vite_dev_server.rstrip("/")
+        return Markup(
+            f'<script type="module" src="{base}/@vite/client"></script>\n'
+            f'<script type="module" src="{base}/{key}"></script>'
+        )
+
+    manifest = _vite_manifest()
+    chunk = manifest.get(key)
+    if not chunk:
+        return Markup("")
+    tags: list[str] = []
+    for css in chunk.get("css", []):
+        tags.append(f'<link rel="stylesheet" href="/static/dist/{css}">')
+    for imp in chunk.get("imports", []):
+        dep = manifest.get(imp)
+        if dep and dep.get("file"):
+            tags.append(f'<link rel="modulepreload" href="/static/dist/{dep["file"]}">')
+    tags.append(f'<script type="module" src="/static/dist/{chunk["file"]}"></script>')
+    return Markup("\n".join(tags))
+
+
+templates.env.globals["vite_asset"] = vite_asset
+
+
 # Block B: frontend-side 15s cache so per-page renders never hit the backend
 # in a hot loop. The backend already caches /v1/stats/runtime at 20s; we stack
 # a smaller TTL here so the header pill stays responsive even if the backend
@@ -83,7 +151,12 @@ def _render(request: Request, name: str, **kwargs: Any) -> Response:
     /v1/stats/runtime itself. When the runtime fetch fails the value is None
     and the template falls back to the `api · —` placeholder.
     """
-    ctx: dict[str, Any] = {"vm_tiers": VM_TIERS, **kwargs}
+    ctx: dict[str, Any] = {
+        "vm_tiers": VM_TIERS,
+        # Issue #14: public WalletConnect projectId for the base.html meta tag.
+        "wc_project_id": settings.walletconnect_project_id,
+        **kwargs,
+    }
     if "runtime" not in ctx:
         ctx["runtime"] = _RUNTIME_CACHE.get("value")
     return templates.TemplateResponse(request, name, ctx)
@@ -205,9 +278,16 @@ def _require_auth_ui() -> None:
 async def page_index(request: Request) -> Response:
     """Block B: homepage pulls live runtime stats. Replaces the hardcoded
     `api · 24ms / queue 3 / 58s / 1284 VMs` block with values from the
-    backend, cached for 15s and stale-on-error."""
+    backend, cached for 15s and stale-on-error.
+
+    Issue #14: the settlement-chain copy is also driven from the live
+    /v1/payments/networks list (single source of truth, same as /faq and
+    llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
-    return _render(request, "index.html", runtime=runtime)
+    networks = await _refresh_networks(request) or {"networks": []}
+    return _render(
+        request, "index.html", runtime=runtime, networks=networks.get("networks", [])
+    )
 
 
 @app.get("/services", response_class=HTMLResponse)
@@ -254,6 +334,39 @@ async def page_review(
         request, "review.html",
         order=order, tier=tier, total=total,
     )
+
+
+@app.get("/order/review/{quote_id}", response_class=HTMLResponse)
+async def page_review_quote(request: Request, quote_id: str) -> Response:
+    """Issue #14: reload-safe review page backed by a durable quote.
+
+    The order form (order.ts) creates a quote and sends the browser here, so a
+    mobile wallet handoff that reloads the page just re-GETs this URL and the
+    order is re-rendered from the backend — no lost POST body. Unknown quote →
+    back to the order form; expired quote → render with a restart banner."""
+    quote = await _fetch_api(request, f"/v1/vm/quote/{quote_id}")
+    if not quote:
+        return RedirectResponse("/order", status_code=303)
+
+    payload: dict[str, Any] = quote.get("order_payload") or {}
+    size = payload.get("size", "sm")
+    duration = payload.get("duration_days", 30)
+    tier = VM_TIERS.get(size, VM_TIERS["sm"])
+    total = tier["price"] * duration
+    order = {
+        "os": payload.get("os"),
+        "size": size,
+        "duration": duration,
+        "ssh_pubkey": payload.get("ssh_pubkey", ""),
+        # hostname is not part of the backend VM spec; the quote doesn't carry it.
+        "hostname": "",
+        "domain_mode": payload.get("domain_mode", "auto"),
+        "domain": payload.get("domain") or "",
+        "id": quote_id,
+        "quote_id": quote_id,
+        "expired": quote.get("status") == "expired",
+    }
+    return _render(request, "review.html", order=order, tier=tier, total=total)
 
 
 @app.get("/order/status/{vm_id}", response_class=HTMLResponse)

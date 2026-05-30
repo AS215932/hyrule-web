@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Issue #14 — kill the horizontal overflow that made the site render
+ * off-centre on mobile. `.container` is correctly centred (margin: 0 auto), but
+ * fixed-width inline-styled flex/grid children and unbroken monospace strings
+ * made the document wider than the viewport, so centred content visually hugged
+ * the left edge. Clipping x-overflow at the root keeps everything centred;
+ * media + long strings are constrained so they wrap/scroll within their box
+ * instead of widening the page. Per-element stacking (the QR / payment card)
+ * and the full responsive refresh land with the template work in later phases.
+ *
+ * preflight is disabled (tailwind.config.ts) so these coexist with style.css
+ * without resetting the existing look.
+ */
+@layer base {
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  table {
+    max-width: 100%;
+  }
+
+  pre,
+  code {
+    overflow-wrap: anywhere;
+  }
+}

@@ -188,6 +188,8 @@
 {% endblock %}
 
 {% block scripts %}
+{# Issue #14: durable-quote submit (progressive enhancement). #}
+{{ vite_asset('order') }}
 <script>
 (function(){
   const f = document.querySelector('[data-order-form]');

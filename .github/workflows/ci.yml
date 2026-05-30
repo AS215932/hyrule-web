@@ -46,3 +46,53 @@ jobs:
             --cov-report=term-missing \
             --cov-branch \
             --cov-fail-under=90
+
+  frontend:
+    # Issue #14: TypeScript/Vite/Tailwind frontend bundle. Add this check name to
+    # branch protection alongside `test`. Don't rename without updating the rule.
+    name: frontend
+    runs-on: [self-hosted, linux, x64, hyrule]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # npm 11 — must match the npm that generated package-lock.json, else
+          # `npm ci` rejects the lock (npm 10 mis-reads npm-11 nested deps). node
+          # 24 LTS ships npm 11.
+          node-version: "24"
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prettier (check)
+        run: npx prettier --check .
+
+      - name: ESLint
+        run: npx eslint .
+
+      - name: Stylelint
+        run: npx stylelint "frontend/src/**/*.css"
+
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      - name: Vitest + coverage
+        run: npx vitest run --coverage
+
+      - name: Build
+        run: npx vite build
+
+      # The built bundle is committed (the web host has no Node; the deploy
+      # git-checks-out the repo). Fail if the committed dist drifts from a fresh
+      # build so an SHA-pinned rollback always ships matching assets.
+      - name: Drift guard — committed dist must equal a fresh build
+        run: |
+          if ! git diff --quiet -- hyrule_web/static/dist; then
+            echo "::error::hyrule_web/static/dist is stale — run 'npm run build' and commit it."
+            git --no-pager diff --stat -- hyrule_web/static/dist
+            exit 1
+          fi

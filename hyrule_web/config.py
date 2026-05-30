@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     # falls back to the pre-Wave-2 nav (no Login / Dashboard pills).
     enable_auth_ui: bool = True
 
+    # Issue #14 frontend build: in prod, templates load hashed assets from the
+    # committed Vite manifest under static/dist/. For local dev, set this to the
+    # Vite dev server origin (e.g. http://localhost:5173) AND debug=true to load
+    # modules from it with HMR instead of the built bundle.
+    vite_dev_server: str = ""
+
+    # Issue #14 (Phase 4): WalletConnect/Reown projectId for mobile EVM payments.
+    # This is a PUBLIC client id (Reown dashboard), surfaced to the browser via a
+    # <meta> tag — NOT a secret. Empty disables the mobile WalletConnect path
+    # (the injected-wallet + BTC/XMR paths still work).
+    walletconnect_project_id: str = ""
+
     model_config = {"env_prefix": "HYRULE_WEB_"}
 
 
