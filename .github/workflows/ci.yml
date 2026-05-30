@@ -59,7 +59,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # npm 11 — must match the npm that generated package-lock.json, else
+          # `npm ci` rejects the lock (npm 10 mis-reads npm-11 nested deps). node
+          # 24 LTS ships npm 11.
+          node-version: "24"
           cache: npm
 
       - name: Install deps
