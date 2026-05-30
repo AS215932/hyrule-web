@@ -278,9 +278,16 @@ def _require_auth_ui() -> None:
 async def page_index(request: Request) -> Response:
     """Block B: homepage pulls live runtime stats. Replaces the hardcoded
     `api · 24ms / queue 3 / 58s / 1284 VMs` block with values from the
-    backend, cached for 15s and stale-on-error."""
+    backend, cached for 15s and stale-on-error.
+
+    Issue #14: the settlement-chain copy is also driven from the live
+    /v1/payments/networks list (single source of truth, same as /faq and
+    llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
-    return _render(request, "index.html", runtime=runtime)
+    networks = await _refresh_networks(request) or {"networks": []}
+    return _render(
+        request, "index.html", runtime=runtime, networks=networks.get("networks", [])
+    )
 
 
 @app.get("/services", response_class=HTMLResponse)

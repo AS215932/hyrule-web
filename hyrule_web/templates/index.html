@@ -107,7 +107,7 @@
             <h2>Pick the footprint and keep moving.</h2>
         </div>
         <div class="heading-side">
-            All prices are in USD, billed daily. Pay USDC (Base, Polygon, Arbitrum), BTC, or XMR at checkout. No account required.
+            All prices are in USD, billed daily. Pay USDC ({{ (networks | map(attribute='display_name') | join(', ')) if networks else 'facilitator-verified EVM chains' }}), BTC, or XMR at checkout. No account required.
         </div>
     </div>
     {% include "_tier_grid.html" %}
@@ -151,7 +151,7 @@
             <p>The website mirrors the public API. Anything you can click here, an agent can POST.</p>
             <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
             <div class="row"><span class="k">Auth</span><span><code>X-Payment</code> · x402 (EVM) or scoped API key (D)</span></div>
-            <div class="row"><span class="k">Settlement</span><span>USDC · Base · Polygon · Arbitrum · gasless</span></div>
+            <div class="row"><span class="k">Settlement</span><span>USDC · {{ (networks | map(attribute='display_name') | join(' · ')) if networks else 'EVM' }} · gasless</span></div>
             <div class="row"><span class="k">Latency</span><span>p50 {% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %} <small style="color:var(--text-soft)">· per-worker</small></span></div>
         </div>
         <div class="api-code" data-api-tabs>

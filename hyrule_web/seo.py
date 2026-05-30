@@ -71,10 +71,25 @@ _LLMS_TXT_PREAMBLE = """\
 
 ## API
 
-- Base URL published in the OpenAPI schema served by the backend. The web
-  frontend at https://hyrule.host proxies `/api/*` to the same backend so
-  browser clients hit the same origin.
+Canonical API host: https://cloud.hyrule.host (the web frontend at
+https://hyrule.host proxies `/api/*` to it, so browser clients hit the same
+origin). Key URLs:
+
+- OpenAPI schema: https://cloud.hyrule.host/openapi.json
 - x402 service manifest: https://cloud.hyrule.host/.well-known/x402.json
+- VM catalog: https://cloud.hyrule.host/v1/products/vms
+- Price a durable order (POST): https://cloud.hyrule.host/v1/vm/quote
+- Provision a VM (POST, x402): https://cloud.hyrule.host/v1/vm/create
+
+Golden path (agent), all against https://cloud.hyrule.host:
+
+    GET  /.well-known/x402.json
+    GET  /v1/products/vms
+    POST /v1/vm/quote  -> {quote_id, amount_usd, expires_at}
+    POST /v1/vm/create {quote_id}  -> 402 + X-PAYMENT-REQUIRED
+    # sign EIP-3009 TransferWithAuthorization for amount_usd
+    POST /v1/vm/create {quote_id} + X-PAYMENT  -> 202 {vm_id, management_token}
+    GET  /v1/vm/{vm_id}/status  -> poll to ready
 """
 
 
