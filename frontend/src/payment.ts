@@ -99,6 +99,10 @@ import type { PaymentNetwork } from "./types";
     if (fd.get("domain") && fd.get("domain_mode") === "custom") {
       payload.domain = fd.get("domain");
     }
+    // Issue #14: bind to the durable quote so the server provisions the quoted
+    // spec at the locked price (and idempotently across the 402 → sign → retry).
+    const quoteId = fd.get("quote_id");
+    if (quoteId) payload.quote_id = quoteId;
     return payload;
   }
 

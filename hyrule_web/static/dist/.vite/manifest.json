@@ -8,8 +8,14 @@
       "assets/main-C_Hm42oR.css"
     ]
   },
+  "frontend/src/order.ts": {
+    "file": "assets/order-D5w5Gw4c.js",
+    "name": "order",
+    "src": "frontend/src/order.ts",
+    "isEntry": true
+  },
   "frontend/src/payment.ts": {
-    "file": "assets/payment-CjaiD00_.js",
+    "file": "assets/payment-RzIRHR2O.js",
     "name": "payment",
     "src": "frontend/src/payment.ts",
     "isEntry": true

@@ -15,6 +15,8 @@ export default defineConfig({
       input: {
         // Loaded on every page (base.html): command palette + global styles.
         main: "frontend/src/main.ts",
+        // Loaded on the order form (order.html): durable-quote submit.
+        order: "frontend/src/order.ts",
         // Loaded on the review/checkout page: the payment dispatcher.
         payment: "frontend/src/payment.ts",
       },

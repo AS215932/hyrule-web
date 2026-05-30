@@ -113,10 +113,19 @@
                     <input type="hidden" name="hostname" value="{{ order.hostname if order else '' }}">
                     <input type="hidden" name="domain_mode" value="{{ order.domain_mode if order else 'auto' }}">
                     <input type="hidden" name="domain" value="{{ order.domain if order else '' }}">
+                    {# Issue #14: durable quote id — payment.ts sends it to /api/vm/create so
+                       the server provisions the quoted spec at the locked price. #}
+                    {% if order and order.quote_id %}<input type="hidden" name="quote_id" value="{{ order.quote_id }}">{% endif %}
                 </form>
 
+                {% if order and order.expired %}
+                <div class="payment-status payment-warn" style="margin-bottom:10px">
+                    This quote has expired. <a href="/order">Start a new order</a> to get a fresh price.
+                </div>
+                {% endif %}
                 <button id="pay-btn" type="button"
-                        class="btn btn-primary btn-lg btn-block">
+                        class="btn btn-primary btn-lg btn-block"
+                        {% if order and order.expired %}disabled{% endif %}>
                     Pay ${{ "%.2f"|format(total) }} with wallet
                 </button>
                 <div id="payment-status" class="payment-status"></div>

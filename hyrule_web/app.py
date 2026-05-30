@@ -74,6 +74,7 @@ _VITE_MANIFEST_PATH = _DIST_DIR / ".vite" / "manifest.json"
 # Friendly entry aliases → manifest keys (the Vite rollup input paths).
 _VITE_ENTRIES = {
     "main": "frontend/src/main.ts",
+    "order": "frontend/src/order.ts",
     "payment": "frontend/src/payment.ts",
 }
 
@@ -321,6 +322,39 @@ async def page_review(
         request, "review.html",
         order=order, tier=tier, total=total,
     )
+
+
+@app.get("/order/review/{quote_id}", response_class=HTMLResponse)
+async def page_review_quote(request: Request, quote_id: str) -> Response:
+    """Issue #14: reload-safe review page backed by a durable quote.
+
+    The order form (order.ts) creates a quote and sends the browser here, so a
+    mobile wallet handoff that reloads the page just re-GETs this URL and the
+    order is re-rendered from the backend — no lost POST body. Unknown quote →
+    back to the order form; expired quote → render with a restart banner."""
+    quote = await _fetch_api(request, f"/v1/vm/quote/{quote_id}")
+    if not quote:
+        return RedirectResponse("/order", status_code=303)
+
+    payload: dict[str, Any] = quote.get("order_payload") or {}
+    size = payload.get("size", "sm")
+    duration = payload.get("duration_days", 30)
+    tier = VM_TIERS.get(size, VM_TIERS["sm"])
+    total = tier["price"] * duration
+    order = {
+        "os": payload.get("os"),
+        "size": size,
+        "duration": duration,
+        "ssh_pubkey": payload.get("ssh_pubkey", ""),
+        # hostname is not part of the backend VM spec; the quote doesn't carry it.
+        "hostname": "",
+        "domain_mode": payload.get("domain_mode", "auto"),
+        "domain": payload.get("domain") or "",
+        "id": quote_id,
+        "quote_id": quote_id,
+        "expired": quote.get("status") == "expired",
+    }
+    return _render(request, "review.html", order=order, tier=tier, total=total)
 
 
 @app.get("/order/status/{vm_id}", response_class=HTMLResponse)
