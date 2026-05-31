@@ -20,20 +20,20 @@
 </section>
 
 <section class="container page-section">
-    <div class="mini-card" style="max-width:560px;padding:24px">
+    <div class="mini-card max-w-[560px] p-6">
         {% if success %}
-        <div class="payment-status payment-success" style="margin-bottom:16px">
+        <div class="payment-status payment-success mb-4">
             Password reset. <strong>Save your new recovery code below — this is the only time it will be shown.</strong>
         </div>
         <div class="form-section">
             <label><strong>Account ID</strong></label>
-            <code style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px">{{ success.account_id }}</code>
+            <code class="block rounded-[4px] bg-[#1a1a1a] p-2.5">{{ success.account_id }}</code>
         </div>
         <div class="form-section">
             <label><strong>New recovery code</strong></label>
-            <code id="new-rec" style="display:block;padding:10px;background:var(--surface,#1a1a1a);border-radius:4px;word-break:break-all">{{ success.new_recovery_code }}</code>
+            <code id="new-rec" class="block break-all rounded-[4px] bg-[#1a1a1a] p-2.5">{{ success.new_recovery_code }}</code>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <div class="mb-4 flex flex-wrap gap-2">
             <button type="button" class="btn btn-secondary btn-xs"
                     onclick="navigator.clipboard.writeText(document.getElementById('new-rec').textContent);this.textContent='copied';">
                 copy
@@ -45,36 +45,36 @@
         <p><a href="/login" class="btn btn-primary btn-xs">Log in →</a></p>
         {% else %}
         {% if error %}
-        <div class="payment-status payment-error" style="margin-bottom:16px">{{ error }}</div>
+        <div class="payment-status payment-error mb-4">{{ error }}</div>
         {% endif %}
         <form method="post" action="/recover">
             <div class="form-section">
                 <label for="aid"><strong>Account ID</strong></label>
                 <input id="aid" name="account_id" required
                        autocapitalize="characters" placeholder="ACCT_..."
-                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2.5 font-mono">
             </div>
             <div class="form-section">
                 <label for="rec"><strong>Recovery code</strong></label>
                 <input id="rec" name="recovery_code" required
                        placeholder="hyr-rec-..."
-                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2.5 font-mono">
             </div>
             <div class="form-section">
                 <label for="newpw"><strong>New password</strong> <small>(min 12 characters)</small></label>
                 <input id="newpw" name="new_password" type="password" required minlength="12"
                        autocomplete="new-password"
-                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2.5 font-mono">
             </div>
             <div class="form-section">
                 <label for="newpw2"><strong>Confirm new password</strong></label>
                 <input id="newpw2" name="new_password_confirm" type="password" required minlength="12"
                        autocomplete="new-password"
-                       style="width:100%;padding:10px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2.5 font-mono">
             </div>
             <button type="submit" class="btn btn-primary">Reset password</button>
         </form>
-        <p style="margin-top:16px;color:var(--text-soft);font-size:.85em">
+        <p class="mt-4 text-[0.85em] text-text-soft">
             Remembered it? <a href="/login">Log in</a>.
         </p>
         {% endif %}

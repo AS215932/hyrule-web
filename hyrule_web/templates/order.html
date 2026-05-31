@@ -14,8 +14,8 @@
             <p class="hero-blurb">Hyrule Cloud keeps the form explicit: image, size, lifetime, SSH key, naming. No hidden wizard state, no progressive reveals.</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">before you begin</span>
-            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted)">
+            <span class="panel-label mb-2">before you begin</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
                 <li>+ ed25519 or RSA public key</li>
                 <li>+ Auto subdomain or your own domain</li>
                 <li>+ Wallet with USDC on Base</li>
@@ -91,7 +91,7 @@
                         <div class="field">
                             <label class="field-label" for="duration">days online</label>
                             <div class="duration-input">
-                                <input id="duration" name="duration" type="number" min="1" max="365" value="30" style="padding-right:50px">
+                                <input id="duration" name="duration" type="number" min="1" max="365" value="30" class="pr-[50px]">
                                 <span class="suffix">days</span>
                             </div>
                         </div>
@@ -119,7 +119,7 @@
 
             <fieldset class="form-section">
                 <legend><div class="form-section-head">
-                    <h3><span class="ix">05</span> Hostname <span style="color:var(--text-soft);font-size:.74rem;font-weight:400">(optional)</span></h3>
+                    <h3><span class="ix">05</span> Hostname <span class="text-[0.74rem] font-normal text-text-soft">(optional)</span></h3>
                     <span class="form-section-hint">auto-assigned if blank</span>
                 </div></legend>
                 <div class="form-section-body">
@@ -147,7 +147,7 @@
                             <input type="radio" name="domain_mode" value="custom">
                             <span>Custom domain</span>
                             <input type="text" name="domain" placeholder="example.com"
-                                   style="flex:1;margin-left:auto;min-width:180px;background:rgba(0,0,0,.35);border:1px solid var(--line-2);border-radius:8px;padding:6px 10px;color:var(--text);font-family:var(--font-mono);font-size:.82rem">
+                                   class="ml-auto min-w-[180px] flex-1 rounded-[8px] border border-line-2 bg-black/[0.35] px-2.5 py-1.5 font-mono text-[0.82rem] text-text">
                         </label>
                     </div>
                 </div>
@@ -178,7 +178,7 @@
             </div>
             <div class="summary-panel">
                 <span class="panel-label">payment rail</span>
-                <p style="color:var(--text-muted);font-size:.84rem;margin-top:8px;line-height:1.6">
+                <p class="mt-2 leading-[1.6] text-[0.84rem] text-text-muted">
                     USDC on Base via x402. You sign a gasless EIP-3009 authorization on the next screen.
                 </p>
             </div>

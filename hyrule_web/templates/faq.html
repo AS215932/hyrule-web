@@ -95,11 +95,11 @@
             <p class="hero-blurb">No marketing fluff. Each answer is what the system actually does — if it changes, this page changes with it.</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">live chains</span>
-            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted);font-size:.85rem">
+            <span class="panel-label mb-2">live chains</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-[0.85rem] text-text-muted">
                 {% if networks %}
                 {% for n in networks %}
-                <li>+ {{ n.display_name }} <code style="font-size:.78rem;color:var(--text-soft)">{{ n.caip2 }}</code></li>
+                <li>+ {{ n.display_name }} <code class="text-[0.78rem] text-text-soft">{{ n.caip2 }}</code></li>
                 {% endfor %}
                 {% else %}
                 <li>+ <em>backend unreachable; check <code>/api/v1/payments/networks</code></em></li>
@@ -110,11 +110,11 @@
 </section>
 
 <section class="container page-section">
-    <div style="display:flex;flex-direction:column;gap:18px">
+    <div class="flex flex-col gap-[18px]">
     {% for item in faq_items %}
-        <details class="feature-card" {% if loop.index <= 2 %}open{% endif %} style="padding:18px 20px">
-            <summary style="cursor:pointer;font-weight:600;font-size:1.05rem">{{ item.q }}</summary>
-            <p style="margin-top:12px;color:var(--text-muted);line-height:1.65">{{ item.a | safe }}</p>
+        <details class="feature-card px-5 py-[18px]" {% if loop.index <= 2 %}open{% endif %}>
+            <summary class="cursor-pointer text-[1.05rem] font-semibold">{{ item.q }}</summary>
+            <p class="mt-3 leading-[1.65] text-text-muted">{{ item.a | safe }}</p>
         </details>
     {% endfor %}
     </div>
