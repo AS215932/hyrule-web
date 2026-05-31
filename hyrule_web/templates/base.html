@@ -27,7 +27,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="/static/style.css">
+    {# Issue #8: legacy static/style.css is retired — its styles now ship inside
+       the Vite `main` bundle (frontend/src/styles/legacy.css + base + components). #}
     {# Issue #14: public WalletConnect/Reown projectId (client id, not a secret)
        for the mobile EVM payment path. Empty → mobile WalletConnect disabled. #}
     <meta name="walletconnect-project-id" content="{{ wc_project_id }}">
