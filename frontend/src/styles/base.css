@@ -1,0 +1,273 @@
+/*
+ * Slim base layer — issue #8 (Phase 6, PR 3).
+ *
+ * Document-level foundation migrated out of static/style.css onto the expanded
+ * Tailwind tokens (PR 2): global reset bits, the dark background + ornaments, the
+ * body-attribute MODE system (data-density / data-font / data-ornaments — these
+ * must keep working), the type scale, links, code/kbd, focus rings, keyframes,
+ * reduced-motion, and the nav scroll-lock.
+ *
+ * This is the refreshed foundation: the body size becomes fluid (was a fixed
+ * 13.5px), the type scale is retuned, and a global :focus-visible ring is added.
+ * Because the built bundle loads AFTER style.css and Tailwind strips the @layer
+ * wrapper in its output, these rules win at equal specificity, so the refresh
+ * takes effect while style.css still renders anything not yet migrated. style.css
+ * is retired (and preflight flipped on) in the final Phase 6 PR.
+ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 88% -8%, rgb(249 168 212 / 10%), transparent 32%),
+      radial-gradient(circle at 4% 4%, rgb(255 255 255 / 4%), transparent 22%),
+      linear-gradient(180deg, #0e0e0f 0%, #0a0a0b 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: var(--font-body);
+
+    /* Fluid body type (was fixed 13.5px) — keeps the compact low end, breathes up
+       on larger viewports. */
+    font-size: clamp(0.84rem, 0.8rem + 0.2vw, 0.95rem);
+    line-height: 1.65;
+    font-feature-settings: "ss01", "calt", "liga";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizelegibility;
+  }
+
+  /* ── body-attribute modes (must survive the migration) ─────────────────── */
+  body[data-density="compact"] {
+    --row: 0.85rem;
+    --pad-panel: 1rem;
+    --gap-panel: 0.75rem;
+  }
+
+  body[data-density="spacious"] {
+    --row: 1.7rem;
+    --pad-panel: 1.9rem;
+    --gap-panel: 1.6rem;
+  }
+
+  body[data-font="sans"] {
+    --font-body: var(--font-sans);
+  }
+
+  /* fine grid background — only when ornaments enabled */
+  body[data-ornaments="on"]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgb(255 255 255 / 2.5%) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(255 255 255 / 2.2%) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(180deg, rgb(0 0 0 / 65%), transparent 92%);
+    z-index: 0;
+  }
+
+  /* horizontal scanline whisper — only when ornaments enabled */
+  body[data-ornaments="on"]::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      180deg,
+      rgb(255 255 255 / 1.1%) 0,
+      rgb(255 255 255 / 1.1%) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    opacity: 0.5;
+    z-index: 0;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── overflow guards (kept from PR 1 / issue #14) ──────────────────────── */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  img,
+  svg,
+  video,
+  canvas,
+  table {
+    max-width: 100%;
+  }
+
+  pre,
+  code {
+    overflow-wrap: anywhere;
+  }
+
+  /* lock background scroll while the mobile nav drawer is open */
+  html.nav-open,
+  body.nav-open {
+    overflow: hidden;
+  }
+
+  /* ── type ──────────────────────────────────────────────────────────────── */
+  a {
+    color: inherit;
+    text-decoration: none;
+    transition:
+      color var(--transition),
+      border-color var(--transition),
+      background-color var(--transition),
+      transform var(--transition);
+  }
+
+  a:hover {
+    color: var(--accent);
+  }
+
+  p,
+  ul,
+  ol,
+  table,
+  figure {
+    margin: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    color: var(--text);
+    line-height: 1.08;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  /* Retuned fluid scale — slightly tighter ceilings, smoother ramp. */
+  h1 {
+    font-size: clamp(2.4rem, 1.8rem + 3vw, 4rem);
+    letter-spacing: -0.028em;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 1.3rem + 1vw, 2.1rem);
+  }
+
+  h3 {
+    font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+    letter-spacing: 0;
+  }
+
+  h4 {
+    font-size: clamp(0.8rem, 0.77rem + 0.15vw, 0.875rem);
+    letter-spacing: 0;
+  }
+
+  code,
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+
+  code {
+    background: rgb(255 255 255 / 4%);
+    border: 1px solid rgb(255 255 255 / 7%);
+    border-radius: 6px;
+    padding: 0.05rem 0.4rem;
+    color: var(--text);
+  }
+
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5em;
+    padding: 0.05rem 0.4rem;
+    border: 1px solid rgb(255 255 255 / 14%);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text-muted);
+    font-size: 0.78em;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  /* Accessibility refresh — a single, consistent keyboard focus ring. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  .container {
+    width: min(var(--container), calc(100% - var(--gutter) * 2));
+    margin: 0 auto;
+  }
+
+  /* ── keyframes (used by migrated components) ───────────────────────────── */
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      transform: translateY(8px);
+      opacity: 0;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
