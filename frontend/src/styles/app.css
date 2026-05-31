@@ -34,4 +34,138 @@
   code {
     overflow-wrap: anywhere;
   }
+
+  /* Issue #8: lock background scroll while the mobile nav drawer is open. */
+  html.nav-open,
+  body.nav-open {
+    overflow: hidden;
+  }
+}
+
+/*
+ * Issue #8 (Phase 6, PR 1) — reachable mobile nav. Minimal, functional styling
+ * for the hamburger + off-canvas drawer; the broader visual refresh lands in a
+ * later phase. Below 720px the desktop `.site-nav` is hidden (static/style.css)
+ * and the hamburger + drawer take over; at >=720px the hamburger and drawer are
+ * hidden and the desktop nav shows as before. 720px matches the existing
+ * style.css nav breakpoint (the named `md` Tailwind screen arrives in PR 2).
+ */
+@layer components {
+  .nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+  }
+
+  .nav-toggle:hover {
+    color: var(--text);
+    border-color: var(--line-bright);
+  }
+
+  .mobile-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgb(0 0 0 / 55%);
+  }
+
+  .mobile-nav {
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: min(86vw, 320px);
+    padding: 1rem;
+    overflow-y: auto;
+    background: var(--panel-strong);
+    border-left: 1px solid var(--line-2);
+    box-shadow: var(--shadow-1);
+  }
+
+  .mobile-nav-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .mobile-nav-title {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  .mobile-nav-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+
+  .mobile-nav-close:hover {
+    color: var(--text);
+  }
+
+  .mobile-nav-links {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-nav-links a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 44px;
+    padding: 0.5rem 0.25rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .mobile-nav-links a:hover {
+    color: var(--text);
+  }
+
+  .mobile-nav-links a[aria-current="page"] {
+    color: var(--accent);
+  }
+
+  .mobile-nav-links .nav-num {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+
+  /* `hidden` must win over the display:* rules above. */
+  .nav-toggle[hidden],
+  .mobile-nav[hidden],
+  .mobile-nav-backdrop[hidden] {
+    display: none;
+  }
+
+  /* Desktop: hide the hamburger + drawer; the original .site-nav takes over. */
+  @media (width >= 720px) {
+    .nav-toggle,
+    .mobile-nav,
+    .mobile-nav-backdrop {
+      display: none;
+    }
+  }
 }
