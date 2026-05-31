@@ -154,12 +154,12 @@
     ]
   },
   "frontend/src/main.ts": {
-    "file": "assets/main-CfRNYGH8.js",
+    "file": "assets/main-DQJfWfiz.js",
     "name": "main",
     "src": "frontend/src/main.ts",
     "isEntry": true,
     "css": [
-      "assets/main-C8nzN38v.css"
+      "assets/main-CmGAyrlM.css"
     ]
   },
   "frontend/src/order.ts": {
