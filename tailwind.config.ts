@@ -16,14 +16,13 @@ import type { Config } from "tailwindcss";
 // layer. The vars remain the single source of truth during the migration.
 export default {
   content: ["./hyrule_web/templates/**/*.html", "./frontend/src/**/*.{ts,js}"],
-  // `preflight` off: coexist with style.css's reset (flipped on in the final
-  // Phase 6 PR). `container` off: Tailwind's built-in `.container` utility
-  // collides with the legacy `.container` class used across the templates and
-  // was overriding its fluid `width: min(var(--container), 100% - 2*gutter)`
-  // with `width:100%` + stepped max-widths. Disabling it lets the intended
-  // legacy container govern and stops this PR's `screens` change from re-pinning
-  // the container width at the new breakpoints.
-  corePlugins: { preflight: false, container: false },
+  // `preflight` on (issue #8 final PR): static/style.css is retired, so Tailwind's
+  // reset is now the base. It sits at the start of the base layer and is overridden
+  // by the relocated legacy.css + base.css (typography, modes), so the look holds.
+  // `container` off: Tailwind's built-in `.container` collides with the legacy
+  // `.container` class (fluid `min(var(--container), 100% - 2*gutter)`); disabling
+  // it lets the intended container govern.
+  corePlugins: { preflight: true, container: false },
   theme: {
     // Override (not extend) so the legacy desktop-first cutoffs (720/1024 in
     // style.css) and this mobile-first scale agree and Tailwind's default

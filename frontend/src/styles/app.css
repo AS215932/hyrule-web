@@ -9,6 +9,12 @@
  *   style.css (earlier <link>)  <  base.css  <  components.css  <  utilities
  * preflight stays disabled until the final Phase 6 PR (see tailwind.config.ts).
  */
+
+/* Order matters: legacy first (relocated style.css, @layer base), then the
+ * refreshed base + component layers which override it, then Tailwind's layers.
+ * With preflight now enabled, Tailwind's reset sits at the start of the base
+ * layer and is overridden by legacy + base.css. */
+@import "./legacy.css";
 @import "./base.css";
 @import "./components.css";
 
