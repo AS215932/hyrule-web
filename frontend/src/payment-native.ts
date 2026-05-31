@@ -139,25 +139,28 @@ function setStatusLine(container: HTMLElement, status: unknown, confirmations: u
   el.appendChild(document.createTextNode(" · confirmations: " + (confirmations || 0)));
 }
 
-function renderDepositCard(container: HTMLElement, intent: IntentBody): void {
+export function renderDepositCard(container: HTMLElement, intent: IntentBody): void {
   const label = intent.asset === "BTC" ? "Bitcoin" : "Monero";
   const expires = intent.expires_at ? new Date(intent.expires_at) : null;
   // Static skeleton ONLY — no backend data interpolated into innerHTML. All
   // dynamic fields are set via textContent below (XSS-safe).
+  // Issue #8: responsive layout — the QR caps at the container width and the
+  // text column gets `min-w-0` so a long deposit address wraps instead of
+  // forcing the card wider than a narrow viewport. The two stack below `xs`.
   container.innerHTML =
-    '<div class="mini-card" style="padding:20px">' +
-    '<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">' +
-    '<div id="hyr-qr" style="width:256px;height:256px;background:#fff;border-radius:8px;flex:0 0 auto"></div>' +
-    '<div style="flex:1 1 220px;min-width:220px;display:flex;flex-direction:column;gap:10px">' +
-    '<div><span class="panel-label">send</span><div style="font-size:1.4em;margin-top:4px"><strong id="hyr-amt"></strong></div></div>' +
-    '<div><span class="panel-label">to address</span><div style="margin-top:4px"><code id="hyr-addr" style="word-break:break-all;font-size:.85em"></code></div></div>' +
-    '<div style="display:flex;gap:6px"><button id="hyr-copy-addr" class="btn btn-secondary btn-xs">copy address</button><button id="hyr-copy-amt" class="btn btn-secondary btn-xs">copy amount</button></div>' +
-    '<div style="font-size:.85em;color:var(--text-soft)" id="hyr-rate"></div>' +
-    '<div id="hyr-status" style="font-size:.85em"></div>' +
-    '<div style="font-size:.78em;color:var(--text-soft)" id="hyr-expires"></div>' +
+    '<div class="mini-card p-5">' +
+    '<div class="flex flex-col gap-[18px] xs:flex-row xs:items-start">' +
+    '<div id="hyr-qr" class="aspect-square w-[256px] max-w-full shrink-0 self-center rounded-lg bg-white xs:self-auto [&>svg]:h-full [&>svg]:w-full"></div>' +
+    '<div class="flex min-w-0 flex-1 flex-col gap-2.5">' +
+    '<div><span class="panel-label">send</span><div class="mt-1 text-[1.4em]"><strong id="hyr-amt"></strong></div></div>' +
+    '<div><span class="panel-label">to address</span><div class="mt-1"><code id="hyr-addr" class="break-all text-[0.85em]"></code></div></div>' +
+    '<div class="flex gap-1.5"><button id="hyr-copy-addr" class="btn btn-secondary btn-xs">copy address</button><button id="hyr-copy-amt" class="btn btn-secondary btn-xs">copy amount</button></div>' +
+    '<div class="text-[0.85em] text-text-soft" id="hyr-rate"></div>' +
+    '<div id="hyr-status" class="text-[0.85em]"></div>' +
+    '<div class="text-[0.78em] text-text-soft" id="hyr-expires"></div>' +
     "</div>" +
     "</div>" +
-    '<p style="margin-top:14px;font-size:.78em;color:var(--text-soft)" id="hyr-policy"></p>' +
+    '<p class="mt-3.5 text-[0.78em] text-text-soft" id="hyr-policy"></p>' +
     "</div>";
 
   const set = (sel: string, text: string): void => {
