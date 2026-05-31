@@ -55,8 +55,8 @@
             <p class="hero-blurb">Daily pricing, crypto-native payment, and enough implementation detail to know what you are actually buying.</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label" style="margin-bottom:8px;display:inline-flex">included</span>
-            <ul style="list-style:none;padding:0;margin-top:8px;display:flex;flex-direction:column;gap:6px;color:var(--text-muted)">
+            <span class="panel-label mb-2">included</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
                 <li>+ Root SSH with your public key</li>
                 <li>+ IPv6 + NAT64/DNS64 to reach IPv4</li>
                 <li>+ Auto subdomain on <code>deploy.hyrule.host</code></li>
@@ -120,7 +120,7 @@
             </div>
         </div>
         <div class="manifest">
-            <div class="manifest-head"><span>we don't collect</span><span class="badge" style="background:#0f3">never</span></div>
+            <div class="manifest-head"><span>we don't collect</span><span class="badge bg-[#0f3]">never</span></div>
             <div class="manifest-rows">
                 <div class="manifest-k">email</div><div class="manifest-v">no input field exists</div>
                 <div class="manifest-k">phone</div><div class="manifest-v">no input field exists</div>
@@ -147,7 +147,7 @@
             {% if os.default %}<span class="badge">default</span>{% endif %}
             <h3>{{ os.description }}</h3>
             <code>{{ os.name }}</code>
-            <p style="margin-top:4px;color:var(--text-soft);font-size:.78rem">{{ os.family }}</p>
+            <p class="mt-1 text-[0.78rem] text-text-soft">{{ os.family }}</p>
         </div>
         {% endfor %}
     </div>
