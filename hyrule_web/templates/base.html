@@ -76,15 +76,7 @@
                 </span>
             </a>
             <nav class="site-nav" aria-label="Primary">
-                <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}><span class="nav-num">01</span><span>Home</span></a>
-                <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}><span class="nav-num">02</span><span>Services</span></a>
-                <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Deploy</span></a>
-                <a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Status</span></a>
-                {% if request.cookies.get('hyr_sess') %}
-                <a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Dashboard</span></a>
-                {% else %}
-                <a href="/login"{% if request.url.path == '/login' or request.url.path == '/signup' %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Login</span></a>
-                {% endif %}
+                {% include "_nav_links.html" %}
             </nav>
             <div class="header-tools">
                 {% if runtime and runtime.api_p50_ms is not none %}
@@ -96,6 +88,13 @@
                     <span class="cmdk-glyph">⌕</span>
                     <span>jump to…</span>
                     <kbd>⌘K</kbd>
+                </button>
+                {# Issue #8: hamburger — shown only below 720px, where .site-nav is
+                   hidden. Toggles the #mobile-nav drawer (wired in frontend/src/nav.ts). #}
+                <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="mobile-nav" aria-label="Open navigation">
+                    <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">
+                        <path d="M2 4.5h12M2 8h12M2 11.5h12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -109,6 +108,24 @@
             </div>
         </div>
     </header>
+
+    {# Issue #8: mobile nav drawer + backdrop. Hidden by default and at ≥720px;
+       opened below 720px by the hamburger. Re-includes the shared nav partial so
+       the links never drift from the desktop nav. Behaviour in frontend/src/nav.ts. #}
+    <div class="mobile-nav-backdrop" data-nav-backdrop hidden></div>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile primary" hidden>
+        <div class="mobile-nav-head">
+            <span class="mobile-nav-title">menu</span>
+            <button class="mobile-nav-close" type="button" data-nav-close aria-label="Close navigation">
+                <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-nav-links">
+            {% include "_nav_links.html" %}
+        </div>
+    </nav>
 
     <main>
         {% block content %}{% endblock %}
