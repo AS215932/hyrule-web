@@ -20,7 +20,7 @@
             {% endif %}
         </div>
         <div class="hero-side-card">
-            <form method="post" action="/logout" style="margin:0">
+            <form method="post" action="/logout" class="m-0">
                 <button type="submit" class="btn btn-ghost btn-xs">Log out</button>
             </form>
         </div>
@@ -34,49 +34,53 @@
 {% endif %}
 
 <section class="container page-section">
-    <h2 style="margin-bottom:12px">Active VMs</h2>
+    <h2 class="mb-3">Active VMs</h2>
     {% if vms %}
-    <div class="mini-card" style="padding:0;overflow:hidden">
-        <table style="width:100%;border-collapse:collapse;font-family:JetBrains Mono,monospace;font-size:.9em">
-            <thead>
-                <tr style="background:rgba(255,255,255,0.04);text-align:left">
-                    <th style="padding:10px 12px">vm_id</th>
-                    <th style="padding:10px 12px">status</th>
-                    <th style="padding:10px 12px">os</th>
-                    <th style="padding:10px 12px">size</th>
-                    <th style="padding:10px 12px">ipv6</th>
-                    <th style="padding:10px 12px">expires</th>
-                    <th style="padding:10px 12px">actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for vm in vms %}
-                <tr style="border-top:1px solid rgba(255,255,255,0.06)">
-                    <td style="padding:10px 12px"><code style="font-size:.85em">{{ vm.vm_id }}</code></td>
-                    <td style="padding:10px 12px"><span class="status-pill">{{ vm.status }}</span></td>
-                    <td style="padding:10px 12px">{{ vm.os or '—' }}</td>
-                    <td style="padding:10px 12px">{{ vm.size or '—' }}</td>
-                    <td style="padding:10px 12px"><code style="font-size:.85em">{{ vm.ipv6 or '—' }}</code></td>
-                    <td style="padding:10px 12px">{{ (vm.expires_at[:10] if vm.expires_at else '—') }}</td>
-                    <td style="padding:10px 12px;white-space:nowrap">
-                        <a href="/order/status/{{ vm.vm_id }}" class="btn btn-ghost btn-xs">view</a>
-                        <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/reboot" style="display:inline">
-                            <button class="btn btn-secondary btn-xs" type="submit">reboot</button>
-                        </form>
-                        <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/destroy" style="display:inline"
-                              onsubmit="return confirm('Destroy {{ vm.vm_id }}? This cannot be undone.')">
-                            <button class="btn btn-ghost btn-xs" type="submit">destroy</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="mini-card overflow-hidden p-0">
+        {# Wide 7-column table: scroll inside the card on small screens instead of
+           widening the page (min-width keeps columns legible; wrapper scrolls). #}
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[680px] border-collapse font-mono text-[0.9em]">
+                <thead>
+                    <tr class="bg-white/[0.04] text-left">
+                        <th class="px-3 py-2.5">vm_id</th>
+                        <th class="px-3 py-2.5">status</th>
+                        <th class="px-3 py-2.5">os</th>
+                        <th class="px-3 py-2.5">size</th>
+                        <th class="px-3 py-2.5">ipv6</th>
+                        <th class="px-3 py-2.5">expires</th>
+                        <th class="px-3 py-2.5">actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vm in vms %}
+                    <tr class="border-t border-white/[0.06]">
+                        <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.vm_id }}</code></td>
+                        <td class="px-3 py-2.5"><span class="status-pill">{{ vm.status }}</span></td>
+                        <td class="px-3 py-2.5">{{ vm.os or '—' }}</td>
+                        <td class="px-3 py-2.5">{{ vm.size or '—' }}</td>
+                        <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.ipv6 or '—' }}</code></td>
+                        <td class="px-3 py-2.5">{{ (vm.expires_at[:10] if vm.expires_at else '—') }}</td>
+                        <td class="whitespace-nowrap px-3 py-2.5">
+                            <a href="/order/status/{{ vm.vm_id }}" class="btn btn-ghost btn-xs">view</a>
+                            <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/reboot" class="inline">
+                                <button class="btn btn-secondary btn-xs" type="submit">reboot</button>
+                            </form>
+                            <form method="post" action="/dashboard/vms/{{ vm.vm_id }}/destroy" class="inline"
+                                  onsubmit="return confirm('Destroy {{ vm.vm_id }}? This cannot be undone.')">
+                                <button class="btn btn-ghost btn-xs" type="submit">destroy</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
     {% else %}
-    <div class="mini-card" style="padding:24px;text-align:center;color:var(--text-soft)">
+    <div class="mini-card p-6 text-center text-text-soft">
         <p>No VMs yet. <a href="/order">Order one →</a></p>
-        <p style="font-size:.9em;margin-top:8px">
+        <p class="mt-2 text-[0.9em]">
             Already have an anon-checkout VM? <a href="#claim">Claim it below</a> with the management token.
         </p>
     </div>
@@ -84,9 +88,9 @@
 </section>
 
 <section class="container page-section" id="claim">
-    <h2 style="margin-bottom:12px">Claim an anonymous VM</h2>
-    <div class="mini-card" style="max-width:640px;padding:20px">
-        <p style="color:var(--text-soft);margin:0 0 16px">
+    <h2 class="mb-3">Claim an anonymous VM</h2>
+    <div class="mini-card max-w-[640px] p-5">
+        <p class="mb-4 text-text-soft">
             Paste the <code>vm_id</code> and management token from the anon checkout success page.
             Once claimed, the VM moves to this account and the token is burned.
         </p>
@@ -94,12 +98,12 @@
             <div class="form-section">
                 <label for="claim_vm_id"><strong>VM ID</strong></label>
                 <input id="claim_vm_id" name="vm_id" required placeholder="vm_..."
-                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2 font-mono">
             </div>
             <div class="form-section">
                 <label for="claim_token"><strong>Management token</strong></label>
                 <input id="claim_token" name="token" required placeholder="hyr_vm_..."
-                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2 font-mono">
             </div>
             <button type="submit" class="btn btn-primary btn-xs">Claim VM</button>
         </form>
@@ -107,25 +111,25 @@
 </section>
 
 <section class="container page-section">
-    <h2 style="margin-bottom:12px">Security</h2>
-    <div class="mini-card" style="max-width:640px;padding:20px">
-        <h4 style="margin-top:0">Change password</h4>
+    <h2 class="mb-3">Security</h2>
+    <div class="mini-card max-w-[640px] p-5">
+        <h4 class="mt-0">Change password</h4>
         <form method="post" action="/dashboard/password">
             <div class="form-section">
                 <label for="cur_pw"><strong>Current password</strong></label>
                 <input id="cur_pw" name="current_password" type="password" required
                        autocomplete="current-password"
-                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2 font-mono">
             </div>
             <div class="form-section">
                 <label for="new_pw"><strong>New password</strong> <small>(min 12 chars)</small></label>
                 <input id="new_pw" name="new_password" type="password" required minlength="12"
                        autocomplete="new-password"
-                       style="width:100%;padding:8px;font-family:JetBrains Mono,monospace">
+                       class="w-full p-2 font-mono">
             </div>
             <button type="submit" class="btn btn-secondary btn-xs">Change password</button>
         </form>
-        <p style="color:var(--text-soft);font-size:.85em;margin-top:14px">
+        <p class="mt-3.5 text-[0.85em] text-text-soft">
             Changing your password revokes all other active sessions on this account.
         </p>
     </div>
