@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Hyrule Cloud — no-KYC bare-metal VMs on AS215932{% endblock %}
-{% block meta_description %}IPv6-native bare-metal VMs on AS215932. No email, no phone, no PII. Pay with USDC, BTC, or XMR. Root SSH in ~60 seconds.{% endblock %}
+{% block meta_description %}IPv6-native bare-metal VMs on AS215932. No email, no phone, no PII. Pay with crypto. Root SSH in ~60 seconds.{% endblock %}
 
 {% block content %}
+{% set native_methods = native or [] %}
 <section class="container hero">
     <div class="hero-grid">
         <div class="panel hero-main">
@@ -85,7 +86,7 @@
         <div class="feature-card">
             <span class="num">04</span>
             <h3>Crypto-native, no KYC</h3>
-            <p>USDC on facilitator-verified chains, plus BTC and XMR. The chain list is fetched from the backend at order time — never hardcoded in the UI.</p>
+            <p>USDC on facilitator-verified chains{% if native_methods %}, plus {{ native_methods | join(" and ") }}{% endif %}. Payment rails are fetched from the backend at order time and never hardcoded in the UI.</p>
         </div>
         <div class="feature-card">
             <span class="num">05</span>
@@ -107,7 +108,7 @@
             <h2>Pick the footprint and keep moving.</h2>
         </div>
         <div class="heading-side">
-            All prices are in USD, billed daily. Pay USDC ({{ (networks | map(attribute='display_name') | join(', ')) if networks else 'facilitator-verified EVM chains' }}), BTC, or XMR at checkout. No account required.
+            All prices are in USD, billed daily. Pay USDC ({{ (networks | map(attribute='display_name') | join(', ')) if networks else 'facilitator-verified EVM chains' }}){% if native_methods %} or {{ native_methods | join(" / ") }}{% endif %} at checkout. No account required.
         </div>
     </div>
     {% include "_tier_grid.html" %}
@@ -128,8 +129,8 @@
         <div class="step">
             <span class="step-num">02</span>
             <h3 class="step-title">Pay your way</h3>
-            <p class="step-body">USDC via x402 (gasless signature) or send BTC/XMR to a one-time deposit address. Overpay is fine; underpay queues for review.</p>
-            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009) · btc:bc1q… · xmr:8B…</div>
+            <p class="step-body">USDC via x402 with a gasless signature{% if native_methods %}, or send {{ native_methods | join(" / ") }} to a one-time deposit address{% endif %}. Enabled rails come from the API.</p>
+            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009){% if native_methods %} · native intent{% endif %}</div>
         </div>
         <div class="step">
             <span class="step-num">03</span>

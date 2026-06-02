@@ -262,6 +262,14 @@ def test_build_llms_txt_with_live_chains_lists_each() -> None:
     assert "eip155:137" in text
 
 
+def test_build_llms_txt_with_native_rails_lists_them() -> None:
+    text = build_llms_txt(
+        networks=[{"key": "base", "display_name": "Base", "caip2": "eip155:8453"}],
+        native=["BTC", "XMR"],
+    )
+    assert "Native intent rails currently enabled: BTC, XMR" in text
+
+
 def test_build_llms_txt_anonymity_section_always_present() -> None:
     """No-KYC is the lead. It must appear regardless of payment state."""
     for nets in (None, [], [{"key": "base", "display_name": "Base", "caip2": "eip155:8453"}]):

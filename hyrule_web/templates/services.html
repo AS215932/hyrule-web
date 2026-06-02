@@ -87,7 +87,7 @@
             ('Access',       'Full SSH root via your ed25519 or RSA public key. No shared hosting abstractions.'),
             ('Firewall',     'SSH, HTTP, HTTPS open by default. SMTP blocked outbound to keep abuse handling sane.'),
             ('Networking',   'Global IPv6 with NAT64/DNS64 available for IPv4 destinations that still need reaching.'),
-            ('DNS',          'Auto subdomain on deploy.hyrule.host. Custom domains via simple AAAA record.'),
+            ('DNS',          'Auto subdomain on deploy.hyrule.host. Custom domains and registrations are support-assisted beta.'),
             ('Lifecycle',    '1–365 day runtimes. Extend at any time; expired VMs keep a 24-hour grace.'),
             ('Provisioning', 'Most builds finish in ~60 seconds. The status page updates as the VM comes online.'),
         ] %}
@@ -114,7 +114,7 @@
             <div class="manifest-rows">
                 <div class="manifest-k">vm config</div><div class="manifest-v">os, size, duration, ports you opened</div>
                 <div class="manifest-k">ssh pubkey</div><div class="manifest-v">you provide it; we don't generate one for you</div>
-                <div class="manifest-k">payer wallet</div><div class="manifest-v">EVM address for x402 orders; never for BTC/XMR</div>
+                <div class="manifest-k">payer wallet</div><div class="manifest-v">EVM address for x402 orders; native rail metadata only when that rail is enabled</div>
                 <div class="manifest-k">account handle</div><div class="manifest-v">random <code>H&lt;10 hex&gt;</code>, only if you signed up</div>
                 <div class="manifest-k">/64 prefix hash</div><div class="manifest-v">sha256 of your IPv6 /64 + pepper, abuse-only</div>
             </div>
@@ -158,7 +158,7 @@
     <div class="cta">
         <span class="panel-label">ready</span>
         <h2>Pick a plan and launch it.</h2>
-        <p>You only need an SSH key, a duration, and a wallet that can sign on Base.</p>
+        <p>You only need an SSH key, a duration, and a wallet for an enabled payment rail.</p>
         <div class="cta-actions">
             <a href="/order" class="btn btn-primary btn-lg">Open order flow</a>
         </div>

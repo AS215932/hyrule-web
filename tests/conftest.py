@@ -51,6 +51,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                  "block_explorer_url": "https://basescan.org",
                  "testnet": False},
             ],
+            "native": [],
             "receiver_address": "",
             "facilitator_url": "https://x402.org/facilitator",
         }))

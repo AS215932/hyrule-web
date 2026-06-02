@@ -5,6 +5,8 @@
 {# Build the FAQ items here so both the visual list and the JSON-LD stay in sync. #}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
 {% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed at /api/v1/payments/networks" %}
+{% set native_methods = native or [] %}
+{% set native_sentence = (native_methods | join(" / ")) if native_methods else "" %}
 
 {% set faq_items = [
     {
@@ -13,7 +15,7 @@
     },
     {
         "q": "What payment methods do you accept?",
-        "a": "USDC via x402 on " ~ chain_sentence ~ ". BTC and XMR via our native intent flow (one-time deposit address per order, lenient overpay/late-pay policy). The chain list is read from the backend at order time — we never hardcode it in the UI."
+        "a": "USDC via x402 on " ~ chain_sentence ~ "." ~ (" Native intent rails currently enabled: " ~ native_sentence ~ "." if native_methods else " BTC/XMR are shown only when the native intent rail is live in the backend catalog.") ~ " The payment list is read from the backend at order time — we never hardcode it in the UI."
     },
     {
         "q": "What data do you collect about me?",
@@ -44,12 +46,16 @@
         "a": "Yes. We ship an x402 service manifest at /.well-known/x402.json so agents can discover, price, and pay per-call. POST /v1/vm/create with an X-Payment header is the whole flow. Scoped API keys (read, power, extend) for non-payment management land in plan Block D."
     },
     {
+        "q": "How do I report abuse?",
+        "a": "Send precise reports to abuse@as215932.net with reporter contact, URL or hostname or IP, allegation, evidence, timestamp, and urgency. Operational reports go to noc@as215932.net; customer support goes to support@hyrule.host. See /abuse and /legal for the notice/action flow."
+    },
+    {
         "q": "What does 'anonymous checkout' actually mean for the VM management?",
         "a": "At order time we return a one-time management URL of the form /order/manage/{vm_id}?token=hyr_vm_…. The token cleartext is shown ONCE — save it. The token is sha256-hashed at rest; without it (or without an account that owns the VM), the management endpoints return 404. Status pages remain visible by vm_id alone."
     },
     {
-        "q": "What if I overpay on BTC/XMR?",
-        "a": "Overpay is fine — it provisions normally and the surplus stays in the receive wallet. Pay late but match a fresh rate quote within 1% slippage and it still provisions (LENIENT policy). Underpay queues the intent for manual review."
+        "q": "What if I overpay on a native crypto intent?",
+        "a": "When native intent rails are enabled, overpay is fine — it provisions normally and the surplus stays in the receive wallet. Pay late but match a fresh rate quote within 1% slippage and it still provisions (LENIENT policy). Underpay queues the intent for manual review."
     }
 ] %}
 
@@ -103,6 +109,9 @@
                 {% endfor %}
                 {% else %}
                 <li>+ <em>backend unreachable; check <code>/api/v1/payments/networks</code></em></li>
+                {% endif %}
+                {% if native_methods %}
+                <li>+ native: {{ native_methods | join(" / ") }}</li>
                 {% endif %}
             </ul>
         </div>

@@ -143,6 +143,246 @@ _CATALOG_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _CATALOG_TTL_SECONDS = 60
 
 
+def _copy(*parts: str) -> str:
+    return " ".join(parts)
+
+
+LEGAL_PAGES: dict[str, dict[str, Any]] = {
+    "terms": {
+        "title": "Terms",
+        "description": "Terms for Hyrule Cloud VPS service.",
+        "updated": "2026-06-02",
+        "sections": [
+            (
+                "Service",
+                [
+                    _copy(
+                        "Hyrule Cloud sells prepaid virtual machines on AS215932.",
+                        "Orders include root SSH access, IPv6 connectivity, NAT64/DNS64",
+                        "egress, and an automatic deploy.hyrule.host subdomain.",
+                    ),
+                    _copy(
+                        "Runtime is prepaid for 1 to 365 days. Expired VMs may be",
+                        "suspended or destroyed after the published grace period.",
+                    ),
+                ],
+            ),
+            (
+                "Customer Responsibilities",
+                [
+                    _copy(
+                        "You are responsible for activity from your VM, your SSH key,",
+                        "and any management token or account credentials.",
+                    ),
+                    _copy(
+                        "Do not use the service for malware command and control,",
+                        "phishing, credential theft, DDoS, spam, CSAM, terrorism,",
+                        "sanctions evasion, or activity that violates applicable law.",
+                    ),
+                ],
+            ),
+            (
+                "Enforcement",
+                [
+                    _copy(
+                        "We may suspend or destroy VMs after a precise abuse report,",
+                        "credible security signal, court order, or law-enforcement request.",
+                    ),
+                    _copy(
+                        "Where practical, we notify the customer and preserve an appeal",
+                        "path. Some urgent safety or infrastructure cases require",
+                        "immediate action.",
+                    ),
+                ],
+            ),
+            (
+                "Payments",
+                [
+                    _copy(
+                        "Crypto is accepted only as payment for hosting. Hyrule Cloud",
+                        "does not custody, exchange, broker, transmit, or administer",
+                        "crypto-assets for customers.",
+                    ),
+                    "Refunds and credits are handled manually and may require a support request.",
+                ],
+            ),
+        ],
+    },
+    "privacy": {
+        "title": "Privacy",
+        "description": "Privacy details for no-KYC VM orders.",
+        "updated": "2026-06-02",
+        "sections": [
+            (
+                "No-KYC Model",
+                [
+                    _copy(
+                        "We do not ask for email, phone, legal name, postal address,",
+                        "or identity documents for hosting orders.",
+                    ),
+                    _copy(
+                        "Anonymous checkout returns a one-time management token.",
+                        "Account signup uses a random handle and a password you set.",
+                    ),
+                ],
+            ),
+            (
+                "Data We Store",
+                [
+                    _copy(
+                        "VM configuration, SSH public key, generated VM identifiers,",
+                        "hostname, timestamps, payment status, and expiry state.",
+                    ),
+                    _copy(
+                        "For x402 orders we store payer wallet metadata needed to",
+                        "reconcile payment. For abuse rate-limiting we store a sha256",
+                        "hash of your IPv6 /64 prefix with a private pepper.",
+                    ),
+                ],
+            ),
+            (
+                "Data We Do Not Inspect",
+                [
+                    _copy(
+                        "We do not run a monitoring agent inside customer VMs and do",
+                        "not proactively inspect VM contents.",
+                    ),
+                    _copy(
+                        "Network and host telemetry is used for reliability, abuse",
+                        "response, and capacity planning.",
+                    ),
+                ],
+            ),
+            (
+                "Retention",
+                [
+                    _copy(
+                        "Operational records are kept only as long as needed for service",
+                        "operation, accounting, abuse handling, and legal obligations.",
+                    ),
+                    _copy(
+                        "Abuse reports may be retained with evidence, action taken,",
+                        "customer notice, and appeal result.",
+                    ),
+                ],
+            ),
+        ],
+    },
+    "abuse": {
+        "title": "Abuse",
+        "description": "Report abuse involving Hyrule Cloud infrastructure.",
+        "updated": "2026-06-02",
+        "sections": [
+            (
+                "Report Channels",
+                [
+                    _copy(
+                        "Send network abuse reports to abuse@as215932.net. Send",
+                        "operational issues to noc@as215932.net. Customer support is",
+                        "support@hyrule.host.",
+                    ),
+                    _copy(
+                        "Include a reporter contact, URL or hostname or IP, allegation,",
+                        "evidence, timestamp with timezone, and any urgency indicators.",
+                    ),
+                ],
+            ),
+            (
+                "Immediate Suspension Categories",
+                [
+                    _copy(
+                        "Malware command and control, phishing, credential theft, DDoS,",
+                        "spam, CSAM, terrorism, and valid court or law-enforcement orders",
+                        "may result in immediate suspension.",
+                    ),
+                    _copy(
+                        "We do not require broad personal data to act on precise,",
+                        "technically actionable reports.",
+                    ),
+                ],
+            ),
+            (
+                "Notice And Appeal",
+                [
+                    _copy(
+                        "When it is safe and practical, we notify the customer through",
+                        "their management surface or account and record the action taken.",
+                    ),
+                    _copy(
+                        "Appeals can be sent to support@hyrule.host with the VM ID,",
+                        "report reference, and remediation details.",
+                    ),
+                ],
+            ),
+            (
+                "Queue Fields",
+                [
+                    _copy(
+                        "The abuse queue tracks reporter contact, URL/hostname/IP,",
+                        "allegation, evidence, timestamp, action taken, customer notice,",
+                        "and appeal/result.",
+                    ),
+                ],
+            ),
+        ],
+    },
+    "legal": {
+        "title": "Legal",
+        "description": "Legal contact and service posture for Hyrule Cloud.",
+        "updated": "2026-06-02",
+        "sections": [
+            (
+                "Operator And Jurisdiction",
+                [
+                    _copy(
+                        "Hyrule Cloud is operated from the Netherlands. Compute currently",
+                        "runs at OVH France, with AS215932 network operations in the EU.",
+                    ),
+                    _copy(
+                        "Hyrule Cloud is a hosting/intermediary service. It publishes",
+                        "contact points, terms, and a notice/action flow for abuse handling.",
+                    ),
+                ],
+            ),
+            (
+                "Crypto Payment Posture",
+                [
+                    _copy(
+                        "Crypto payment support is limited to paying for hosting.",
+                        "Hyrule Cloud does not provide customer wallets, exchange services,",
+                        "brokerage, transmission, or custody.",
+                    ),
+                    _copy(
+                        "New crypto-asset services such as stored balances, custody,",
+                        "exchange, or wallet administration require legal review before launch.",
+                    ),
+                ],
+            ),
+            (
+                "Domains",
+                [
+                    _copy(
+                        "Every VM may receive a deploy.hyrule.host subdomain. Custom",
+                        "domains and domain registration are beta and support-assisted",
+                        "until registrar ownership, renewal, contact policy, and DNS-zone",
+                        "operations are hardened.",
+                    ),
+                ],
+            ),
+            (
+                "Authorities",
+                [
+                    _copy(
+                        "Serious life, safety, or criminal reports may be escalated to",
+                        "competent authorities as required by applicable law.",
+                    ),
+                ],
+            ),
+        ],
+    },
+}
+
+
 def _render(request: Request, name: str, **kwargs: Any) -> Response:
     """Render a template with common context variables.
 
@@ -160,6 +400,16 @@ def _render(request: Request, name: str, **kwargs: Any) -> Response:
     if "runtime" not in ctx:
         ctx["runtime"] = _RUNTIME_CACHE.get("value")
     return templates.TemplateResponse(request, name, ctx)
+
+
+def _catalog_networks(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
+    networks = catalog.get("networks") if catalog else []
+    return networks if isinstance(networks, list) else []
+
+
+def _catalog_native(catalog: dict[str, Any] | None) -> list[str]:
+    native = catalog.get("native") if catalog else []
+    return [str(x).upper() for x in native] if isinstance(native, list) else []
 
 
 async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
@@ -284,9 +534,13 @@ async def page_index(request: Request) -> Response:
     /v1/payments/networks list (single source of truth, same as /faq and
     llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
-    networks = await _refresh_networks(request) or {"networks": []}
+    catalog = await _refresh_networks(request)
     return _render(
-        request, "index.html", runtime=runtime, networks=networks.get("networks", [])
+        request,
+        "index.html",
+        runtime=runtime,
+        networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
     )
 
 
@@ -301,7 +555,14 @@ async def page_services(request: Request) -> Response:
 async def page_order(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    return _render(request, "order.html", os_templates=os_list)
+    catalog = await _refresh_networks(request)
+    return _render(
+        request,
+        "order.html",
+        os_templates=os_list,
+        networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
+    )
 
 
 @app.post("/order/review", response_class=HTMLResponse)
@@ -329,10 +590,19 @@ async def page_review(
         "domain": domain,
         "id": "order-draft",
     }
+    catalog = await _refresh_networks(request)
+    order["payment_methods"] = {
+        "evm": _catalog_networks(catalog),
+        "native": _catalog_native(catalog),
+    }
 
     return _render(
-        request, "review.html",
-        order=order, tier=tier, total=total,
+        request,
+        "review.html",
+        order=order,
+        tier=tier,
+        total=total,
+        networks=_catalog_networks(catalog),
     )
 
 
@@ -365,8 +635,17 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
         "id": quote_id,
         "quote_id": quote_id,
         "expired": quote.get("status") == "expired",
+        "payment_methods": quote.get("accepted_payment_methods") or {},
     }
-    return _render(request, "review.html", order=order, tier=tier, total=total)
+    catalog = await _refresh_networks(request)
+    return _render(
+        request,
+        "review.html",
+        order=order,
+        tier=tier,
+        total=total,
+        networks=_catalog_networks(catalog),
+    )
 
 
 @app.get("/order/status/{vm_id}", response_class=HTMLResponse)
@@ -664,8 +943,37 @@ async def page_faq(request: Request) -> Response:
     """FAQ + FAQPage JSON-LD (Block G). Only mentions live payment methods —
     the chain list comes from /v1/payments/networks, never hardcoded."""
     await _refresh_runtime(request)
-    networks = await _refresh_networks(request) or {"networks": []}
-    return _render(request, "faq.html", networks=networks.get("networks", []))
+    catalog = await _refresh_networks(request)
+    return _render(
+        request,
+        "faq.html",
+        networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
+    )
+
+
+@app.get("/terms", response_class=HTMLResponse)
+async def page_terms(request: Request) -> Response:
+    await _refresh_runtime(request)
+    return _render(request, "legal_page.html", page=LEGAL_PAGES["terms"])
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def page_privacy(request: Request) -> Response:
+    await _refresh_runtime(request)
+    return _render(request, "legal_page.html", page=LEGAL_PAGES["privacy"])
+
+
+@app.get("/abuse", response_class=HTMLResponse)
+async def page_abuse(request: Request) -> Response:
+    await _refresh_runtime(request)
+    return _render(request, "legal_page.html", page=LEGAL_PAGES["abuse"])
+
+
+@app.get("/legal", response_class=HTMLResponse)
+async def page_legal(request: Request) -> Response:
+    await _refresh_runtime(request)
+    return _render(request, "legal_page.html", page=LEGAL_PAGES["legal"])
 
 
 @app.get("/sitemap.xml")
@@ -679,7 +987,8 @@ async def llms(request: Request) -> str:
     # chain (feedback_verified_payment_chains). None → "ask the API" note.
     networks_resp = await _refresh_networks(request)
     networks = networks_resp.get("networks") if networks_resp else None
-    return build_llms_txt(networks)
+    native = networks_resp.get("native") if networks_resp else None
+    return build_llms_txt(networks, native=native)
 
 
 # ---------------------------------------------------------------------------

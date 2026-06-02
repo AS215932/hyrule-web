@@ -138,8 +138,8 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
     if (!provider) {
       setStatus(
         statusEl,
-        "No wallet available. On mobile, tap Pay to connect with WalletConnect or use the " +
-          "BTC/XMR tab; on desktop, install MetaMask or Rabby.",
+        "No wallet available. On mobile, tap Pay to connect with WalletConnect; on " +
+          "desktop, install MetaMask or Rabby. Other payment rails appear only when enabled.",
         "payment-error",
       );
       if (button) button.disabled = false;
