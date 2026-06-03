@@ -19,7 +19,7 @@ jobs:
     # Branch protection requires this exact check name. Don't rename without
     # updating the rule in repo settings.
     name: test
-    runs-on: [self-hosted, linux, x64, hyrule]
+    runs-on: [self-hosted, linux, x64, hyrule-public-pr]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
     # Issue #14: TypeScript/Vite/Tailwind frontend bundle. Add this check name to
     # branch protection alongside `test`. Don't rename without updating the rule.
     name: frontend
-    runs-on: [self-hosted, linux, x64, hyrule]
+    runs-on: [self-hosted, linux, x64, hyrule-public-pr]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
