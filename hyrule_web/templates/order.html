@@ -4,6 +4,8 @@
 {% block content %}
 {% set selected_size = request.query_params.get('size', 'sm') %}
 {% set tier = vm_tiers[selected_size] if selected_size in vm_tiers else vm_tiers['sm'] %}
+{% set live_chains = (networks or []) | map(attribute='display_name') | list %}
+{% set native_methods = native or [] %}
 
 <section class="container">
     <div class="page-hero">
@@ -17,8 +19,8 @@
             <span class="panel-label mb-2">before you begin</span>
             <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
                 <li>+ ed25519 or RSA public key</li>
-                <li>+ Auto subdomain or your own domain</li>
-                <li>+ Wallet with USDC on Base</li>
+                <li>+ Auto <code>*.deploy.hyrule.host</code> subdomain</li>
+                <li>+ Wallet with USDC on {{ (live_chains | join(", ")) if live_chains else "an enabled x402 chain" }}</li>
             </ul>
         </div>
     </div>
@@ -133,7 +135,7 @@
             <fieldset class="form-section">
                 <legend><div class="form-section-head">
                     <h3><span class="ix">06</span> Domain</h3>
-                    <span class="form-section-hint">point an AAAA record any time</span>
+                    <span class="form-section-hint">custom domains are support-assisted beta</span>
                 </div></legend>
                 <div class="form-section-body">
                     <div class="radio-stack">
@@ -143,12 +145,12 @@
                             <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
-                        <label class="radio-line">
-                            <input type="radio" name="domain_mode" value="custom">
+                        <div class="radio-line opacity-70">
+                            <input type="radio" value="custom" disabled>
                             <span>Custom domain</span>
-                            <input type="text" name="domain" placeholder="example.com"
-                                   class="ml-auto min-w-[180px] flex-1 rounded-[8px] border border-line-2 bg-black/[0.35] px-2.5 py-1.5 font-mono text-[0.82rem] text-text">
-                        </label>
+                            <code>beta via support</code>
+                        </div>
+                        <input type="hidden" name="domain" value="">
                     </div>
                 </div>
             </fieldset>
@@ -179,7 +181,7 @@
             <div class="summary-panel">
                 <span class="panel-label">payment rail</span>
                 <p class="mt-2 leading-[1.6] text-[0.84rem] text-text-muted">
-                    USDC on Base via x402. You sign a gasless EIP-3009 authorization on the next screen.
+                    USDC on {{ (live_chains | join(", ")) if live_chains else "the enabled x402 chains" }} via x402. You sign a gasless EIP-3009 authorization on the next screen{% if native_methods %}; {{ native_methods | join(" / ") }} intents are also available at review{% endif %}.
                 </p>
             </div>
         </aside>

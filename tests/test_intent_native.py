@@ -86,12 +86,48 @@ def test_review_page_includes_payment_method_tabs(
 ) -> None:
     r = _post_order(client)
     assert r.status_code == 200
-    # Radio inputs for the three methods
+    # Default catalog has no native rails, so only EVM is rendered.
     assert 'name="payment-method"' in r.text
     assert 'value="evm"' in r.text
+    assert 'value="btc"' not in r.text
+    assert 'value="xmr"' not in r.text
+    # Native deposit render slot still exists for quotes/catalogs that enable it.
+    assert 'id="payment-native-render"' in r.text
+
+
+def test_review_quote_includes_native_tabs_when_backend_advertises_them(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/vm/quote/q_native").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "quote_id": "q_native",
+                "status": "created",
+                "order_payload": {
+                    "duration_days": 7,
+                    "size": "sm",
+                    "os": "debian-13",
+                    "ssh_pubkey": "ssh-ed25519 AAAA...",
+                    "domain_mode": "auto",
+                    "domain": None,
+                    "open_ports": [22, 80, 443],
+                },
+                "amount_usd": "0.70",
+                "currency": "USD",
+                "accepted_payment_methods": {
+                    "evm": [{"key": "base", "caip2": "eip155:8453", "asset": "USDC"}],
+                    "native": ["BTC", "XMR"],
+                },
+                "created_at": "2026-05-30T12:00:00Z",
+                "expires_at": "2026-05-30T12:15:00Z",
+            },
+        )
+    )
+    r = client.get("/order/review/q_native")
+    assert r.status_code == 200
     assert 'value="btc"' in r.text
     assert 'value="xmr"' in r.text
-    # Native deposit render slot
     assert 'id="payment-native-render"' in r.text
 
 

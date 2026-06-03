@@ -68,6 +68,9 @@ _LLMS_TXT_PREAMBLE = """\
 - [Transparency](https://hyrule.host/transparency): operator,
   jurisdiction, host inventory, BGP peering, monitoring stack.
 - [FAQ](https://hyrule.host/faq): no-KYC details, recovery, IPv6 reachability.
+- [Terms](https://hyrule.host/terms), [Privacy](https://hyrule.host/privacy),
+  [Abuse](https://hyrule.host/abuse), [Legal](https://hyrule.host/legal):
+  service rules, data handling, notice/action flow, contact points.
 
 ## API
 
@@ -98,7 +101,8 @@ _LLMS_TXT_WHAT_SHIPS = """\
 
 - Full SSH root access (ed25519 or RSA public key)
 - Global IPv6 with NAT64/DNS64 to reach IPv4 destinations
-- Automatic subdomain on `deploy.hyrule.host` (custom domains via AAAA)
+- Automatic subdomain on `deploy.hyrule.host`
+- Custom domains and domain registration are beta / support-assisted
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
 - 1-365 day runtimes, extendable, 24-hour grace after expiry
 
@@ -110,7 +114,10 @@ _LLMS_TXT_WHAT_SHIPS = """\
 """
 
 
-def _render_payment_section(networks: Iterable[dict[str, Any]] | None) -> str:
+def _render_payment_section(
+    networks: Iterable[dict[str, Any]] | None,
+    native: Iterable[str] | None = None,
+) -> str:
     """Build the payment-methods section from live network data.
 
     If `networks` is None (backend unreachable), we render a deliberately
@@ -123,17 +130,21 @@ def _render_payment_section(networks: Iterable[dict[str, Any]] | None) -> str:
             "- x402 USDC on facilitator-verified EVM chains. Query "
             "`/api/v1/payments/networks` for the live list — this document "
             "is rendered against backend state at request time.\n"
-            "- BTC and XMR via the native intent flow (when the intent "
-            "engine and infra are deployed; check `/faq`).\n"
+            "- Native crypto rails are listed only when the backend advertises "
+            "them in `/api/v1/payments/networks`.\n"
         )
 
     network_list = list(networks)
+    native_list = [str(x).upper() for x in native or []]
     if not network_list:
-        return (
+        text = (
             "## Payment\n\n"
             "- No EVM chains are currently enabled. Check "
             "`/api/v1/payments/networks` for the live status.\n"
         )
+        if native_list:
+            text += f"- Native rails currently enabled: {', '.join(native_list)}.\n"
+        return text
 
     lines = ["## Payment", ""]
     lines.append("- x402 USDC on the following facilitator-verified chains:")
@@ -143,25 +154,33 @@ def _render_payment_section(networks: Iterable[dict[str, Any]] | None) -> str:
         chain_id = n.get("chain_id")
         suffix = f" (chain id {chain_id})" if chain_id else ""
         lines.append(f"    - {display} — `{caip2}`{suffix}")
-    lines.append(
-        "- Anyone can also pay with BTC or XMR via the native intent flow "
-        "(`POST /api/v1/intent/create`). The frontend exposes BTC/XMR "
-        "tabs on the review page when those rails are live."
-    )
+    if native_list:
+        lines.append(
+            "- Native intent rails currently enabled: "
+            f"{', '.join(native_list)} (`POST /api/v1/intent/create`)."
+        )
+    else:
+        lines.append(
+            "- BTC/XMR are not advertised unless the native intent rail is live "
+            "in the backend catalog."
+        )
     lines.append("")
     return "\n".join(lines)
 
 
-def build_llms_txt(networks: Iterable[dict[str, Any]] | None = None) -> str:
+def build_llms_txt(
+    networks: Iterable[dict[str, Any]] | None = None,
+    native: Iterable[str] | None = None,
+) -> str:
     """Compose llms.txt from the live config snapshot.
 
-    `networks` is the `networks` array from `/v1/payments/networks`. Pass
-    None to render a "ask the API" placeholder section instead.
+    `networks` and `native` are from `/v1/payments/networks`. Pass networks
+    as None to render a "ask the API" placeholder section instead.
     """
     return (
         _LLMS_TXT_PREAMBLE
         + "\n"
-        + _render_payment_section(networks)
+        + _render_payment_section(networks, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
     )

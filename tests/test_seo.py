@@ -137,3 +137,5 @@ def test_llms_txt_is_markdown_with_required_sections() -> None:
     assert "## Products" in LLMS_TXT
     assert "https://hyrule.host/services" in LLMS_TXT
     assert "https://hyrule.host/order" in LLMS_TXT
+    assert "https://hyrule.host/abuse" in LLMS_TXT
+    assert "Native crypto rails are listed only" in LLMS_TXT

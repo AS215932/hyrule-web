@@ -131,3 +131,16 @@ def test_order_falls_back_when_api_unreachable(
     mocked_api.get("/v1/os/list").mock(side_effect=httpx.ConnectError("boom"))
     r = client.get("/order")
     _assert_html_with_canonical(r)
+
+
+def test_legal_pages_render(client: TestClient) -> None:
+    for path, needle in (
+        ("/terms", "Customer Responsibilities"),
+        ("/privacy", "No-KYC Model"),
+        ("/abuse", "Report Channels"),
+        ("/legal", "Crypto Payment Posture"),
+    ):
+        r = client.get(path)
+        _assert_html_with_canonical(r)
+        assert needle in r.text
+        assert "abuse@as215932.net" in r.text

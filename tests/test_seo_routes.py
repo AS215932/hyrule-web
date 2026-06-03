@@ -75,5 +75,7 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
     r = client.get("/sitemap.xml")
     body = r.text
     for path in ("https://hyrule.host/", "https://hyrule.host/services",
-                 "https://hyrule.host/order", "https://hyrule.host/llms.txt"):
+                 "https://hyrule.host/order", "https://hyrule.host/llms.txt",
+                 "https://hyrule.host/terms", "https://hyrule.host/privacy",
+                 "https://hyrule.host/abuse", "https://hyrule.host/legal"):
         assert path in body
