@@ -1,0 +1,47 @@
+name: deploy-validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Optional hyrule-web ref/SHA to validate
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-validation-hyrule-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate
+    runs-on: [self-hosted, linux, x64, hyrule]
+    timeout-minutes: 15
+    env:
+      ANSIBLE_FORCE_COLOR: "true"
+      # SSH key the github-runner user holds for reaching infra hosts as the
+      # `ci` deploy user (set up by hyrule-infra's ci_runner_key role).
+      ANSIBLE_PRIVATE_KEY_FILE: /var/lib/github-runner/.ssh/id_ci
+    steps:
+      - name: Checkout hyrule-infra (Ansible repo)
+        uses: actions/checkout@v4
+        with:
+          repository: AS215932/network-operations
+          ref: main
+          ssh-key: ${{ secrets.HYRULE_INFRA_DEPLOY_KEY }}
+          path: infra
+
+      - name: Validate
+        working-directory: infra/ansible
+        env:
+          TARGET_REF: ${{ inputs.target_ref || github.sha }}
+        run: |
+          ansible-playbook playbooks/web.yml \
+            --tags validate \
+            --connection=local \
+            --skip-tags=snapshot \
+            -e "hyrule_web_version=${TARGET_REF}" \
+            --limit web
