@@ -363,9 +363,8 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                 [
                     _copy(
                         "Every VM may receive a deploy.hyrule.host subdomain. Custom",
-                        "domains and domain registration are beta and support-assisted",
-                        "until registrar ownership, renewal, contact policy, and DNS-zone",
-                        "operations are hardened.",
+                        "domains can be registered during checkout and managed through",
+                        "the domain management surface or account session.",
                     ),
                 ],
             ),

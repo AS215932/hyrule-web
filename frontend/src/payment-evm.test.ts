@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildTypedData, getEvmProvider, nonceHex32 } from "./payment-evm";
+import { buildTypedData, getEvmProvider, nonceHex32, statusRedirectUrl } from "./payment-evm";
 import type { Eip1193Provider, PaymentNetwork } from "./types";
 
 const network: PaymentNetwork = {
@@ -62,6 +62,17 @@ describe("nonceHex32", () => {
 
   it("is random across calls", () => {
     expect(nonceHex32()).not.toBe(nonceHex32());
+  });
+});
+
+describe("statusRedirectUrl", () => {
+  it("keeps the management token out of the redirect URL", () => {
+    expect(
+      statusRedirectUrl({
+        vm_id: "vm_abc",
+        management_token: "hyr_vm_token with spaces",
+      }),
+    ).toBe("/order/status/vm_abc");
   });
 });
 

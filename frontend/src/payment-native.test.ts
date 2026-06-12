@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderDepositCard } from "./payment-native";
+import { renderDepositCard, statusRedirectUrl } from "./payment-native";
 
 // Issue #8: the BTC/XMR deposit card must stay overflow-safe on narrow viewports
 // (the old layout was a fixed 256px QR + a 220px min-width text column ≈ 476px).
@@ -47,5 +47,19 @@ describe("renderDepositCard responsive layout", () => {
     });
     expect(c.querySelector("#hyr-amt")!.textContent).toBe("0.5 XMR");
     expect(c.querySelector("#hyr-addr")!.textContent).toBe("4SAMPLEMONEROADDRESS");
+  });
+
+  it("keeps the one-time management token out of the status redirect URL", () => {
+    expect(
+      statusRedirectUrl({
+        intent_id: "int-3",
+        asset: "BTC",
+        address: "bc1qaddr",
+        amount_crypto: "0.001",
+        status: "PROVISIONED",
+        vm_id: "vm_abc",
+        management_token: "hyr_vm_token with spaces",
+      }),
+    ).toBe("/order/status/vm_abc");
   });
 });

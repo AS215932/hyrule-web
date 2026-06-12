@@ -267,7 +267,7 @@ def test_build_llms_txt_with_native_rails_lists_them() -> None:
         networks=[{"key": "base", "display_name": "Base", "caip2": "eip155:8453"}],
         native=["BTC", "XMR"],
     )
-    assert "Native intent rails currently enabled: BTC, XMR" in text
+    assert "Native VM checkout rails currently enabled: BTC, XMR" in text
 
 
 def test_build_llms_txt_anonymity_section_always_present() -> None:

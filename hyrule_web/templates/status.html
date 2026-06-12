@@ -28,6 +28,69 @@
         </p>
     </div>
 </section>
+{% else %}
+<script>
+(function () {
+    const vmId = {{ vm_id | tojson }};
+    let saved = null;
+    try {
+        saved = JSON.parse(sessionStorage.getItem('hyr_vm_mgmt:' + vmId) || 'null');
+    } catch (_) {
+        saved = null;
+    }
+    if (!saved || !saved.token || !String(saved.token).startsWith('hyr_vm_')) return;
+
+    const fallbackUrl = '/api/v1/vm/' + encodeURIComponent(vmId) +
+        '?token=' + encodeURIComponent(saved.token);
+    const managementUrl = saved.url || fallbackUrl;
+
+    const section = document.createElement('section');
+    section.className = 'container mt-6';
+
+    const card = document.createElement('div');
+    card.className = 'mini-card border-2 border-warn bg-[rgb(200_68_0/0.06)] p-[18px]';
+
+    const label = document.createElement('span');
+    label.className = 'panel-label text-warn';
+    label.textContent = 'save this ' + 'once — cannot be shown again';
+
+    const title = document.createElement('h3');
+    title.className = 'mb-2.5 mt-1.5 text-[1.05rem]';
+    title.textContent = 'Anonymous VM management URL';
+
+    const text = document.createElement('p');
+    text.className = 'mb-3 text-[0.9rem] text-text-soft';
+    text.textContent = 'You ordered this VM without an account. Save this URL now; it is required to reboot, extend, view logs, or destroy the VM.';
+
+    const row = document.createElement('div');
+    row.className = 'flex flex-wrap items-center gap-2';
+
+    const code = document.createElement('code');
+    code.id = 'mgmt-url';
+    code.className = 'min-w-[260px] flex-1 break-all rounded-[4px] bg-[#1a1a1a] px-2.5 py-2 text-[0.82rem]';
+    code.textContent = managementUrl;
+
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'btn btn-secondary btn-xs';
+    copy.textContent = 'copy';
+    copy.addEventListener('click', function () {
+        navigator.clipboard.writeText(managementUrl);
+        copy.textContent = 'copied';
+    });
+
+    const download = document.createElement('a');
+    download.className = 'btn btn-ghost btn-xs';
+    download.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(managementUrl);
+    download.download = 'hyrule-' + vmId + '-management-url.txt';
+    download.textContent = 'download .txt';
+
+    row.append(code, copy, download);
+    card.append(label, title, text, row);
+    section.append(card);
+    document.body.insertBefore(section, document.body.firstElementChild?.nextSibling || document.body.firstChild);
+})();
+</script>
 {% endif %}
 
 <section class="container">

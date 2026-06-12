@@ -135,22 +135,25 @@
             <fieldset class="form-section">
                 <legend><div class="form-section-head">
                     <h3><span class="ix">06</span> Domain</h3>
-                    <span class="form-section-hint">custom domains are support-assisted beta</span>
+                    <span class="form-section-hint">auto subdomain or registered domain</span>
                 </div></legend>
                 <div class="form-section-body">
                     <div class="radio-stack">
                         <label class="radio-line active">
-                            <input type="radio" name="domain_mode" value="auto" checked>
+                            <input type="radio" name="domain_mode" value="auto" checked id="domain-auto">
                             <span>Auto subdomain</span>
                             <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
-                        <div class="radio-line opacity-70">
-                            <input type="radio" value="custom" disabled>
+                        <label class="radio-line">
+                            <input type="radio" name="domain_mode" value="custom" id="domain-custom">
                             <span>Custom domain</span>
-                            <code>beta via support</code>
+                            <code>registered at checkout</code>
+                        </label>
+                        <div class="field">
+                            <input type="text" name="domain" placeholder="example.com" inputmode="text" autocomplete="off" disabled>
+                            <span class="field-hint">Leave empty for the automatic subdomain.</span>
                         </div>
-                        <input type="hidden" name="domain" value="">
                     </div>
                 </div>
             </fieldset>
@@ -226,12 +229,20 @@
     refresh();
   }));
   // domain radio activation
+  function syncDomainInput() {
+    const custom = $('#domain-custom');
+    const input = $('input[name="domain"]');
+    if (!custom || !input) return;
+    input.disabled = !custom.checked;
+  }
   f.addEventListener('change', (e) => {
     if (e.target.name === 'domain_mode') {
       $$('.radio-line').forEach(r => r.classList.remove('active'));
       e.target.closest('.radio-line').classList.add('active');
+      syncDomainInput();
     }
   });
+  syncDomainInput();
   refresh();
 })();
 </script>
