@@ -49,7 +49,7 @@ describe("renderDepositCard responsive layout", () => {
     expect(c.querySelector("#hyr-addr")!.textContent).toBe("4SAMPLEMONEROADDRESS");
   });
 
-  it("carries the one-time management token into the status redirect", () => {
+  it("keeps the one-time management token out of the status redirect URL", () => {
     expect(
       statusRedirectUrl({
         intent_id: "int-3",
@@ -60,6 +60,6 @@ describe("renderDepositCard responsive layout", () => {
         vm_id: "vm_abc",
         management_token: "hyr_vm_token with spaces",
       }),
-    ).toBe("/order/status/vm_abc?token=hyr_vm_token%20with%20spaces");
+    ).toBe("/order/status/vm_abc");
   });
 });

@@ -140,18 +140,18 @@
                 <div class="form-section-body">
                     <div class="radio-stack">
                         <label class="radio-line active">
-                            <input type="radio" name="domain_mode" value="auto" checked>
+                            <input type="radio" name="domain_mode" value="auto" checked id="domain-auto">
                             <span>Auto subdomain</span>
                             <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
                         <label class="radio-line">
-                            <input type="radio" name="domain_mode" value="custom">
+                            <input type="radio" name="domain_mode" value="custom" id="domain-custom">
                             <span>Custom domain</span>
                             <code>registered at checkout</code>
                         </label>
                         <div class="field">
-                            <input type="text" name="domain" placeholder="example.com" inputmode="url" autocomplete="off">
+                            <input type="text" name="domain" placeholder="example.com" inputmode="text" autocomplete="off" disabled>
                             <span class="field-hint">Leave empty for the automatic subdomain.</span>
                         </div>
                     </div>
@@ -229,12 +229,20 @@
     refresh();
   }));
   // domain radio activation
+  function syncDomainInput() {
+    const custom = $('#domain-custom');
+    const input = $('input[name="domain"]');
+    if (!custom || !input) return;
+    input.disabled = !custom.checked;
+  }
   f.addEventListener('change', (e) => {
     if (e.target.name === 'domain_mode') {
       $$('.radio-line').forEach(r => r.classList.remove('active'));
       e.target.closest('.radio-line').classList.add('active');
+      syncDomainInput();
     }
   });
+  syncDomainInput();
   refresh();
 })();
 </script>

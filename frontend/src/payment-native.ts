@@ -132,8 +132,7 @@ function stashManagementToken(intentBody: IntentBody): void {
 export function statusRedirectUrl(intentBody: IntentBody): string {
   const vmId = intentBody.vm_id;
   if (!vmId) return "/order";
-  const token = intentBody.management_token;
-  return "/order/status/" + vmId + (token ? "?token=" + encodeURIComponent(token) : "");
+  return "/order/status/" + vmId;
 }
 
 function setStatusLine(container: HTMLElement, status: unknown, confirmations: unknown): void {

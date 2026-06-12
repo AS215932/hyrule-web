@@ -127,6 +127,8 @@ def test_order_uses_api_data_when_present(
     _assert_html_with_canonical(r)
     assert 'name="domain_mode" value="custom"' in r.text
     assert 'name="domain"' in r.text
+    assert 'inputmode="text"' in r.text
+    assert 'name="domain" placeholder="example.com" inputmode="text" autocomplete="off" disabled' in r.text
     assert "support-assisted beta" not in r.text
 
 

@@ -26,6 +26,32 @@ function setStatus(statusEl: HTMLElement | null, msg: string, cls?: string): voi
   statusEl.className = "payment-status " + (cls || "");
 }
 
+interface ProvisionedResult {
+  vm_id?: string;
+  management_token?: string;
+  management_url?: string;
+}
+
+function stashManagementToken(result: ProvisionedResult): void {
+  if (!result.vm_id || !result.management_token) return;
+  try {
+    sessionStorage.setItem(
+      "hyr_vm_mgmt:" + result.vm_id,
+      JSON.stringify({
+        token: result.management_token,
+        url: result.management_url || null,
+        issued: Date.now(),
+      }),
+    );
+  } catch (err) {
+    console.warn("Failed to stash management token:", err);
+  }
+}
+
+export function statusRedirectUrl(result: ProvisionedResult): string {
+  return result.vm_id ? "/order/status/" + result.vm_id : "/order";
+}
+
 async function ensureChain(network: PaymentNetwork, provider: Eip1193Provider): Promise<void> {
   // EIP-1193: wallet_switchEthereumChain. If the chain isn't yet known to the
   // wallet, fall back to wallet_addEthereumChain with the explorer/rpc info.
@@ -160,12 +186,11 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
 
     if (firstResp.status !== 402) {
       if (firstResp.ok) {
-        // Some test/dev paths bypass payment — still honour management-token forwarding.
+        // Some test/dev paths bypass payment — still preserve the one-time
+        // management token without putting it in the URL.
         const okResult = await firstResp.json();
-        const okTok = okResult.management_token
-          ? "?token=" + encodeURIComponent(okResult.management_token)
-          : "";
-        window.location.href = "/order/status/" + okResult.vm_id + okTok;
+        stashManagementToken(okResult);
+        window.location.href = statusRedirectUrl(okResult);
         return;
       }
       const errBody = await firstResp.json().catch(() => ({}));
@@ -243,11 +268,9 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
 
     const result = await paidResp.json();
     setStatus(statusEl, "Payment successful! Redirecting…", "payment-ok");
+    stashManagementToken(result);
     setTimeout(() => {
-      const tok = result.management_token
-        ? "?token=" + encodeURIComponent(result.management_token)
-        : "";
-      window.location.href = "/order/status/" + result.vm_id + tok;
+      window.location.href = statusRedirectUrl(result);
     }, 1000);
   } catch (err) {
     if ((err as { code?: number }).code === 4001) {
