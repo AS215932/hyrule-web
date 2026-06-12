@@ -40,9 +40,8 @@
     }
     if (!saved || !saved.token || !String(saved.token).startsWith('hyr_vm_')) return;
 
-    const host = window.location.host.replace(/^www\./, '');
-    const fallbackUrl = window.location.protocol + '//cloud.' + host + '/v1/vm/' +
-        encodeURIComponent(vmId) + '?token=' + encodeURIComponent(saved.token);
+    const fallbackUrl = '/api/v1/vm/' + encodeURIComponent(vmId) +
+        '?token=' + encodeURIComponent(saved.token);
     const managementUrl = saved.url || fallbackUrl;
 
     const section = document.createElement('section');

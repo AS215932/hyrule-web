@@ -124,6 +124,18 @@ def test_status_page_no_banner_without_token(
     assert "save this once" not in r.text.lower()
 
 
+def test_status_page_session_storage_fallback_uses_same_origin_api_proxy(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/vm/vm-abc/status").mock(
+        return_value=httpx.Response(200, json=_VM_READY),
+    )
+    r = client.get("/order/status/vm-abc")
+    assert r.status_code == 200
+    assert "'/api/v1/vm/'" in r.text
+    assert "'//cloud.' +" not in r.text
+
+
 def test_status_page_ignores_malformed_token_query(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
