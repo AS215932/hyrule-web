@@ -135,7 +135,7 @@
             <fieldset class="form-section">
                 <legend><div class="form-section-head">
                     <h3><span class="ix">06</span> Domain</h3>
-                    <span class="form-section-hint">custom domains are support-assisted beta</span>
+                    <span class="form-section-hint">auto subdomain or registered domain</span>
                 </div></legend>
                 <div class="form-section-body">
                     <div class="radio-stack">
@@ -145,12 +145,15 @@
                             <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
-                        <div class="radio-line opacity-70">
-                            <input type="radio" value="custom" disabled>
+                        <label class="radio-line">
+                            <input type="radio" name="domain_mode" value="custom">
                             <span>Custom domain</span>
-                            <code>beta via support</code>
+                            <code>registered at checkout</code>
+                        </label>
+                        <div class="field">
+                            <input type="text" name="domain" placeholder="example.com" inputmode="url" autocomplete="off">
+                            <span class="field-hint">Leave empty for the automatic subdomain.</span>
                         </div>
-                        <input type="hidden" name="domain" value="">
                     </div>
                 </div>
             </fieldset>

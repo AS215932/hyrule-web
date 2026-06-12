@@ -83,6 +83,8 @@ origin). Key URLs:
 - VM catalog: https://cloud.hyrule.host/v1/products/vms
 - Price a durable order (POST): https://cloud.hyrule.host/v1/vm/quote
 - Provision a VM (POST, x402): https://cloud.hyrule.host/v1/vm/create
+- Check/register domains: https://cloud.hyrule.host/v1/domain/check
+- Paid network request: https://cloud.hyrule.host/v1/network/request
 
 Golden path (agent), all against https://cloud.hyrule.host:
 
@@ -102,7 +104,8 @@ _LLMS_TXT_WHAT_SHIPS = """\
 - Full SSH root access (ed25519 or RSA public key)
 - Global IPv6 with NAT64/DNS64 to reach IPv4 destinations
 - Automatic subdomain on `deploy.hyrule.host`
-- Custom domains and domain registration are beta / support-assisted
+- Custom domains can be registered during checkout
+- Paid direct/Tor network requests are available through the API
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
 - 1-365 day runtimes, extendable, 24-hour grace after expiry
 
@@ -143,7 +146,7 @@ def _render_payment_section(
             "`/api/v1/payments/networks` for the live status.\n"
         )
         if native_list:
-            text += f"- Native rails currently enabled: {', '.join(native_list)}.\n"
+            text += f"- Native VM checkout rails currently enabled: {', '.join(native_list)}.\n"
         return text
 
     lines = ["## Payment", ""]
@@ -156,7 +159,7 @@ def _render_payment_section(
         lines.append(f"    - {display} — `{caip2}`{suffix}")
     if native_list:
         lines.append(
-            "- Native intent rails currently enabled: "
+            "- Native VM checkout rails currently enabled: "
             f"{', '.join(native_list)} (`POST /api/v1/intent/create`)."
         )
     else:

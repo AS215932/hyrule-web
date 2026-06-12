@@ -110,6 +110,8 @@ def test_services_falls_back_when_api_unreachable(
     r = client.get("/services")
     _assert_html_with_canonical(r)
     assert "Debian 13" in r.text  # fell back to DEFAULT_OS_TEMPLATES
+    assert "Paid direct and Tor HTTP requests" in r.text
+    assert "support-assisted beta" not in r.text
 
 
 def test_order_uses_api_data_when_present(
@@ -123,6 +125,9 @@ def test_order_uses_api_data_when_present(
     ))
     r = client.get("/order")
     _assert_html_with_canonical(r)
+    assert 'name="domain_mode" value="custom"' in r.text
+    assert 'name="domain"' in r.text
+    assert "support-assisted beta" not in r.text
 
 
 def test_order_falls_back_when_api_unreachable(

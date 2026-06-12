@@ -129,6 +129,13 @@ function stashManagementToken(intentBody: IntentBody): void {
   }
 }
 
+export function statusRedirectUrl(intentBody: IntentBody): string {
+  const vmId = intentBody.vm_id;
+  if (!vmId) return "/order";
+  const token = intentBody.management_token;
+  return "/order/status/" + vmId + (token ? "?token=" + encodeURIComponent(token) : "");
+}
+
 function setStatusLine(container: HTMLElement, status: unknown, confirmations: unknown): void {
   const el = container.querySelector("#hyr-status");
   if (!el) return;
@@ -223,7 +230,7 @@ async function pollUntilTerminal(
         setStatus("Payment received. Redirecting…", "payment-ok");
         stashManagementToken(body);
         setTimeout(() => {
-          window.location.href = "/order/status/" + body.vm_id;
+          window.location.href = statusRedirectUrl(body);
         }, 800);
         done = true;
         break;
