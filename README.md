@@ -14,4 +14,4 @@ project. For the raw network facts, peering policy, and weathermap, see
 
 ---
 
-*Part of [Hyrule Networks (AS215932)](https://github.com/AS215932).*
+_Part of [Hyrule Networks (AS215932)](https://github.com/AS215932)._
