@@ -1,5 +1,17 @@
 // Shared frontend types (issue #14 TS migration).
 
+export interface VmStatus {
+  status: "payment_required" | "provisioning" | "provisioned" | "failed" | "rolled_back";
+  payment_status?: string;
+  dns_aaaa_verified?: boolean;
+  ssh_smoke_status?: string;
+  rollback_available?: boolean;
+  fqdn?: string;
+  ipv6?: string;
+  operator_message?: string;
+  customer_message?: string;
+}
+
 /** Minimal EIP-1193 provider surface the EVM payment flow uses. */
 export interface Eip1193Provider {
   request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;

@@ -1,46 +1,48 @@
-{# Partial: poll-replaceable inner of the status card. #}
-{% set is_ready = vm and vm.status == 'ready' %}
-{% set is_error = vm and vm.status == 'error' %}
-{% set phase    = vm.phase if vm and vm.phase is not none else 0 %}
-{% set elapsed  = vm.elapsed_s if vm else 0 %}
-{% set steps = [
-    ('order received',        '0.1s'),
-    ('image staged',          '1.6s'),
-    ('instance booting',      '1.6s'),
-    ('network attached',      '1.8s'),
-    ('ssh ready · vm online', '1.0s'),
-] %}
+{# Partial: poll-replaceable inner of the status card (launch-proof contract). #}
+{% set is_provisioned = vm and vm.status == 'provisioned' %}
+{% set is_failed = vm and vm.status == 'failed' %}
+{% set is_rolled_back = vm and vm.status == 'rolled_back' %}
+{% set is_payment_required = vm and vm.status == 'payment_required' %}
+{% set is_provisioning = vm and vm.status == 'provisioning' %}
+{% set label = 'PROVISIONED' if is_provisioned else ('FAILED' if is_failed else ('ROLLED BACK' if is_rolled_back else ('PAYMENT REQUIRED' if is_payment_required else 'PROVISIONING'))) %}
+{% set card_cls = 'ok' if is_provisioned else ('error' if is_failed or is_rolled_back else 'pending') %}
 
-<div id="status-card" class="status-card {% if is_ready %}ok{% elif is_error %}error{% else %}pending{% endif %}"
-     hx-get="/order/status/{{ vm.id if vm else 'vm-7c4a' }}/partial"
+<div id="status-card" class="status-card {{ card_cls }}"
+     data-vm-id="{{ vm_id }}"
+     hx-get="/order/status/{{ vm_id }}/partial"
      hx-trigger="every 2s"
      hx-swap="outerHTML"
-     {% if is_ready or is_error %}hx-disable="true"{% endif %}>
+     {% if is_provisioned or is_failed or is_rolled_back %}hx-disable="true"{% endif %}>
     <div class="status-row">
         <span class="status-dot"></span>
-        <span class="status-label">{% if is_ready %}READY{% elif is_error %}ERROR{% else %}PROVISIONING{% endif %}</span>
-        <span class="status-meta">elapsed {{ elapsed }}s · region {{ vm.region if vm else 'eu-west-amsterdam' }}</span>
+        <span class="status-label">{{ label }}</span>
     </div>
 
-    {% if is_ready %}
+    {% if is_provisioned %}
     <div class="kv-block">
         <div class="kv"><span class="k">hostname</span><span class="v"><code>{{ vm.fqdn }}</code></span><button class="copy" data-copy="{{ vm.fqdn }}">copy</button></div>
         <div class="kv"><span class="k">ipv6</span><span class="v"><code>{{ vm.ipv6 }}</code></span><button class="copy" data-copy="{{ vm.ipv6 }}">copy</button></div>
         <div class="kv"><span class="k">connect</span><span class="v"><code>ssh root@{{ vm.fqdn }}</code></span><button class="copy" data-copy="ssh root@{{ vm.fqdn }}">copy</button></div>
-        <div class="kv"><span class="k">expires</span><span class="v"><code>{{ vm.expires_at }}</code></span><span></span></div>
-        <div class="kv"><span class="k">api</span><span class="v"><code>GET /v1/vm/{{ vm.id }}/status</code></span><button class="copy" data-copy="GET /v1/vm/{{ vm.id }}/status">copy</button></div>
+    </div>
+    {% elif is_payment_required %}
+    <div class="mt-4">
+        <p class="text-text-soft">Your VM is reserved. Complete payment to begin provisioning.</p>
+        <a href="/order" class="btn btn-primary mt-3">Pay now</a>
+    </div>
+    {% elif is_failed %}
+    <div class="mt-4">
+        <p>{{ vm.customer_message or 'Something went wrong during provisioning.' }}</p>
+        <p class="mt-2 text-text-soft">Contact <a href="mailto:support@hyrule.host">support@hyrule.host</a> for help.</p>
+    </div>
+    {% elif is_rolled_back %}
+    <div class="mt-4">
+        <p>{{ vm.customer_message or 'Your order has been rolled back and any payment will be refunded.' }}</p>
+        <p class="mt-2 text-text-soft">Contact <a href="mailto:support@hyrule.host">support@hyrule.host</a> if you need assistance.</p>
     </div>
     {% else %}
-    <div class="timeline">
-        {% for label, dur in steps %}
-        {% set cls = 'done' if loop.index0 < phase else ('active' if loop.index0 == phase else 'pending') %}
-        <div class="timeline-row {{ cls }}">
-            <span class="ts">{% if loop.index0 < phase %}✓{% elif loop.index0 == phase %}▸{% else %}·{% endif %}</span>
-            <span class="msg">{{ label }}</span>
-            <span class="dur">{% if loop.index0 <= phase %}{{ dur }}{% else %}…{% endif %}</span>
-        </div>
-        {% endfor %}
+    <div class="mt-4">
+        <p class="text-text-soft">Building your VM. Most builds finish in under 60 seconds.</p>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
     </div>
-    <div class="progress-bar"><div class="progress-fill"></div></div>
     {% endif %}
 </div>

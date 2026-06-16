@@ -154,12 +154,12 @@
     ]
   },
   "frontend/src/main.ts": {
-    "file": "assets/main-CG1e6C_I.js",
+    "file": "assets/main-C8xdcCrR.js",
     "name": "main",
     "src": "frontend/src/main.ts",
     "isEntry": true,
     "css": [
-      "assets/main-GiXzy1uH.css"
+      "assets/main-BICyC5oV.css"
     ]
   },
   "frontend/src/order.ts": {
@@ -176,6 +176,12 @@
     "dynamicImports": [
       "frontend/src/walletconnect.ts"
     ]
+  },
+  "frontend/src/status.ts": {
+    "file": "assets/status-DkO_AjS_.js",
+    "name": "status",
+    "src": "frontend/src/status.ts",
+    "isEntry": true
   },
   "frontend/src/walletconnect.ts": {
     "file": "assets/walletconnect-4Pkj4VqE.js",

@@ -19,6 +19,8 @@ export default defineConfig({
         order: "frontend/src/order.ts",
         // Loaded on the review/checkout page: the payment dispatcher.
         payment: "frontend/src/payment.ts",
+        // Loaded on the status page: launch-proof status polling.
+        status: "frontend/src/status.ts",
       },
     },
   },
