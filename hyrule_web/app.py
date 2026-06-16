@@ -76,6 +76,7 @@ _VITE_ENTRIES = {
     "main": "frontend/src/main.ts",
     "order": "frontend/src/order.ts",
     "payment": "frontend/src/payment.ts",
+    "status": "frontend/src/status.ts",
 }
 
 
@@ -476,6 +477,11 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
     return None
 
 
+async def _fetch_vm_status(request: Request, vm_id: str) -> dict[str, Any] | None:
+    """Fetch the launch-proof status for a single VM."""
+    return await _fetch_api(request, f"/v1/vm/{vm_id}/status")
+
+
 async def _api_request(
     request: Request,
     path: str,
@@ -651,7 +657,7 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
 async def page_status(request: Request, vm_id: str) -> Response:
     # Block A0: status page calls the sanitized public endpoint. The
     # legacy /v1/vm/{id} is now management-gated and would 404 here.
-    data = await _fetch_api(request, f"/v1/vm/{vm_id}/status")
+    data = await _fetch_vm_status(request, vm_id)
     # If the URL carries ?token=hyr_vm_..., the user just landed from a
     # fresh anon order. Surface the management URL banner exactly once.
     token = request.query_params.get("token")
@@ -913,7 +919,7 @@ async def partial_price(
 @app.get("/order/status/{vm_id}/partial", response_class=HTMLResponse)
 async def partial_status(request: Request, vm_id: str) -> Response:
     # Block A0: same sanitized public endpoint as the full page.
-    data = await _fetch_api(request, f"/v1/vm/{vm_id}/status")
+    data = await _fetch_vm_status(request, vm_id)
     return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)
 
 
