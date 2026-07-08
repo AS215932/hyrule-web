@@ -45,6 +45,10 @@ def test_llms_txt_route_falls_back_when_backend_unreachable(
     assert r.status_code == 200
     # The fallback text directs to the API for the live list.
     assert "/api/v1/payments/networks" in r.text
+    # And it must NOT advertise the paid diagnostics suite — we cannot
+    # confirm those routes are live when discovery itself failed.
+    assert "Paid network diagnostics" not in r.text
+    assert "/v1/dns/lookup" not in r.text
 
 
 def test_llms_txt_constant_is_the_fallback_variant() -> None:
@@ -52,6 +56,25 @@ def test_llms_txt_constant_is_the_fallback_variant() -> None:
     so any caller that imports it still gets a sensible string."""
     assert LLMS_TXT.startswith("# Hyrule Cloud")
     assert "/api/v1/payments/networks" in LLMS_TXT
+
+
+def test_llms_txt_advertises_paid_network_diagnostics(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """The diagnostics section points agents at the network-intel suite and
+    ClawHub skills — but never at unbuilt services (mail, speedtest)."""
+    r = client.get("/llms.txt")
+    assert r.status_code == 200
+    text = r.text
+    assert "/v1/dns/lookup" in text
+    assert "/v1/bgp/lookup" in text
+    assert "/v1/mx/check" in text
+    assert "/v1/web/check" in text
+    assert "/v1/network/request" in text
+    assert "hyrule-network-intel" in text  # ClawHub skill pointer
+    # Unbuilt services must not be promised to agents.
+    assert "/v1/mail" not in text
+    assert "/v1/speedtest" not in text
 
 
 def test_sitemap_xml_route_is_valid_xml(client: TestClient) -> None:
@@ -79,3 +102,34 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
                  "https://hyrule.host/terms", "https://hyrule.host/privacy",
                  "https://hyrule.host/abuse", "https://hyrule.host/legal"):
         assert path in body
+
+
+def test_llms_txt_diagnostics_need_an_enabled_chain_and_live_discovery() -> None:
+    """No payable x402 chain (empty list) or a stale cached catalog must both
+    suppress the paid-diagnostics section."""
+    from hyrule_web.seo import build_llms_txt
+
+    base = {
+        "key": "base",
+        "display_name": "Base",
+        "caip2": "eip155:8453",
+        "chain_id": 8453,
+        "family": "evm",
+    }
+
+    live = build_llms_txt([base], diagnostics_live=True)
+    assert "Paid network diagnostics" in live
+
+    no_chains = build_llms_txt([], diagnostics_live=True)
+    assert "Paid network diagnostics" not in no_chains
+
+    stale = build_llms_txt([base], diagnostics_live=False)
+    assert "Paid network diagnostics" not in stale
+
+    # The golden path needs EIP-3009 signing: an SVM-only catalog is not a
+    # payable x402 surface for these endpoints.
+    svm_only = build_llms_txt(
+        [{"key": "solana", "display_name": "Solana", "family": "svm"}],
+        diagnostics_live=True,
+    )
+    assert "Paid network diagnostics" not in svm_only

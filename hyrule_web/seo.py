@@ -117,6 +117,40 @@ _LLMS_TXT_WHAT_SHIPS = """\
 """
 
 
+_LLMS_TXT_DIAGNOSTICS = """\
+## Paid network diagnostics (x402, per-request)
+
+Beyond VMs, the same API sells network-intelligence lookups an agent can
+buy per request — $0.001 to $0.10 each, same 402 → sign → retry flow:
+
+- DNS/DNSSEC/propagation: POST /v1/dns/lookup, /v1/dns/propagation
+- IP intelligence (geo/ASN/rDNS): POST /v1/ip/lookup
+- BGP/routing: POST /v1/bgp/lookup, /v1/path/ping, /v1/path/report
+- Registry: POST /v1/rdap/lookup, /v1/whois/lookup
+- Web/TLS: POST /v1/web/check, /v1/web/tls/deep
+- Mail deliverability: POST /v1/mx/check (SPF/DKIM/DMARC/blacklists)
+- Reachability: POST /v1/ports/check, /v1/nat/lookup
+- VoIP/SIP: POST /v1/voip/check, /v1/voip/number/lookup
+- Anonymous egress: POST /v1/network/request (direct/Tor/I2P/Yggdrasil)
+
+Discovery: every paid endpoint is listed with price in
+https://cloud.hyrule.host/.well-known/x402.json (`discoverable` entries
+carry machine-readable input/output schemas in their 402 responses).
+The diagnostic services (dns, ip, bgp, rdap, whois, web, mx, path, ports,
+nat, threat, voip) each describe their product boundary at
+`/v1/<service>/capabilities`; the egress endpoint is documented in the
+manifest only. OpenClaw skills for these services are being rolled out on
+ClawHub under the `hyrule-` prefix — check there for `hyrule-cloud` and
+`hyrule-network-intel` availability.
+
+Golden path (diagnostic), against https://cloud.hyrule.host:
+
+    POST /v1/dns/lookup {"name":"example.com","type":"AAAA"}  -> 402
+    # sign EIP-3009 for the quoted amount (USDC, $0.001)
+    POST /v1/dns/lookup + X-PAYMENT  -> 200 diagnostic evidence
+"""
+
+
 def _render_payment_section(
     networks: Iterable[dict[str, Any]] | None,
     native: Iterable[str] | None = None,
@@ -174,19 +208,33 @@ def _render_payment_section(
 def build_llms_txt(
     networks: Iterable[dict[str, Any]] | None = None,
     native: Iterable[str] | None = None,
+    diagnostics_live: bool = True,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
     `networks` and `native` are from `/v1/payments/networks`. Pass networks
     as None to render a "ask the API" placeholder section instead.
+    `diagnostics_live` should be False when the catalog came from a stale
+    cache rather than live discovery.
     """
-    return (
+    network_list = list(networks) if networks is not None else None
+    text = (
         _LLMS_TXT_PREAMBLE
         + "\n"
-        + _render_payment_section(networks, native=native)
+        + _render_payment_section(network_list, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
     )
+    # Only advertise the paid diagnostics suite when FRESH live discovery
+    # succeeded AND at least one EVM x402 chain is enabled: the golden path
+    # requires signing EIP-3009 USDC, so an SVM/native-only catalog (or a
+    # stale cached one) would send agents to endpoints they cannot pay for.
+    has_x402_chain = network_list is not None and any(
+        n.get("family") == "evm" for n in network_list
+    )
+    if has_x402_chain and diagnostics_live:
+        text += "\n" + _LLMS_TXT_DIAGNOSTICS
+    return text
 
 
 # Paths that exist as FastAPI routes but should not be in the sitemap:
