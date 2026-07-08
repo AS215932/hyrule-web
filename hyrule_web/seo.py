@@ -136,9 +136,12 @@ buy per request — $0.001 to $0.10 each, same 402 → sign → retry flow:
 Discovery: every paid endpoint is listed with price in
 https://cloud.hyrule.host/.well-known/x402.json (`discoverable` entries
 carry machine-readable input/output schemas in their 402 responses).
-Each `/v1/<service>/capabilities` endpoint describes its product boundary,
-and OpenClaw skills for all of the above are published on ClawHub under
-the `hyrule-` prefix (start with `hyrule-cloud` and `hyrule-network-intel`).
+The diagnostic services (dns, ip, bgp, rdap, whois, web, mx, path, ports,
+nat, threat, voip) each describe their product boundary at
+`/v1/<service>/capabilities`; the egress endpoint is documented in the
+manifest only. OpenClaw skills for these services are being rolled out on
+ClawHub under the `hyrule-` prefix — check there for `hyrule-cloud` and
+`hyrule-network-intel` availability.
 
 Golden path (diagnostic), against https://cloud.hyrule.host:
 
@@ -211,15 +214,20 @@ def build_llms_txt(
     `networks` and `native` are from `/v1/payments/networks`. Pass networks
     as None to render a "ask the API" placeholder section instead.
     """
-    return (
+    text = (
         _LLMS_TXT_PREAMBLE
         + "\n"
         + _render_payment_section(networks, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
-        + "\n"
-        + _LLMS_TXT_DIAGNOSTICS
     )
+    if networks is not None:
+        # Only advertise the paid diagnostics suite when live discovery
+        # against the backend succeeded — in backend-down (or
+        # diagnostics-not-deployed) environments this section would promise
+        # paid routes we cannot confirm are live.
+        text += "\n" + _LLMS_TXT_DIAGNOSTICS
+    return text
 
 
 # Paths that exist as FastAPI routes but should not be in the sitemap:

@@ -45,6 +45,10 @@ def test_llms_txt_route_falls_back_when_backend_unreachable(
     assert r.status_code == 200
     # The fallback text directs to the API for the live list.
     assert "/api/v1/payments/networks" in r.text
+    # And it must NOT advertise the paid diagnostics suite — we cannot
+    # confirm those routes are live when discovery itself failed.
+    assert "Paid network diagnostics" not in r.text
+    assert "/v1/dns/lookup" not in r.text
 
 
 def test_llms_txt_constant_is_the_fallback_variant() -> None:
