@@ -117,6 +117,37 @@ _LLMS_TXT_WHAT_SHIPS = """\
 """
 
 
+_LLMS_TXT_DIAGNOSTICS = """\
+## Paid network diagnostics (x402, per-request)
+
+Beyond VMs, the same API sells network-intelligence lookups an agent can
+buy per request — $0.001 to $0.10 each, same 402 → sign → retry flow:
+
+- DNS/DNSSEC/propagation: POST /v1/dns/lookup, /v1/dns/propagation
+- IP intelligence (geo/ASN/rDNS): POST /v1/ip/lookup
+- BGP/routing: POST /v1/bgp/lookup, /v1/path/ping, /v1/path/report
+- Registry: POST /v1/rdap/lookup, /v1/whois/lookup
+- Web/TLS: POST /v1/web/check, /v1/web/tls/deep
+- Mail deliverability: POST /v1/mx/check (SPF/DKIM/DMARC/blacklists)
+- Reachability: POST /v1/ports/check, /v1/nat/lookup
+- VoIP/SIP: POST /v1/voip/check, /v1/voip/number/lookup
+- Anonymous egress: POST /v1/network/request (direct/Tor/I2P/Yggdrasil)
+
+Discovery: every paid endpoint is listed with price in
+https://cloud.hyrule.host/.well-known/x402.json (`discoverable` entries
+carry machine-readable input/output schemas in their 402 responses).
+Each `/v1/<service>/capabilities` endpoint describes its product boundary,
+and OpenClaw skills for all of the above are published on ClawHub under
+the `hyrule-` prefix (start with `hyrule-cloud` and `hyrule-network-intel`).
+
+Golden path (diagnostic), against https://cloud.hyrule.host:
+
+    POST /v1/dns/lookup {"name":"example.com","type":"AAAA"}  -> 402
+    # sign EIP-3009 for the quoted amount (USDC, $0.001)
+    POST /v1/dns/lookup + X-PAYMENT  -> 200 diagnostic evidence
+"""
+
+
 def _render_payment_section(
     networks: Iterable[dict[str, Any]] | None,
     native: Iterable[str] | None = None,
@@ -186,6 +217,8 @@ def build_llms_txt(
         + _render_payment_section(networks, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
+        + "\n"
+        + _LLMS_TXT_DIAGNOSTICS
     )
 
 

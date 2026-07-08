@@ -54,6 +54,25 @@ def test_llms_txt_constant_is_the_fallback_variant() -> None:
     assert "/api/v1/payments/networks" in LLMS_TXT
 
 
+def test_llms_txt_advertises_paid_network_diagnostics(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """The diagnostics section points agents at the network-intel suite and
+    ClawHub skills — but never at unbuilt services (mail, speedtest)."""
+    r = client.get("/llms.txt")
+    assert r.status_code == 200
+    text = r.text
+    assert "/v1/dns/lookup" in text
+    assert "/v1/bgp/lookup" in text
+    assert "/v1/mx/check" in text
+    assert "/v1/web/check" in text
+    assert "/v1/network/request" in text
+    assert "hyrule-network-intel" in text  # ClawHub skill pointer
+    # Unbuilt services must not be promised to agents.
+    assert "/v1/mail" not in text
+    assert "/v1/speedtest" not in text
+
+
 def test_sitemap_xml_route_is_valid_xml(client: TestClient) -> None:
     r = client.get("/sitemap.xml")
     assert r.status_code == 200
