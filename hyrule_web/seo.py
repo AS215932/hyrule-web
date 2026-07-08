@@ -229,7 +229,7 @@ def build_llms_txt(
     # succeeded AND at least one EVM x402 chain is enabled: the golden path
     # requires signing EIP-3009 USDC, so an SVM/native-only catalog (or a
     # stale cached one) would send agents to endpoints they cannot pay for.
-    has_x402_chain = bool(network_list) and any(
+    has_x402_chain = network_list is not None and any(
         n.get("family") == "evm" for n in network_list
     )
     if has_x402_chain and diagnostics_live:
