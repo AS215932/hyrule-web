@@ -217,18 +217,22 @@ def build_llms_txt(
     `diagnostics_live` should be False when the catalog came from a stale
     cache rather than live discovery.
     """
+    network_list = list(networks) if networks is not None else None
     text = (
         _LLMS_TXT_PREAMBLE
         + "\n"
-        + _render_payment_section(networks, native=native)
+        + _render_payment_section(network_list, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
     )
-    if networks and diagnostics_live:
-        # Only advertise the paid diagnostics suite when FRESH live discovery
-        # succeeded AND at least one x402 chain is enabled: with no payable
-        # chain (or only a stale cached catalog) this section would send
-        # agents to paid endpoints they cannot pay for right now.
+    # Only advertise the paid diagnostics suite when FRESH live discovery
+    # succeeded AND at least one EVM x402 chain is enabled: the golden path
+    # requires signing EIP-3009 USDC, so an SVM/native-only catalog (or a
+    # stale cached one) would send agents to endpoints they cannot pay for.
+    has_x402_chain = bool(network_list) and any(
+        n.get("family") == "evm" for n in network_list
+    )
+    if has_x402_chain and diagnostics_live:
         text += "\n" + _LLMS_TXT_DIAGNOSTICS
     return text
 
