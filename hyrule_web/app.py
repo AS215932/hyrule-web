@@ -993,7 +993,11 @@ async def llms(request: Request) -> str:
     networks_resp = await _refresh_networks(request)
     networks = networks_resp.get("networks") if networks_resp else None
     native = networks_resp.get("native") if networks_resp else None
-    return build_llms_txt(networks, native=native)
+    # The diagnostics section requires a payable x402 chain confirmed by a
+    # FRESH catalog — _refresh_networks serves stale-on-error, and a stale
+    # catalog is not evidence the paid endpoints are reachable right now.
+    fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
+    return build_llms_txt(networks, native=native, diagnostics_live=fresh)
 
 
 # ---------------------------------------------------------------------------

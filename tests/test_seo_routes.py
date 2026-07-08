@@ -102,3 +102,20 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
                  "https://hyrule.host/terms", "https://hyrule.host/privacy",
                  "https://hyrule.host/abuse", "https://hyrule.host/legal"):
         assert path in body
+
+
+def test_llms_txt_diagnostics_need_an_enabled_chain_and_live_discovery() -> None:
+    """No payable x402 chain (empty list) or a stale cached catalog must both
+    suppress the paid-diagnostics section."""
+    from hyrule_web.seo import build_llms_txt
+
+    base = {"key": "base", "display_name": "Base", "caip2": "eip155:8453", "chain_id": 8453}
+
+    live = build_llms_txt([base], diagnostics_live=True)
+    assert "Paid network diagnostics" in live
+
+    no_chains = build_llms_txt([], diagnostics_live=True)
+    assert "Paid network diagnostics" not in no_chains
+
+    stale = build_llms_txt([base], diagnostics_live=False)
+    assert "Paid network diagnostics" not in stale

@@ -208,11 +208,14 @@ def _render_payment_section(
 def build_llms_txt(
     networks: Iterable[dict[str, Any]] | None = None,
     native: Iterable[str] | None = None,
+    diagnostics_live: bool = True,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
     `networks` and `native` are from `/v1/payments/networks`. Pass networks
     as None to render a "ask the API" placeholder section instead.
+    `diagnostics_live` should be False when the catalog came from a stale
+    cache rather than live discovery.
     """
     text = (
         _LLMS_TXT_PREAMBLE
@@ -221,11 +224,11 @@ def build_llms_txt(
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
     )
-    if networks is not None:
-        # Only advertise the paid diagnostics suite when live discovery
-        # against the backend succeeded — in backend-down (or
-        # diagnostics-not-deployed) environments this section would promise
-        # paid routes we cannot confirm are live.
+    if networks and diagnostics_live:
+        # Only advertise the paid diagnostics suite when FRESH live discovery
+        # succeeded AND at least one x402 chain is enabled: with no payable
+        # chain (or only a stale cached catalog) this section would send
+        # agents to paid endpoints they cannot pay for right now.
         text += "\n" + _LLMS_TXT_DIAGNOSTICS
     return text
 
