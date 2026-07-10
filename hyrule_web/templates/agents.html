@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}For agents — x402 on Hyrule Cloud{% endblock %}
+{% block meta_description %}Machine-readable Hyrule Cloud: the x402 manifest, the 402→pay→200 golden path, per-endpoint prices, MCP server config, and ClawHub skills. No account, no API key — payment is the auth.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "Agents", "item": "https://hyrule.host/agents"}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+{% set native_methods = native or [] %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">agents</span></div>
+            <span class="panel-label">appendix b · for the machines</span>
+            <h1>Payment is the auth.</h1>
+            <p class="hero-blurb">No account, no API key, no OAuth dance. Every paid endpoint answers an unpaid request with <code>402 Payment Required</code> and the exact price; sign it, replay with an <code>X-PAYMENT</code> header, get your result. This page is the human-readable mirror of the <a href="https://cloud.hyrule.host/.well-known/x402.json">machine-readable manifest</a>.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label mb-2">discovery</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
+                <li>+ <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a></li>
+                <li>+ <a href="https://cloud.hyrule.host/openapi.json">OpenAPI schema</a></li>
+                <li>+ <a href="/llms.txt">llms.txt</a> agent guide</li>
+                <li>+ ClawHub: <code>hyrule-cloud</code>, <code>hyrule-network-intel</code></li>
+            </ul>
+        </div>
+    </div>
+    <div class="mt-4">
+        <span class="stamp">HTTP 402 — payment required</span>
+    </div>
+</section>
+
+{# ── B.1 The golden path ─────────────────────────────────────────────────── #}
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">b.1 the golden path</span>
+            <h2>Ask. Pay. Replay.</h2>
+        </div>
+        <div class="heading-side">Settlement is USDC via the x402 <em>exact</em> scheme (EIP-3009 — a gasless signature, no on-chain transaction from you). Rails are listed live below; any x402-aware client library can sign the payload.</div>
+    </div>
+    <div>
+        <div class="api-code" data-nosnippet>
+            <div><span class="pcom"># 1 — ask: the 402 carries the price + payment requirements</span></div>
+            <div><span class="pmeth">curl</span> -si <span class="ppath">https://cloud.hyrule.host/v1/dns/lookup</span> \</div>
+            <div>&nbsp;&nbsp;-H <span class="pstr">'content-type: application/json'</span> \</div>
+            <div>&nbsp;&nbsp;-d <span class="pstr">'{"name":"example.com","type":"AAAA"}'</span></div>
+            <div><span class="pcom"># HTTP/1.1 402 Payment Required</span></div>
+            <div class="t-spacer"></div>
+            <div><span class="pcom"># 2 — pay: sign the requirements, replay with X-PAYMENT</span></div>
+            <div><span class="pmeth">curl</span> -si <span class="ppath">https://cloud.hyrule.host/v1/dns/lookup</span> \</div>
+            <div>&nbsp;&nbsp;-H <span class="pstr">'content-type: application/json'</span> \</div>
+            <div>&nbsp;&nbsp;-H <span class="pstr">'X-PAYMENT: &lt;signed payment payload&gt;'</span> \</div>
+            <div>&nbsp;&nbsp;-d <span class="pstr">'{"name":"example.com","type":"AAAA"}'</span></div>
+            <div><span class="pcom"># HTTP/1.1 200 OK → diagnostic evidence</span></div>
+        </div>
+        <span class="figcap"><b>Figure 2.</b> The whole integration — two requests, no signup</span>
+    </div>
+</section>
+
+{# ── B.2 Async VM contract ───────────────────────────────────────────────── #}
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">b.2 the vm contract</span>
+        <h2>Provisioning is asynchronous.</h2>
+    </div>
+    <div class="figure">
+        <div class="dotlead"><span class="no">1.</span><span>pay <code>POST /v1/vm/create</code> → <code>200</code> with <code>status_url</code> + save-once <code>management_url</code></span><span class="dl"></span><span class="v">$0.05+</span></div>
+        <div class="dotlead mt-2"><span class="no">2.</span><span>poll <code>status_url</code> (<code>GET /v1/vm/{id}/status</code> — public, no token)</span><span class="dl"></span><span class="v">free</span></div>
+        <div class="dotlead mt-2"><span class="no">3.</span><span>when <code>status</code> is <code>ready</code>: <code>ssh root@&lt;hostname&gt;</code> over IPv6</span><span class="dl"></span><span class="v">~60s</span></div>
+        <div class="dotlead mt-2"><span class="no">4.</span><span>lifecycle (extend, destroy, details) via the token-bearing <code>management_url</code></span><span class="dl"></span><span class="v">keep it</span></div>
+        <span class="figcap"><b>Table 5.</b> The management token is returned once, at create — store it</span>
+    </div>
+</section>
+
+{# ── B.3 Price schedule ──────────────────────────────────────────────────── #}
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">b.3 price schedule</span>
+            <h2>Every paid endpoint.</h2>
+        </div>
+        <div class="heading-side">Rendered live from the published manifest — if it's listed here, it answers a 402 with exactly this minimum price. The manifest is also what the x402 Bazaar and scanners index.</div>
+    </div>
+    <div class="figure">
+        <table class="spec-table">
+            <thead>
+                <tr><th>endpoint</th><th>description</th><th class="price">min price</th></tr>
+            </thead>
+            <tbody>
+                {% for r in x402_resources %}
+                <tr>
+                    <td><code>{{ r.method }} {{ r.path }}</code></td>
+                    <td>{{ r.description }}</td>
+                    <td class="price">${{ r.min_price }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <span class="figcap"><b>Table 6.</b> The x402 price schedule — source: <code>/.well-known/x402.json</code></span>
+    </div>
+</section>
+
+{# ── B.4 Payment rails ───────────────────────────────────────────────────── #}
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">b.4 payment rails</span>
+        <h2>Settlement options, live from the API.</h2>
+    </div>
+    <div class="figure">
+        {% if networks %}
+        {% for n in networks %}
+        <div class="dotlead{% if not loop.first %} mt-2{% endif %}"><span class="no">{{ loop.index }}.</span><span>{{ n.display_name }} — USDC, x402 exact scheme (EIP-3009, gasless)</span><span class="dl"></span><span class="v"><code>{{ n.caip2 }}</code></span></div>
+        {% endfor %}
+        {% else %}
+        <div class="dotlead"><span class="no">?</span><span>Rail discovery unavailable — query the live list</span><span class="dl"></span><span class="v"><code>GET /v1/payments/networks</code></span></div>
+        {% endif %}
+        {% for m in native_methods %}
+        <div class="dotlead mt-2"><span class="no">＋</span><span>{{ m }} — native one-time deposit address (VM checkout)</span><span class="dl"></span><span class="v">intent</span></div>
+        {% endfor %}
+        <span class="figcap"><b>Table 7.</b> Never hardcode rails — read <code>GET /v1/payments/networks</code> at run time</span>
+    </div>
+</section>
+
+{# ── B.5 MCP server ──────────────────────────────────────────────────────── #}
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">b.5 mcp server</span>
+            <h2>For Claude, Cursor, and friends.</h2>
+        </div>
+        <div class="heading-side">The <code>hyrule-mcp</code> server (ships with the <a href="https://github.com/AS215932/hyrule-cloud">hyrule-cloud</a> package) exposes every operation on this page as MCP tools. Point it at the public API and your agent can quote, pay, provision, and manage.</div>
+    </div>
+    <div>
+        <div class="api-code" data-nosnippet>
+            <div><span class="pcom">// pip install hyrule-cloud → mcpServers entry</span></div>
+            <div>{</div>
+            <div>&nbsp;&nbsp;<span class="pkey">"mcpServers"</span>: {</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkey">"hyrule-cloud"</span>: {</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkey">"command"</span>: <span class="pstr">"hyrule-mcp"</span>,</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkey">"env"</span>: { <span class="pkey">"HYRULE_API_URL"</span>: <span class="pstr">"https://cloud.hyrule.host"</span> }</div>
+            <div>&nbsp;&nbsp;&nbsp;&nbsp;}</div>
+            <div>&nbsp;&nbsp;}</div>
+            <div>}</div>
+        </div>
+        <span class="figcap"><b>Figure 3.</b> MCP config — OpenClaw agents: see the ClawHub skills instead</span>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">go</span>
+        <h2>Your agent already knows how to do this.</h2>
+        <p>Fetch the manifest, pick an endpoint, sign the 402. The first request costs a tenth of a cent — the whole catalog is priced to be tried.</p>
+        <div class="cta-actions">
+            <a href="https://cloud.hyrule.host/.well-known/x402.json" class="btn btn-primary btn-lg">Fetch the manifest</a>
+            <a href="/llms.txt" class="btn btn-secondary btn-lg">Read llms.txt</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

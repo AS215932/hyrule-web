@@ -62,8 +62,12 @@ _LLMS_TXT_PREAMBLE = """\
 
 ## Products
 
-- [VM tiers and pricing](https://hyrule.host/services): explicit vCPU /
-  RAM / disk and daily USD pricing. SSH root access via your public key.
+- [Service catalog](https://hyrule.host/services): all four service groups —
+  compute, network intelligence, domains & DNS, network proxy — with live
+  per-endpoint pricing from the x402 manifest.
+- [For agents](https://hyrule.host/agents): the x402 golden path, the async
+  VM contract (public status poll vs token-gated management URL), MCP server
+  config, ClawHub skills, and the full price schedule.
 - [Order a VM](https://hyrule.host/order): single-page order flow.
 - [Transparency](https://hyrule.host/transparency): operator,
   jurisdiction, host inventory, BGP peering, monitoring stack.

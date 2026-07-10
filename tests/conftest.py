@@ -21,7 +21,15 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.app import _CATALOG_CACHE, _NETWORK_CACHE, _RUNTIME_CACHE, app
+from hyrule_web.app import (
+    _CATALOG_CACHE,
+    _MANIFEST_CACHE,
+    _NETWORK_CACHE,
+    _PRICING_CACHE,
+    _PRODUCTS_CACHE,
+    _RUNTIME_CACHE,
+    app,
+)
 from hyrule_web.config import settings
 
 
@@ -64,6 +72,49 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             "_source": "prometheus-http://[2a0c:b641:b50:2::50]:9090",
             "updated_at": "2026-05-19T00:00:00+00:00",
         }))
+        # Overhaul: live VM product catalog for the tier grids (index/services/
+        # order). Mirrors the real GET /v1/products/vms response — xs is 1 GB.
+        rx.get("/v1/products/vms").mock(return_value=httpx.Response(200, json={
+            "currency": "USD",
+            "billing": "prepaid-daily",
+            "products": [
+                {"size": "xs", "name": "Starter", "vcpu": 1, "ram_mb": 1024,
+                 "disk_gb": 10, "price_usd_day": "0.05"},
+                {"size": "sm", "name": "Basic", "vcpu": 1, "ram_mb": 1024,
+                 "disk_gb": 20, "price_usd_day": "0.10"},
+                {"size": "md", "name": "Standard", "vcpu": 2, "ram_mb": 2048,
+                 "disk_gb": 40, "price_usd_day": "0.20"},
+                {"size": "lg", "name": "Performance", "vcpu": 4, "ram_mb": 4096,
+                 "disk_gb": 80, "price_usd_day": "0.40"},
+            ],
+        }))
+        # Overhaul: published x402 manifest (per-endpoint prices for /services
+        # + /agents) and /v1/pricing (proxy route prices for /services).
+        rx.get("/.well-known/x402.json").mock(return_value=httpx.Response(200, json={
+            "name": "Hyrule Cloud",
+            "resources": [
+                {"path": "/v1/vm/create", "method": "POST",
+                 "description": "Provision a bare VM with SSH access", "minPrice": "0.05"},
+                {"path": "/v1/domain/register", "method": "POST",
+                 "description": "Register a domain via Openprovider", "minPrice": "6.00"},
+                {"path": "/v1/network/request", "method": "POST",
+                 "description": "Proxied network request", "minPrice": "0.01"},
+                {"path": "/v1/dns/lookup", "method": "POST",
+                 "description": "Paid DNS lookup", "minPrice": "0.001"},
+                {"path": "/v1/bgp/lookup", "method": "POST",
+                 "description": "Paid BGP lookup", "minPrice": "0.005"},
+                {"path": "/v1/web/tls/deep", "method": "POST",
+                 "description": "Deep TLS scan", "minPrice": "0.10"},
+            ],
+        }))
+        rx.get("/v1/pricing").mock(return_value=httpx.Response(200, json={
+            "vm_prices": {"xs (1vCPU/1GB/10GB)": "$0.05/day"},
+            "domain_auto": "$0.00 (subdomain under deploy.hyrule.host)",
+            "proxy_prices": {"direct": "$0.01/request", "tor": "$0.05/request",
+                             "i2p": "$0.05/request", "yggdrasil": "$0.03/request"},
+            "currency": "USDC",
+            "network": "Base (eip155:8453)",
+        }))
         yield rx
 
 
@@ -81,5 +132,11 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _NETWORK_CACHE["expires_at"] = 0.0
     _CATALOG_CACHE["value"] = None
     _CATALOG_CACHE["expires_at"] = 0.0
+    _PRODUCTS_CACHE["value"] = None
+    _PRODUCTS_CACHE["expires_at"] = 0.0
+    _MANIFEST_CACHE["value"] = None
+    _MANIFEST_CACHE["expires_at"] = 0.0
+    _PRICING_CACHE["value"] = None
+    _PRICING_CACHE["expires_at"] = 0.0
     with TestClient(app) as c:
         yield c
