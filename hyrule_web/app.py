@@ -941,15 +941,28 @@ async def robots() -> str:
 
 # Serve the brand icons at the well-known root paths too (browsers and crawlers
 # request /favicon.ico directly, not just the <link>-referenced /static path).
+# Brand marks change rarely, so cache for a week; no `immutable` because the URL
+# is stable (not content-hashed) and we want a rebrand to still revalidate.
+_ICON_CACHE_CONTROL = "public, max-age=604800"
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
-    return FileResponse(BASE_DIR / "static" / "favicon.ico", media_type="image/x-icon")
+    return FileResponse(
+        BASE_DIR / "static" / "favicon.ico",
+        media_type="image/x-icon",
+        headers={"Cache-Control": _ICON_CACHE_CONTROL},
+    )
 
 
 @app.get("/apple-touch-icon.png", include_in_schema=False)
 @app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
 async def apple_touch_icon() -> FileResponse:
-    return FileResponse(BASE_DIR / "static" / "apple-touch-icon.png", media_type="image/png")
+    return FileResponse(
+        BASE_DIR / "static" / "apple-touch-icon.png",
+        media_type="image/png",
+        headers={"Cache-Control": _ICON_CACHE_CONTROL},
+    )
 
 
 @app.get("/transparency", response_class=HTMLResponse)
