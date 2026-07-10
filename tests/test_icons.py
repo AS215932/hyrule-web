@@ -16,6 +16,8 @@ def test_favicon_ico_route(client: TestClient) -> None:
     assert "image/x-icon" in r.headers["content-type"]
     # .ico magic: 00 00 01 00 (reserved + type=1 icon).
     assert r.content[:4] == b"\x00\x00\x01\x00"
+    # Brand marks change rarely — the root route caches for a week.
+    assert "max-age=604800" in r.headers.get("cache-control", "")
 
 
 def test_apple_touch_icon_route(client: TestClient) -> None:
