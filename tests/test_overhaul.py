@@ -66,6 +66,25 @@ def test_tier_grid_falls_back_to_config_when_products_unavailable(
     assert "512 MB" not in r.text
 
 
+def test_malformed_product_row_is_skipped_not_fatal(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """pr-agent (#32): one bad row must not discard the whole live catalog.
+    Valid rows still render live; only a fully-unparseable list falls back."""
+    _mock_os_list(mocked_api)
+    mocked_api.get("/v1/products/vms").mock(return_value=httpx.Response(200, json={
+        "products": [
+            {"size": "xs", "name": "Starter", "vcpu": 1, "ram_mb": 1024,
+             "disk_gb": 10, "price_usd_day": "0.05"},
+            {"size": "sm", "name": "Broken", "vcpu": None, "ram_mb": "??"},
+        ],
+    }))
+    r = client.get("/services")
+    assert r.status_code == 200
+    assert "Starter" in r.text  # the valid live row survives
+    assert "Broken" not in r.text  # the malformed row is dropped
+
+
 def test_services_renders_intel_and_proxy_price_tables(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

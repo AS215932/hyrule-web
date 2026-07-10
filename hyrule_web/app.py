@@ -538,11 +538,13 @@ async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
 
 
 def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
-    """Map GET /v1/products/vms onto the template tier shape. Falls back to the
-    static config mirror when the live catalog is unavailable or malformed —
-    the API is the source of truth for what actually gets provisioned."""
+    """Map GET /v1/products/vms onto the template tier shape. Malformed rows
+    are skipped (pr-agent #32: one bad row must not discard the whole live
+    catalog); the static config mirror is the fallback only when nothing
+    valid parses — the API is the source of truth for what actually gets
+    provisioned."""
     rows = (products or {}).get("products")
-    if not isinstance(rows, list) or not rows:
+    if not isinstance(rows, list):
         return VM_TIERS
     tiers: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -555,8 +557,9 @@ def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]
                 "price": float(row["price_usd_day"]),
             }
         except (KeyError, TypeError, ValueError):
-            return VM_TIERS
-    return tiers
+            log.warn("products_row_malformed", row=str(row)[:200])
+            continue
+    return tiers or VM_TIERS
 
 
 def _x402_group(path: str) -> str:
