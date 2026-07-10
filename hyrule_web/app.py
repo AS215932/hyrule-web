@@ -16,7 +16,13 @@ from typing import Annotated, Any
 import httpx
 import structlog
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
@@ -931,6 +937,19 @@ async def partial_status(request: Request, vm_id: str) -> Response:
 @app.get("/robots.txt", response_class=PlainTextResponse)
 async def robots() -> str:
     return ROBOTS_TXT
+
+
+# Serve the brand icons at the well-known root paths too (browsers and crawlers
+# request /favicon.ico directly, not just the <link>-referenced /static path).
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "favicon.ico", media_type="image/x-icon")
+
+
+@app.get("/apple-touch-icon.png", include_in_schema=False)
+@app.get("/apple-touch-icon-precomposed.png", include_in_schema=False)
+async def apple_touch_icon() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "apple-touch-icon.png", media_type="image/png")
 
 
 @app.get("/transparency", response_class=HTMLResponse)
