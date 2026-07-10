@@ -76,8 +76,12 @@ export default {
         container: "var(--container)",
       },
       fontFamily: {
-        mono: ["JetBrains Mono", "Fira Code", "IBM Plex Mono", "monospace"],
-        sans: ["Inter", "system-ui", "sans-serif"],
+        // "RFC 215932" editorial trio (mirrors the CSS vars in legacy.css).
+        mono: ["IBM Plex Mono", "JetBrains Mono", "monospace"],
+        serif: ["Newsreader", "Iowan Old Style", "Georgia", "serif"],
+        display: ["Fraunces", "Newsreader", "Georgia", "serif"],
+        // `sans` kept as an alias — the editorial theme has no sans face.
+        sans: ["Newsreader", "Georgia", "serif"],
       },
       // Fluid type scale for the refresh. Names mirror Tailwind's so utilities
       // read naturally; the lower clamp bounds keep today's compact body size.

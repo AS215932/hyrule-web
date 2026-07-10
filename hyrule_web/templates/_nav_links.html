@@ -4,10 +4,11 @@
    <nav> + styling belongs to the caller. #}
 <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}><span class="nav-num">01</span><span>Home</span></a>
 <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}><span class="nav-num">02</span><span>Services</span></a>
-<a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Deploy</span></a>
-<a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Status</span></a>
+<a href="/agents"{% if request.url.path == '/agents' %} aria-current="page"{% endif %}><span class="nav-num">03</span><span>Agents</span></a>
+<a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">04</span><span>Deploy</span></a>
+<a href="/order/status"{% if request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Status</span></a>
 {% if request.cookies.get('hyr_sess') %}
-<a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Dashboard</span></a>
+<a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}><span class="nav-num">06</span><span>Dashboard</span></a>
 {% else %}
-<a href="/login"{% if request.url.path == '/login' or request.url.path == '/signup' %} aria-current="page"{% endif %}><span class="nav-num">05</span><span>Login</span></a>
+<a href="/login"{% if request.url.path == '/login' or request.url.path == '/signup' %} aria-current="page"{% endif %}><span class="nav-num">06</span><span>Login</span></a>
 {% endif %}

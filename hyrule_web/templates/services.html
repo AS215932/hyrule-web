@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Services — Hyrule Cloud{% endblock %}
+{% block meta_description %}The Hyrule Cloud service catalog: bare IPv6-native VMs, network intelligence, domains and DNS, and anonymous network proxy — every price read live from the x402 manifest.{% endblock %}
 
 {% block structured_data %}
 {{ super() }}
@@ -46,40 +47,44 @@
 {% endblock %}
 
 {% block content %}
+{% set intel_rows = x402_resources | selectattr('group', 'equalto', 'intel') | list %}
+{% set domain_rows = x402_resources | selectattr('group', 'equalto', 'domains') | list %}
+
 <section class="container">
     <div class="page-hero">
         <div>
             <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">services</span></div>
-            <span class="panel-label">services</span>
-            <h1>Transparent VM plans for people who want the specs first.</h1>
-            <p class="hero-blurb">Daily pricing, crypto-native payment, and enough implementation detail to know what you are actually buying.</p>
+            <span class="panel-label">2. service definitions</span>
+            <h1>The full catalog, specs first.</h1>
+            <p class="hero-blurb">Four service groups on one paid API: compute, network intelligence, domains, and anonymous egress. Daily or per-request pricing, crypto-native payment, and enough implementation detail to know what you are actually buying.</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label mb-2">included</span>
+            <span class="panel-label mb-2">contents</span>
             <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
-                <li>+ Root SSH with your public key</li>
-                <li>+ IPv6 + NAT64/DNS64 to reach IPv4</li>
-                <li>+ Auto subdomain on <code>deploy.hyrule.host</code></li>
-                <li>+ 1–365 day runtimes, extendable</li>
+                <li>2.1 <a href="#compute">Compute</a> — bare VMs</li>
+                <li>2.2 <a href="#intel">Network intelligence</a></li>
+                <li>2.3 <a href="#domains">Domains &amp; DNS</a></li>
+                <li>2.4 <a href="#proxy">Network proxy</a></li>
             </ul>
         </div>
     </div>
 </section>
 
-<section class="container page-section">
+{# ── 2.1 Compute ─────────────────────────────────────────────────────────── #}
+<section class="container page-section" id="compute">
     <div class="section-heading split">
         <div class="heading-main">
-            <span class="panel-label">virtual machines</span>
+            <span class="panel-label">2.1 compute</span>
             <h2>Footprints from quick test box to heavier workload.</h2>
         </div>
-        <div class="heading-side">All plans share the same provisioning flow and network defaults. Only compute and storage change between tiers.</div>
+        <div class="heading-side">All plans share the same provisioning flow and network defaults — only compute and storage change between tiers. Specs and prices are read live from the API catalog, so this table cannot drift from what gets provisioned.</div>
     </div>
     {% include "_tier_grid.html" %}
 </section>
 
 <section class="container page-section">
     <div class="section-heading">
-        <span class="panel-label">operational details</span>
+        <span class="panel-label">2.1.1 operational details</span>
         <h2>What actually ships with each machine.</h2>
     </div>
     <div class="feature-grid">
@@ -101,10 +106,86 @@
     </div>
 </section>
 
+{# ── 2.2 Network intelligence ────────────────────────────────────────────── #}
+<section class="container page-section" id="intel">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">2.2 network intelligence</span>
+            <h2>Diagnostic evidence, per request.</h2>
+        </div>
+        <div class="heading-side">The same lookups a network engineer runs — DNS, BGP, RDAP/WHOIS, TLS, mail, ports, NAT, VoIP — sold per request over x402. Answers come from AS215932's own routing tables, public collectors, and live probes: structured evidence, not summaries. See <a href="/agents">§agents</a> for the payment flow.</div>
+    </div>
+    <div class="figure">
+        <table class="spec-table">
+            <thead>
+                <tr><th>endpoint</th><th>what it answers</th><th class="price">price</th></tr>
+            </thead>
+            <tbody>
+                {% for r in intel_rows %}
+                <tr>
+                    <td><code>{{ r.method }} {{ r.path }}</code></td>
+                    <td>{{ r.description }}</td>
+                    <td class="price">${{ r.min_price }}<span class="unit">/req</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <span class="figcap"><b>Table 2.</b> Network-intelligence endpoints — prices live from the x402 manifest</span>
+    </div>
+</section>
+
+{# ── 2.3 Domains & DNS ───────────────────────────────────────────────────── #}
+<section class="container page-section" id="domains">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">2.3 domains &amp; dns</span>
+            <h2>Names for the things you deploy.</h2>
+        </div>
+        <div class="heading-side">Every VM gets a free subdomain automatically. For persistent deployments, register a real domain at checkout or via the API — registration through Openprovider, DNS served by AS215932's authoritative nameservers.</div>
+    </div>
+    <div class="figure">
+        <div class="dotlead"><span class="no">a.</span><span>Auto subdomain — <code>&lt;id&gt;.deploy.hyrule.host</code>, AAAA to your VM</span><span class="dl"></span><span class="v">free</span></div>
+        {% for r in domain_rows %}
+        <div class="dotlead mt-2"><span class="no">{{ loop.cycle('b.', 'c.', 'd.') }}</span><span>{{ r.description }} — <code>{{ r.method }} {{ r.path }}</code></span><span class="dl"></span><span class="v">from ${{ r.min_price }}</span></div>
+        {% endfor %}
+        <div class="dotlead mt-2"><span class="no">＋</span><span>DNS zone + record management on registered domains</span><span class="dl"></span><span class="v">included</span></div>
+        <span class="figcap"><b>Table 3.</b> Domains &amp; DNS — registration price varies by TLD</span>
+    </div>
+</section>
+
+{# ── 2.4 Network proxy ───────────────────────────────────────────────────── #}
+<section class="container page-section" id="proxy">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">2.4 network proxy</span>
+            <h2>Anonymous egress, settled on delivery.</h2>
+        </div>
+        <div class="heading-side">Paid direct and Tor HTTP requests for agents, with private-address targets blocked — plus I2P and Yggdrasil routes. Payment settles only after the response is delivered: a relay timeout or upstream error is never charged.</div>
+    </div>
+    <div class="figure">
+        <table class="spec-table">
+            <thead>
+                <tr><th>route</th><th>path</th><th class="price">price</th></tr>
+            </thead>
+            <tbody>
+                {% for route, price in proxy_prices.items() %}
+                <tr>
+                    <td><code>{{ route }}</code></td>
+                    <td>{% if route == 'direct' %}AS215932 egress, IPv6-first{% elif route == 'tor' %}via the Tor network{% elif route == 'i2p' %}via the Invisible Internet Project{% elif route == 'yggdrasil' %}via the Yggdrasil overlay mesh{% else %}via {{ route }}{% endif %} — <code>POST /v1/network/request</code></td>
+                    <td class="price">{{ price }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <span class="figcap"><b>Table 4.</b> Proxy routes — prices live from <code>GET /v1/pricing</code></span>
+    </div>
+</section>
+
+{# ── 3. Privacy Considerations ───────────────────────────────────────────── #}
 <section class="container page-section">
     <div class="section-heading split">
         <div class="heading-main">
-            <span class="panel-label">anonymity guarantees</span>
+            <span class="panel-label">3. privacy considerations</span>
             <h2>What we hold, and what we never asked for.</h2>
         </div>
         <div class="heading-side">No-KYC isn't a marketing line. It's how the schema is shaped — there's no column to write your email into. See <a href="/transparency">/transparency</a> for the full inventory and <a href="/faq">/faq</a> for the recovery story.</div>
@@ -121,7 +202,7 @@
             </div>
         </div>
         <div class="manifest">
-            <div class="manifest-head"><span>we don't collect</span><span class="badge bg-[#0f3]">never</span></div>
+            <div class="manifest-head"><span>we don't collect</span><span class="badge">never</span></div>
             <div class="manifest-rows">
                 <div class="manifest-k">email</div><div class="manifest-v">no input field exists</div>
                 <div class="manifest-k">phone</div><div class="manifest-v">no input field exists</div>
@@ -137,7 +218,7 @@
 <section class="container page-section">
     <div class="section-heading split">
         <div class="heading-main">
-            <span class="panel-label">operating systems</span>
+            <span class="panel-label">2.1.2 operating systems</span>
             <h2>Available base images.</h2>
         </div>
         <div class="heading-side">The default image is preselected during checkout. Any listed template can be used; cloud-init is supported on all of them.</div>
@@ -159,9 +240,10 @@
     <div class="cta">
         <span class="panel-label">ready</span>
         <h2>Pick a plan and launch it.</h2>
-        <p>You only need an SSH key, a duration, and a wallet for an enabled payment rail.</p>
+        <p>You only need an SSH key, a duration, and a wallet for an enabled payment rail. Everything else on this page is one <code>X-PAYMENT</code> header away.</p>
         <div class="cta-actions">
             <a href="/order" class="btn btn-primary btn-lg">Open order flow</a>
+            <a href="/agents" class="btn btn-secondary btn-lg">Integrate an agent</a>
         </div>
     </div>
 </section>

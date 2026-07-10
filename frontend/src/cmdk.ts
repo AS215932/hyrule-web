@@ -13,6 +13,7 @@ interface Command {
 const COMMANDS: Command[] = [
   { section: "Navigate", icon: "▸", title: "Home", sub: "/", href: "/" },
   { section: "Navigate", icon: "▸", title: "Services", sub: "/services", href: "/services" },
+  { section: "Navigate", icon: "▸", title: "For agents", sub: "/agents", href: "/agents" },
   { section: "Navigate", icon: "▸", title: "Deploy a VM", sub: "/order", href: "/order" },
   {
     section: "Navigate",
@@ -24,7 +25,7 @@ const COMMANDS: Command[] = [
   {
     section: "Quick deploy",
     icon: "⊕",
-    title: "Deploy Starter (1 vCPU · 512 MB)",
+    title: "Deploy Starter (1 vCPU · 1 GB)",
     sub: "$0.05/day",
     href: "/order?size=xs",
   },
@@ -53,22 +54,22 @@ const COMMANDS: Command[] = [
     section: "Documentation",
     icon: "¶",
     title: "REST API reference",
-    sub: "GET /v1/vm/:id",
-    href: "/api/docs",
+    sub: "openapi.json",
+    href: "https://cloud.hyrule.host/openapi.json",
   },
   {
     section: "Documentation",
     icon: "¶",
-    title: "x402 payment spec",
+    title: "x402 manifest",
     sub: "EIP-3009 · Base",
-    href: "/docs/x402",
+    href: "https://cloud.hyrule.host/.well-known/x402.json",
   },
   {
     section: "Documentation",
     icon: "¶",
-    title: "Network & DNS notes",
-    sub: "IPv6 + NAT64",
-    href: "/docs/network",
+    title: "Agent guide (llms.txt)",
+    sub: "/llms.txt",
+    href: "/llms.txt",
   },
 ];
 

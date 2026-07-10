@@ -27,7 +27,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
+from .config import (
+    DEFAULT_OS_TEMPLATES,
+    PROXY_PRICES_FALLBACK,
+    VM_TIERS,
+    X402_RESOURCES_FALLBACK,
+    settings,
+)
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
@@ -148,6 +154,19 @@ _NETWORK_TTL_SECONDS = 30
 # request.
 _CATALOG_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _CATALOG_TTL_SECONDS = 60
+# Overhaul: live VM product catalog (GET /v1/products/vms) for the tier grids.
+# The hardcoded config.VM_TIERS once drifted from what the API provisions
+# (512 MB vs 1 GB xs) — pages render the live catalog, config is fallback-only.
+_PRODUCTS_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_PRODUCTS_TTL_SECONDS = 300
+# Overhaul: the published x402 manifest (/.well-known/x402.json) — per-endpoint
+# prices for /services and /agents. Slow-moving; fallback is the curated
+# config.X402_RESOURCES_FALLBACK mirror.
+_MANIFEST_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_MANIFEST_TTL_SECONDS = 300
+# Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
+_PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_PRICING_TTL_SECONDS = 300
 
 
 def _copy(*parts: str) -> str:
@@ -418,6 +437,21 @@ def _catalog_native(catalog: dict[str, Any] | None) -> list[str]:
     return [str(x).upper() for x in native] if isinstance(native, list) else []
 
 
+def _sane_provision_seconds(value: Any) -> int | None:
+    """Sanity-gate the advertised provision time. The backend's rolling
+    average can be polluted by stuck/simulated builds (observed: 4720.3s
+    while real provisions finish in seconds) — outside a plausible window
+    we render the templates' honest "~60s" fallback instead of telemetry
+    we don't believe."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if 0 < v <= 300:
+        return round(v)
+    return None
+
+
 async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
     """Pull /v1/stats/runtime, cache for 15s. Stale-on-error: if the fetch
     fails we serve the last good value rather than punching a hole through
@@ -428,6 +462,10 @@ async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
         return cached
     data = await _fetch_api(request, "/v1/stats/runtime")
     if data is not None:
+        data = {
+            **data,
+            "avg_provision_seconds": _sane_provision_seconds(data.get("avg_provision_seconds")),
+        }
         _RUNTIME_CACHE["value"] = data
         _RUNTIME_CACHE["expires_at"] = now + _RUNTIME_TTL_SECONDS
         return data
@@ -464,6 +502,106 @@ async def _refresh_networks(request: Request) -> dict[str, Any] | None:
         _CATALOG_CACHE["expires_at"] = now + _CATALOG_TTL_SECONDS
         return data
     return cached
+
+
+async def _refresh_cached(
+    request: Request, cache: dict[str, Any], ttl_seconds: int, path: str
+) -> dict[str, Any] | None:
+    """Generic TTL + stale-on-error fetch used by the overhaul caches
+    (products / manifest / pricing) — same semantics as the Block B/G ones."""
+    now = time.time()
+    cached: dict[str, Any] | None = cache.get("value")
+    if cached is not None and now < float(cache["expires_at"]):
+        return cached
+    data = await _fetch_api(request, path)
+    if data is not None:
+        cache["value"] = data
+        cache["expires_at"] = now + ttl_seconds
+        return data
+    return cached
+
+
+async def _refresh_products(request: Request) -> dict[str, Any] | None:
+    return await _refresh_cached(
+        request, _PRODUCTS_CACHE, _PRODUCTS_TTL_SECONDS, "/v1/products/vms"
+    )
+
+
+async def _refresh_manifest(request: Request) -> dict[str, Any] | None:
+    return await _refresh_cached(
+        request, _MANIFEST_CACHE, _MANIFEST_TTL_SECONDS, "/.well-known/x402.json"
+    )
+
+
+async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
+    return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
+
+
+def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Map GET /v1/products/vms onto the template tier shape. Falls back to the
+    static config mirror when the live catalog is unavailable or malformed —
+    the API is the source of truth for what actually gets provisioned."""
+    rows = (products or {}).get("products")
+    if not isinstance(rows, list) or not rows:
+        return VM_TIERS
+    tiers: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        try:
+            tiers[str(row["size"])] = {
+                "name": str(row["name"]),
+                "vcpu": int(row["vcpu"]),
+                "ram_mb": int(row["ram_mb"]),
+                "disk_gb": int(row["disk_gb"]),
+                "price": float(row["price_usd_day"]),
+            }
+        except (KeyError, TypeError, ValueError):
+            return VM_TIERS
+    return tiers
+
+
+def _x402_group(path: str) -> str:
+    """Bucket a manifest path into one of the four service pillars."""
+    if path.startswith("/v1/vm"):
+        return "compute"
+    if path.startswith(("/v1/domain", "/v1/zone")):
+        return "domains"
+    if path.startswith("/v1/network"):
+        return "proxy"
+    return "intel"
+
+
+def _x402_resources(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Normalize the published manifest's resources for the price tables on
+    /services and /agents; falls back to the curated config mirror."""
+    rows = (manifest or {}).get("resources")
+    if not isinstance(rows, list) or not rows:
+        return X402_RESOURCES_FALLBACK
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        path = row.get("path")
+        price = row.get("minPrice")
+        if not isinstance(path, str) or price is None:
+            continue
+        out.append(
+            {
+                "path": path,
+                "method": str(row.get("method", "POST")),
+                "description": str(row.get("description", "")),
+                "min_price": str(price),
+                "group": _x402_group(path),
+            }
+        )
+    return out or X402_RESOURCES_FALLBACK
+
+
+def _proxy_prices(pricing: dict[str, Any] | None) -> dict[str, str]:
+    """Per-route proxy prices from GET /v1/pricing, with a static fallback."""
+    prices = (pricing or {}).get("proxy_prices")
+    if isinstance(prices, dict) and prices:
+        return {str(k): str(v) for k, v in prices.items()}
+    return PROXY_PRICES_FALLBACK
 
 
 async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
@@ -546,12 +684,15 @@ async def page_index(request: Request) -> Response:
     llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
     catalog = await _refresh_networks(request)
+    resources = _x402_resources(await _refresh_manifest(request))
     return _render(
         request,
         "index.html",
         runtime=runtime,
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
+        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+        x402_resources=resources,
     )
 
 
@@ -559,7 +700,31 @@ async def page_index(request: Request) -> Response:
 async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    return _render(request, "services.html", os_templates=os_list)
+    resources = _x402_resources(await _refresh_manifest(request))
+    return _render(
+        request,
+        "services.html",
+        os_templates=os_list,
+        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+        x402_resources=resources,
+        proxy_prices=_proxy_prices(await _refresh_pricing(request)),
+    )
+
+
+@app.get("/agents", response_class=HTMLResponse)
+async def page_agents(request: Request) -> Response:
+    """Overhaul: the x402 story for agents — manifest, golden path, per-endpoint
+    prices (live from the published manifest, curated fallback), MCP config,
+    ClawHub skills, and the live payment-rail list."""
+    catalog = await _refresh_networks(request)
+    resources = _x402_resources(await _refresh_manifest(request))
+    return _render(
+        request,
+        "agents.html",
+        networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
+        x402_resources=resources,
+    )
 
 
 @app.get("/order", response_class=HTMLResponse)
@@ -573,6 +738,7 @@ async def page_order(request: Request) -> Response:
         os_templates=os_list,
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
+        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
     )
 
 
