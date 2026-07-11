@@ -145,7 +145,7 @@
                             <code>registered at checkout</code>
                         </label>
                         <div class="field">
-                            <input type="text" name="domain" value="{{ form_values.get('domain', '') }}" placeholder="example.com" inputmode="text" autocomplete="off">
+                            <input type="text" name="domain" value="{{ form_values.get('domain', '') }}" placeholder="example.com" inputmode="text" autocomplete="off" maxlength="253">
                             <span class="field-hint">Used only when “Custom domain” is selected; otherwise the automatic subdomain is created.</span>
                         </div>
                     </div>

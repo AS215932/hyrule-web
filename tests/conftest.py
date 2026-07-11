@@ -44,14 +44,21 @@ def mocked_api() -> Iterator[respx.MockRouter]:
         def create_quote(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode())["order_payload"]
             quote_id = f"q_test_{len(quotes) + 1}"
-            amount_usd = VM_TIERS[payload["size"]]["price"] * payload["duration_days"]
+            tier = VM_TIERS.get(payload["size"], {"price": 1.0})
+            amount_usd = tier["price"] * payload["duration_days"]
             quote = {
                 "quote_id": quote_id,
                 "status": "active",
                 "amount_usd": f"{amount_usd:.2f}",
                 "expires_at": "2026-07-11T13:00:00+00:00",
                 "order_payload": payload,
-                "accepted_payment_methods": {"evm": ["base"], "native": []},
+                "accepted_payment_methods": {
+                    "evm": [
+                        {"key": "base", "caip2": "eip155:8453", "asset": "USDC"},
+                        {"key": "polygon", "caip2": "eip155:137", "asset": "USDC"},
+                    ],
+                    "native": [],
+                },
             }
             quotes[quote_id] = quote
             rx.get(f"/v1/vm/quote/{quote_id}").mock(

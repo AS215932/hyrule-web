@@ -8,7 +8,11 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.app import _SERVICE_STATUS_CACHE, _SERVICE_STATUS_TTL_SECONDS
+from hyrule_web.app import (
+    _SERVICE_STATUS_CACHE,
+    _SERVICE_STATUS_STALE_SECONDS,
+    _SERVICE_STATUS_TTL_SECONDS,
+)
 
 
 def _status_payload(
@@ -132,6 +136,27 @@ def test_status_cache_short_circuits_repeated_page_requests(
     assert route.call_count == 1
     assert _SERVICE_STATUS_CACHE["expires_at"] > time.time()
     assert _SERVICE_STATUS_TTL_SECONDS == 15
+
+
+def test_stale_snapshot_expires_even_during_steady_traffic(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    route = mocked_api.get("/v1/status").mock(
+        side_effect=httpx.ConnectError("status backend remains down")
+    )
+    stale = _status_payload(stale=True)
+    _SERVICE_STATUS_CACHE.update(
+        value=stale,
+        expires_at=time.time() + _SERVICE_STATUS_TTL_SECONDS,
+        successful_at=time.time() - _SERVICE_STATUS_STALE_SECONDS - 1,
+    )
+
+    response = client.get("/")
+
+    assert "The live status feed is unavailable." in response.text
+    assert "status-operational" not in response.text
+    assert _SERVICE_STATUS_CACHE["successful_at"] == 0.0
+    assert route.called is False
 
 
 def test_legacy_broken_status_url_redirects(client: TestClient) -> None:

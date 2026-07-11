@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import time
 import urllib.parse
@@ -257,6 +258,20 @@ async def _refresh_service_status(request: Request) -> dict[str, Any]:
     now = time.time()
     cached = _SERVICE_STATUS_CACHE.get("value")
     if isinstance(cached, dict) and now < float(_SERVICE_STATUS_CACHE["expires_at"]):
+        successful_at = float(_SERVICE_STATUS_CACHE.get("successful_at", 0.0))
+        stale_too_old = (
+            cached.get("stale")
+            and successful_at > 0
+            and now - successful_at > _SERVICE_STATUS_STALE_SECONDS
+        )
+        if stale_too_old:
+            unknown = _unknown_service_status("The live status feed is unavailable.")
+            _SERVICE_STATUS_CACHE.update(
+                value=unknown,
+                expires_at=now + _SERVICE_STATUS_TTL_SECONDS,
+                successful_at=0.0,
+            )
+            return unknown
         return cached
 
     client: httpx.AsyncClient | None = getattr(request.app.state, "http", None)
@@ -289,7 +304,11 @@ async def _refresh_service_status(request: Request) -> dict[str, Any]:
         _SERVICE_STATUS_CACHE.update(value=stale, expires_at=now + _SERVICE_STATUS_TTL_SECONDS)
         return stale
     unknown = _unknown_service_status("The live status feed is unavailable.")
-    _SERVICE_STATUS_CACHE.update(value=unknown, expires_at=now + _SERVICE_STATUS_TTL_SECONDS)
+    _SERVICE_STATUS_CACHE.update(
+        value=unknown,
+        expires_at=now + _SERVICE_STATUS_TTL_SECONDS,
+        successful_at=0.0,
+    )
     return unknown
 
 
@@ -318,6 +337,19 @@ async def refresh_service_status_for_pages(
 
 def _copy(*parts: str) -> str:
     return " ".join(parts)
+
+
+_DOMAIN_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.I)
+
+
+def _normalise_custom_domain(value: str) -> str | None:
+    domain = value.strip().lower().rstrip(".")
+    labels = domain.split(".")
+    if len(domain) > 253 or len(labels) < 2:
+        return None
+    if any(not _DOMAIN_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+    return domain
 
 
 LEGAL_PAGES: dict[str, dict[str, Any]] = {
@@ -927,11 +959,17 @@ async def page_review(
         "domain_mode": domain_mode,
         "domain": domain,
     }
+    vm_tiers = _live_vm_tiers(await _refresh_products(request))
+    custom_domain = _normalise_custom_domain(domain) if domain_mode == "custom" else None
     error: str | None = None
-    if size not in VM_TIERS:
+    if size not in vm_tiers:
         error = "Choose a valid server size."
     elif not 1 <= duration <= 365:
         error = "Duration must be between 1 and 365 days."
+    elif domain_mode not in {"auto", "custom"}:
+        error = "Choose automatic or custom domain setup."
+    elif domain_mode == "custom" and custom_domain is None:
+        error = "Enter a valid fully-qualified domain name."
 
     if error is None:
         order_payload: dict[str, Any] = {
@@ -941,8 +979,8 @@ async def page_review(
             "ssh_pubkey": ssh_pubkey,
             "domain_mode": domain_mode,
         }
-        if domain_mode == "custom" and domain.strip():
-            order_payload["domain"] = domain.strip()
+        if custom_domain is not None:
+            order_payload["domain"] = custom_domain
         backend = await _api_request(
             request,
             "/v1/vm/quote",
@@ -979,7 +1017,7 @@ async def page_review(
         os_templates=os_list,
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
-        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+        vm_tiers=vm_tiers,
         order_error=error,
         form_values=form_values,
         status_code=422,
@@ -1001,7 +1039,8 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
     payload: dict[str, Any] = quote.get("order_payload") or {}
     size = payload.get("size", "sm")
     duration = payload.get("duration_days", 30)
-    tier = VM_TIERS.get(size, VM_TIERS["sm"])
+    vm_tiers = _live_vm_tiers(await _refresh_products(request))
+    tier = vm_tiers.get(size, VM_TIERS["sm"])
     try:
         total = Decimal(str(quote["amount_usd"]))
     except (KeyError, InvalidOperation):
@@ -1028,6 +1067,7 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
         order=order,
         tier=tier,
         total=total,
+        vm_tiers=vm_tiers,
         networks=_catalog_networks(catalog),
     )
 

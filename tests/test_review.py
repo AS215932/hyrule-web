@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
+import respx
 from fastapi.testclient import TestClient
 
 from hyrule_web.config import VM_TIERS
@@ -46,6 +48,33 @@ def test_review_unknown_size_is_rejected_without_creating_quote(client: TestClie
     assert "Quote not created" in r.text
 
 
+def test_review_accepts_tier_from_live_product_catalog(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xl",
+                        "name": "Agent XL",
+                        "vcpu": 8,
+                        "ram_mb": 8192,
+                        "disk_gb": 160,
+                        "price_usd_day": "0.80",
+                    }
+                ]
+            },
+        )
+    )
+
+    response = _post_review(client, size="xl")
+
+    assert response.status_code == 200
+    assert "Agent XL" in response.text
+
+
 def test_review_duration_multiplies_price(client: TestClient) -> None:
     r = _post_review(client, size="md", duration="7")
     assert r.status_code == 200
@@ -67,3 +96,14 @@ def test_review_with_custom_domain(client: TestClient) -> None:
         domain="example.com",
     )
     assert r.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "domain",
+    ("", "localhost", "-example.com", "example..com", "bad label.example"),
+)
+def test_review_rejects_invalid_custom_domain(client: TestClient, domain: str) -> None:
+    response = _post_review(client, domain_mode="custom", domain=domain)
+
+    assert response.status_code == 422
+    assert "Enter a valid fully-qualified domain name." in response.text
