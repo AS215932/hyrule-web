@@ -23,7 +23,7 @@
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">checkout rail</span>
-            <p class="mt-2 leading-[1.6] text-text-muted">Payment uses x402 with USDC on {{ (live_chains | join(", ")) if live_chains else "enabled EVM chains" }}. You sign an authorization; gas is handled for you{% if native_methods %}. Native rails enabled for this quote: {{ native_methods | join(" / ") }}{% endif %}.</p>
+            <p class="mt-2 leading-[1.6] text-text-muted">{% if live_chains %}Payment uses x402 with USDC on {{ live_chains | join(", ") }}. You sign an authorization; gas is handled for you.{% else %}No EVM settlement rail was returned for this quote.{% endif %}{% if native_methods %} Native rails enabled for this quote: {{ native_methods | join(" / ") }}.{% endif %}</p>
         </div>
     </div>
 </section>

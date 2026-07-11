@@ -50,6 +50,20 @@ def test_homepage_reflects_multiple_live_chains(
     assert "Polygon" in r.text
 
 
+def test_homepage_does_not_claim_payment_rails_when_catalog_is_unavailable(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/payments/networks").mock(
+        side_effect=httpx.ConnectError("catalog unavailable")
+    )
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Live settlement rails unavailable" in response.text
+    assert "enabled EVM chains" not in response.text
+
+
 def test_llms_txt_lists_canonical_urls(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

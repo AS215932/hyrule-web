@@ -129,7 +129,7 @@
             <p>The website mirrors the public API. Anything a human can purchase here can be discovered and requested directly by software.</p>
             <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
             <div class="row"><span class="k">Payment</span><span><code>X-PAYMENT</code> · x402</span></div>
-            <div class="row"><span class="k">Settlement</span><span>USDC · {{ (networks | map(attribute='display_name') | join(' · ')) if networks else 'enabled EVM chains' }}</span></div>
+            <div class="row"><span class="k">Settlement</span><span>{% if networks %}USDC · {{ networks | map(attribute='display_name') | join(' · ') }}{% else %}Live settlement rails unavailable{% endif %}</span></div>
             <div class="row"><span class="k">Provisioning</span><span>asynchronous · public status URL</span></div>
         </div>
         <div class="api-code api-code-details">
