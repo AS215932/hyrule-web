@@ -2,8 +2,10 @@
 {% block title %}Deploy a VM — Hyrule Cloud{% endblock %}
 
 {% block content %}
-{% set selected_size = request.query_params.get('size', 'sm') %}
+{% set form_values = form_values or {} %}
+{% set selected_size = form_values.get('size', request.query_params.get('size', 'sm')) %}
 {% set tier = vm_tiers[selected_size] if selected_size in vm_tiers else vm_tiers['sm'] %}
+{% set selected_duration = form_values.get('duration', 30) | int %}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
 {% set native_methods = native or [] %}
 
@@ -13,7 +15,7 @@
             <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">order</span></div>
             <span class="panel-label">deploy</span>
             <h1>Configure the machine, then pay once.</h1>
-            <p class="hero-blurb">Hyrule Cloud keeps the form explicit: image, size, lifetime, SSH key, naming. No hidden wizard state, no progressive reveals.</p>
+            <p class="hero-blurb">Choose an image, footprint, lifetime, and SSH key. The server creates a durable quote before checkout, so wallet handoffs and page reloads cannot lose the order.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">before you begin</span>
@@ -27,6 +29,12 @@
 </section>
 
 <section class="container page-section">
+    {% if order_error %}
+    <div class="status-banner status-degraded order-error" role="alert">
+        <strong>Quote not created</strong>
+        <span>{{ order_error }}</span>
+    </div>
+    {% endif %}
     <div class="order-stepper">
         <span class="stp active"><span class="num">1</span> configure</span><span class="sep">›</span>
         <span class="stp"><span class="num">2</span> review</span><span class="sep">›</span>
@@ -34,7 +42,7 @@
         <span class="stp"><span class="num">4</span> running</span>
     </div>
 
-    <form action="/order/review" method="post" class="order-layout" data-order-form>
+    <form action="/order/review" method="post" class="order-layout">
         <div>
             {% if os_templates %}
             <fieldset class="form-section">
@@ -46,7 +54,7 @@
                     <div class="radio-grid grid-3">
                         {% for os in os_templates %}
                         <label class="opt-card">
-                            <input type="radio" name="os" value="{{ os.name }}" {% if os.default %}checked{% endif %}>
+                            <input type="radio" name="os" value="{{ os.name }}" {% if form_values.get('os') == os.name or (not form_values.get('os') and os.default) %}checked{% endif %}>
                             <span class="body">
                                 <span class="opt-title">{{ os.description }}</span>
                                 <span class="opt-sub">{{ os.name }}</span>
@@ -67,7 +75,7 @@
                     <div class="radio-grid grid-4">
                         {% for key, t in vm_tiers.items() %}
                         <label class="opt-card">
-                            <input type="radio" name="size" value="{{ key }}" {% if key == selected_size %}checked{% endif %} data-price="{{ t.price }}">
+                            <input type="radio" name="size" value="{{ key }}" {% if key == selected_size %}checked{% endif %}>
                             <span class="body">
                                 <span class="opt-title">{{ t.name }}</span>
                                 <span class="opt-specs">
@@ -93,15 +101,14 @@
                         <div class="field">
                             <label class="field-label" for="duration">days online</label>
                             <div class="duration-input">
-                                <input id="duration" name="duration" type="number" min="1" max="365" value="30" class="pr-[50px]">
+                                <input id="duration" name="duration" type="number" min="1" max="365" value="{{ selected_duration }}" list="duration-options" class="pr-[50px]">
                                 <span class="suffix">days</span>
                             </div>
+                            <datalist id="duration-options">
+                                {% for d in [7, 30, 90, 180, 365] %}<option value="{{ d }}"></option>{% endfor %}
+                            </datalist>
                         </div>
-                        <div class="duration-shortcuts" data-duration-chips>
-                            {% for d in [7, 30, 90, 180, 365] %}
-                            <button type="button" class="dur-chip" data-days="{{ d }}" {% if d == 30 %}data-on="true"{% endif %}>{{ d }}d</button>
-                            {% endfor %}
-                        </div>
+                        <p class="field-hint">Common terms: 7, 30, 90, 180, or 365 days. Any value in that range is accepted.</p>
                     </div>
                 </div>
             </fieldset>
@@ -113,7 +120,7 @@
                 </div></legend>
                 <div class="form-section-body">
                     <div class="field">
-                        <textarea name="ssh_pubkey" rows="3" placeholder="ssh-ed25519 AAAA... user@host" required></textarea>
+                        <textarea name="ssh_pubkey" rows="3" placeholder="ssh-ed25519 AAAA... user@host" required>{{ form_values.get('ssh_pubkey', '') }}</textarea>
                         <span class="field-hint">Pasted as-is. Used as the only authorized key for root.</span>
                     </div>
                 </div>
@@ -121,38 +128,25 @@
 
             <fieldset class="form-section">
                 <legend><div class="form-section-head">
-                    <h3><span class="ix">05</span> Hostname <span class="text-[0.74rem] font-normal text-text-soft">(optional)</span></h3>
-                    <span class="form-section-hint">auto-assigned if blank</span>
-                </div></legend>
-                <div class="form-section-body">
-                    <div class="field">
-                        <input type="text" name="hostname" placeholder="my-server" pattern="[a-z0-9-]+">
-                        <span class="field-hint">Lowercase letters, digits, hyphens.</span>
-                    </div>
-                </div>
-            </fieldset>
-
-            <fieldset class="form-section">
-                <legend><div class="form-section-head">
-                    <h3><span class="ix">06</span> Domain</h3>
+                    <h3><span class="ix">05</span> Domain</h3>
                     <span class="form-section-hint">auto subdomain or registered domain</span>
                 </div></legend>
                 <div class="form-section-body">
                     <div class="radio-stack">
-                        <label class="radio-line active">
-                            <input type="radio" name="domain_mode" value="auto" checked id="domain-auto">
+                        <label class="radio-line">
+                            <input type="radio" name="domain_mode" value="auto" {% if form_values.get('domain_mode', 'auto') == 'auto' %}checked{% endif %} id="domain-auto">
                             <span>Auto subdomain</span>
                             <code>*.deploy.hyrule.host</code>
                             <span class="free-tag">free</span>
                         </label>
                         <label class="radio-line">
-                            <input type="radio" name="domain_mode" value="custom" id="domain-custom">
+                            <input type="radio" name="domain_mode" value="custom" {% if form_values.get('domain_mode') == 'custom' %}checked{% endif %} id="domain-custom">
                             <span>Custom domain</span>
                             <code>registered at checkout</code>
                         </label>
                         <div class="field">
-                            <input type="text" name="domain" placeholder="example.com" inputmode="text" autocomplete="off" disabled>
-                            <span class="field-hint">Leave empty for the automatic subdomain.</span>
+                            <input type="text" name="domain" value="{{ form_values.get('domain', '') }}" placeholder="example.com" inputmode="text" autocomplete="off">
+                            <span class="field-hint">Used only when “Custom domain” is selected; otherwise the automatic subdomain is created.</span>
                         </div>
                     </div>
                 </div>
@@ -161,25 +155,25 @@
             <div class="form-actions">
                 <a href="/" class="btn btn-secondary">Cancel</a>
                 <span class="spacer"></span>
-                <span class="helper">total: $<span data-summary-total>{{ "%.2f"|format(tier.price * 30) }}</span> USDC</span>
+                <span class="helper">Exact total is confirmed on the durable review page.</span>
                 <button type="submit" class="btn btn-primary btn-lg">Review order →</button>
             </div>
         </div>
 
         <aside class="live-summary">
             <div class="summary-panel">
-                <span class="panel-label">live estimate</span>
+                <span class="panel-label">current selection</span>
                 <div class="summary-amount">
-                    <span class="num">$<span data-summary-total>{{ "%.2f"|format(tier.price * 30) }}</span></span>
+                    <span class="num">${{ "%.2f"|format(tier.price * selected_duration) }}</span>
                     <span class="unit">USDC</span>
                 </div>
-                <div class="summary-detail"><span data-summary-days>30</span> days × $<span data-summary-rate>{{ "%.2f"|format(tier.price) }}</span>/day</div>
+                <div class="summary-detail">{{ selected_duration }} days × ${{ "%.2f"|format(tier.price) }}/day</div>
                 <div class="summary-sep"></div>
-                <div class="summary-row"><span class="k">Tier</span><span class="v" data-summary-tier>{{ tier.name }}</span></div>
-                <div class="summary-row"><span class="k">vCPU</span><span class="v" data-summary-vcpu>{{ tier.vcpu }}</span></div>
-                <div class="summary-row"><span class="k">RAM</span><span class="v" data-summary-ram>{% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %}</span></div>
-                <div class="summary-row"><span class="k">Disk</span><span class="v" data-summary-disk>{{ tier.disk_gb }} GB</span></div>
-                <div class="summary-pulse">live · updates as you type</div>
+                <div class="summary-row"><span class="k">Tier</span><span class="v">{{ tier.name }}</span></div>
+                <div class="summary-row"><span class="k">vCPU</span><span class="v">{{ tier.vcpu }}</span></div>
+                <div class="summary-row"><span class="k">RAM</span><span class="v">{% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %}</span></div>
+                <div class="summary-row"><span class="k">Disk</span><span class="v">{{ tier.disk_gb }} GB</span></div>
+                <div class="summary-pulse">server-rendered estimate</div>
             </div>
             <div class="summary-panel">
                 <span class="panel-label">payment rail</span>
@@ -190,60 +184,4 @@
         </aside>
     </form>
 </section>
-{% endblock %}
-
-{% block scripts %}
-{# Issue #14: durable-quote submit (progressive enhancement). #}
-{{ vite_asset('order') }}
-<script>
-(function(){
-  const f = document.querySelector('[data-order-form]');
-  if (!f) return;
-  const $ = (s, r=f) => r.querySelector(s);
-  const $$ = (s, r=f) => r.querySelectorAll(s);
-  const fmt = (n) => n.toFixed(2);
-  function refresh() {
-    const size = ($('input[name=size]:checked')||{}).value || 'sm';
-    const sizeInput = $(`input[name=size][value="${size}"]`);
-    const days = parseInt($('#duration').value, 10) || 1;
-    const rate = parseFloat(sizeInput && sizeInput.dataset.price || '0.10');
-    const card = sizeInput && sizeInput.closest('.opt-card');
-    const title = card && card.querySelector('.opt-title');
-    const specs = card && card.querySelectorAll('.opt-specs > span');
-    $$('[data-summary-total]').forEach(el => el.textContent = fmt(rate * days));
-    const setText = (sel, val) => { const el = $(sel); if (el) el.textContent = val; };
-    setText('[data-summary-days]', days);
-    setText('[data-summary-rate]', fmt(rate));
-    if (title) setText('[data-summary-tier]', title.textContent);
-    if (specs && specs.length >= 3) {
-      setText('[data-summary-vcpu]', specs[0].textContent.replace(/[^0-9]/g, ''));
-      setText('[data-summary-ram]',  specs[1].textContent.replace(' RAM',''));
-      setText('[data-summary-disk]', specs[2].textContent.replace(' SSD','').replace(' GB','') + ' GB');
-    }
-  }
-  f.addEventListener('input', refresh);
-  $$('[data-duration-chips] .dur-chip').forEach(b => b.addEventListener('click', () => {
-    $('#duration').value = b.dataset.days;
-    $$('[data-duration-chips] .dur-chip').forEach(x => x.removeAttribute('data-on'));
-    b.setAttribute('data-on', 'true');
-    refresh();
-  }));
-  // domain radio activation
-  function syncDomainInput() {
-    const custom = $('#domain-custom');
-    const input = $('input[name="domain"]');
-    if (!custom || !input) return;
-    input.disabled = !custom.checked;
-  }
-  f.addEventListener('change', (e) => {
-    if (e.target.name === 'domain_mode') {
-      $$('.radio-line').forEach(r => r.classList.remove('active'));
-      e.target.closest('.radio-line').classList.add('active');
-      syncDomainInput();
-    }
-  });
-  syncDomainInput();
-  refresh();
-})();
-</script>
 {% endblock %}

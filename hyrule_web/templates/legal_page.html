@@ -28,9 +28,8 @@
         <div class="hero-side-card">
             <span class="panel-label mb-2">contacts</span>
             <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
-                <li>+ abuse: <a href="mailto:abuse@as215932.net">abuse@as215932.net</a></li>
-                <li>+ noc: <a href="mailto:noc@as215932.net">noc@as215932.net</a></li>
-                <li>+ support: <a href="mailto:support@hyrule.host">support@hyrule.host</a></li>
+                <li>+ <a href="mailto:support@hyrule.host">support@hyrule.host</a></li>
+                {% if page.title == 'Abuse' %}<li>+ subject: <code>Abuse report</code></li>{% endif %}
             </ul>
         </div>
     </div>

@@ -19,6 +19,18 @@ def _post_review(client: TestClient, **overrides: object) -> object:
     return client.post("/order/review", data=form)
 
 
+def test_native_form_creates_durable_quote_and_redirects(client: TestClient) -> None:
+    form = {
+        "os": "debian-13",
+        "size": "sm",
+        "duration": "30",
+        "ssh_pubkey": "ssh-ed25519 AAAA test",
+    }
+    response = client.post("/order/review", data=form, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/order/review/q_test_")
+
+
 @pytest.mark.parametrize("size", list(VM_TIERS))
 def test_review_renders_for_every_tier(client: TestClient, size: str) -> None:
     r = _post_review(client, size=size)
@@ -27,12 +39,11 @@ def test_review_renders_for_every_tier(client: TestClient, size: str) -> None:
     assert f"{expected_total:.2f}" in r.text
 
 
-def test_review_unknown_size_falls_back_to_sm(client: TestClient) -> None:
+def test_review_unknown_size_is_rejected_without_creating_quote(client: TestClient) -> None:
     r = _post_review(client, size="not-a-real-tier")
-    assert r.status_code == 200
-    # Page should render the Basic (sm) tier price for the fallback.
-    expected_total = VM_TIERS["sm"]["price"] * 30
-    assert f"{expected_total:.2f}" in r.text
+    assert r.status_code == 422
+    assert "Choose a valid server size." in r.text
+    assert "Quote not created" in r.text
 
 
 def test_review_duration_multiplies_price(client: TestClient) -> None:

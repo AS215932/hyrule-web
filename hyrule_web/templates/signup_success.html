@@ -18,7 +18,7 @@
 </section>
 
 <section class="container page-section">
-    <div class="mini-card max-w-[640px] border-2 border-warn bg-[rgb(200_68_0/0.06)] p-6">
+    <div class="mini-card max-w-[640px] border-2 border-white/[0.08] bg-white/[0.04] p-6">
         <h3 class="mb-3">Your recovery code</h3>
         <p class="mb-4 text-text-soft">
             This code, together with your account ID, lets you reset your password if
@@ -37,8 +37,7 @@
         </div>
 
         <div class="mt-3 flex flex-wrap gap-2">
-            <button type="button" class="btn btn-secondary btn-xs"
-                    onclick="navigator.clipboard.writeText(document.getElementById('acct-id').textContent + '\n' + document.getElementById('recovery').textContent);this.textContent='copied';">
+            <button type="button" class="btn btn-secondary btn-xs" data-copy-targets="acct-id,recovery">
                 copy both
             </button>
             <a class="btn btn-ghost btn-xs"
@@ -55,3 +54,4 @@
     </p>
 </section>
 {% endblock %}
+{% block scripts %}{{ vite_asset('secrets') }}{% endblock %}

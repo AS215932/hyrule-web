@@ -47,6 +47,21 @@ def test_review_renders_from_durable_quote(
     assert 'name="quote_id" value="q_test123"' in body
 
 
+def test_review_uses_backend_locked_amount_not_frontend_catalog(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    quote = _quote()
+    quote["amount_usd"] = "9.73"
+    mocked_api.get("/v1/vm/quote/q_locked").mock(
+        return_value=httpx.Response(200, json=quote)
+    )
+
+    body = client.get("/order/review/q_locked").text
+
+    assert "$9.73" in body
+    assert "Pay $9.73 with wallet" in body
+
+
 def test_review_unknown_quote_redirects_to_order(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

@@ -1,6 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Status — Hyrule Cloud{% endblock %}
-
+{% block title %}VM status — Hyrule Cloud{% endblock %}
 {% block head %}{{ vite_asset('status') }}{% endblock %}
 
 {% block content %}
@@ -15,123 +14,45 @@
 {% set hero_blurb = 'Connection details are below.' %}
 {% elif is_failed %}
 {% set hero_title = 'Provisioning failed.' %}
-{% set hero_blurb = 'See below for details and next steps.' %}
+{% set hero_blurb = 'See the customer-safe failure message and support path below.' %}
 {% elif is_rolled_back %}
 {% set hero_title = 'Order rolled back.' %}
-{% set hero_blurb = 'See below for refund details.' %}
+{% set hero_blurb = 'The provisioning attempt was reversed; see the status card for details.' %}
 {% elif is_payment_required %}
 {% set hero_title = 'Payment required.' %}
 {% set hero_blurb = 'Complete payment to begin the build.' %}
 {% else %}
 {% set hero_title = 'Your VM is being provisioned.' %}
-{% set hero_blurb = 'This page updates in-place as the build proceeds. Most builds finish in under 60 seconds.' %}
+{% set hero_blurb = 'This page checks the lifecycle endpoint every two seconds. Most builds finish in about 60 seconds.' %}
 {% endif %}
 
-{% if management_url %}
-<section class="container mt-6">
-    <div class="mini-card border-2 border-warn bg-[rgb(200_68_0/0.06)] p-[18px]">
-        <span class="panel-label text-warn">save this once — cannot be shown again</span>
-        <h3 class="mb-2.5 mt-1.5 text-[1.05rem]">Anonymous VM management URL</h3>
-        <p class="mb-3 text-[0.9rem] text-text-soft">
-            You ordered this VM without an account. The URL below is the
-            <strong>only</strong> way to reboot, extend, view logs, or destroy it.
-            Save it now — we do not store it and cannot recover it.
-        </p>
-        <div class="flex flex-wrap items-center gap-2">
-            <code id="mgmt-url" class="min-w-[260px] flex-1 break-all rounded-[4px] bg-[#1a1a1a] px-2.5 py-2 text-[0.82rem]">{{ management_url }}</code>
-            <button type="button" class="btn btn-secondary btn-xs"
-                    onclick="navigator.clipboard.writeText(document.getElementById('mgmt-url').textContent);this.textContent='copied';">copy</button>
-            <a class="btn btn-ghost btn-xs"
-               href="data:text/plain;charset=utf-8,{{ management_url | urlencode }}"
-               download="hyrule-{{ vm_id }}-management-url.txt">download .txt</a>
+<section id="management-access" class="container management-access"
+         data-vm-id="{{ vm_id }}"{% if management_url %} data-management-url="{{ management_url }}"{% endif %}>
+    {% if management_url %}
+    <div class="mini-card management-card">
+        <span class="panel-label">Save once</span>
+        <h3>VM management URL</h3>
+        <p>This credential is required to reboot, extend, inspect, or destroy an order that is not attached to an account. Save it now.</p>
+        <div class="credential-row">
+            <code id="mgmt-url">{{ management_url }}</code>
+            <button type="button" class="btn btn-secondary btn-xs" data-copy="{{ management_url }}">Copy</button>
+            <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,{{ management_url | urlencode }}" download="hyrule-{{ vm_id }}-management-url.txt">Download .txt</a>
         </div>
-        <p class="mt-3 text-[0.78rem] text-text-soft">
-            Already an account holder? Sign up later and claim this VM with the same URL.
-        </p>
     </div>
+    {% endif %}
 </section>
-{% else %}
-<script>
-(function () {
-    const vmId = {{ vm_id | tojson }};
-    let saved = null;
-    try {
-        saved = JSON.parse(sessionStorage.getItem('hyr_vm_mgmt:' + vmId) || 'null');
-    } catch (_) {
-        saved = null;
-    }
-    if (!saved || !saved.token || !String(saved.token).startsWith('hyr_vm_')) return;
-
-    const fallbackUrl = '/api/v1/vm/' + encodeURIComponent(vmId) +
-        '?token=' + encodeURIComponent(saved.token);
-    const managementUrl = saved.url || fallbackUrl;
-
-    const section = document.createElement('section');
-    section.className = 'container mt-6';
-
-    const card = document.createElement('div');
-    card.className = 'mini-card border-2 border-warn bg-[rgb(200_68_0/0.06)] p-[18px]';
-
-    const label = document.createElement('span');
-    label.className = 'panel-label text-warn';
-    label.textContent = 'save this ' + 'once — cannot be shown again';
-
-    const title = document.createElement('h3');
-    title.className = 'mb-2.5 mt-1.5 text-[1.05rem]';
-    title.textContent = 'Anonymous VM management URL';
-
-    const text = document.createElement('p');
-    text.className = 'mb-3 text-[0.9rem] text-text-soft';
-    text.textContent = 'You ordered this VM without an account. Save this URL now; it is required to reboot, extend, view logs, or destroy the VM.';
-
-    const row = document.createElement('div');
-    row.className = 'flex flex-wrap items-center gap-2';
-
-    const code = document.createElement('code');
-    code.id = 'mgmt-url';
-    code.className = 'min-w-[260px] flex-1 break-all rounded-[4px] bg-[#1a1a1a] px-2.5 py-2 text-[0.82rem]';
-    code.textContent = managementUrl;
-
-    const copy = document.createElement('button');
-    copy.type = 'button';
-    copy.className = 'btn btn-secondary btn-xs';
-    copy.textContent = 'copy';
-    copy.addEventListener('click', function () {
-        navigator.clipboard.writeText(managementUrl);
-        copy.textContent = 'copied';
-    });
-
-    const download = document.createElement('a');
-    download.className = 'btn btn-ghost btn-xs';
-    download.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(managementUrl);
-    download.download = 'hyrule-' + vmId + '-management-url.txt';
-    download.textContent = 'download .txt';
-
-    row.append(code, copy, download);
-    card.append(label, title, text, row);
-    section.append(card);
-    document.body.insertBefore(section, document.body.firstElementChild?.nextSibling || document.body.firstChild);
-})();
-</script>
-{% endif %}
 
 <section class="container">
     <div class="page-hero">
         <div>
-            <div class="crumbs">
-                <a href="/">~</a><span class="sep">/</span>
-                <a href="/order">order</a><span class="sep">/</span>
-                <span class="here">status</span>
-            </div>
-            <span class="panel-label">status</span>
+            <div class="crumbs"><a href="/order">deploy</a><span class="sep">/</span><span class="here">VM status</span></div>
+            <span class="panel-label">VM lifecycle</span>
             <h1>{{ hero_title }}</h1>
             <p class="hero-blurb">{{ hero_blurb }}</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label mb-2">vm id</span>
-            <div class="mt-2 flex flex-col gap-1.5">
-                <code class="text-[0.92rem]">{{ vm_id }}</code>
-            </div>
+            <span class="panel-label mb-2">VM ID</span>
+            <code>{{ vm_id }}</code>
         </div>
     </div>
 </section>
@@ -147,36 +68,23 @@
         </span>
     </div>
 
-    <div id="status-card" data-vm-id="{{ vm_id }}" hx-get="/order/status/{{ vm_id }}/partial" hx-trigger="every 2s" hx-swap="outerHTML" {% if is_terminal %}hx-disable="true"{% endif %}>
-        {% include "_status_partial.html" %}
-    </div>
+    {% include "_status_partial.html" %}
 
     {% if is_provisioned %}
     <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div class="terminal">
             <div class="terminal-bar">
-                <span class="terminal-dots"><i></i><i></i><i></i></span>
-                <span class="terminal-title">srv</span>
-                <span class="terminal-tag">[ online ]</span>
+                <span class="terminal-title">SSH</span>
+                <span class="terminal-tag">online</span>
             </div>
             <div class="terminal-body">
-                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn if vm else 'vm-7c4a.deploy.hyrule.host' }}</span></div>
-                <div class="t-line"><span class="prompt">·</span><span class="output ok">authenticating with ed25519 key</span></div>
-                <div class="t-line"><span class="prompt">·</span><span class="output">welcome to hyrule cloud</span></div>
-                <div class="t-line t-cursor"><span class="prompt">root@vm:~#</span><span class="output"> </span></div>
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn }}</span></div>
+                <div class="t-line"><span class="prompt">✓</span><span class="output">authenticating with your public key</span></div>
             </div>
         </div>
         <div class="mini-card p-[18px]">
-            <h4>lifecycle</h4>
-            <div class="row"><span class="k">extend</span><span class="v"><code>POST /v1/vm/.../extend</code></span></div>
-            <div class="row"><span class="k">snapshot</span><span class="v"><code>POST /v1/vm/.../snapshot</code></span></div>
-            <div class="row"><span class="k">destroy</span><span class="v"><code>DELETE /v1/vm/...</code></span></div>
-            <div class="row"><span class="k">expiry grace</span><span class="v">24h</span></div>
-            <div class="mt-3.5 flex flex-wrap gap-2">
-                <button class="btn btn-secondary btn-xs" hx-post="/order/{{ vm_id }}/extend">Extend +30d</button>
-                <button class="btn btn-secondary btn-xs" hx-post="/order/{{ vm_id }}/snapshot">Snapshot</button>
-                <button class="btn btn-ghost btn-xs" hx-delete="/order/{{ vm_id }}" hx-confirm="Destroy this VM?">Destroy</button>
-            </div>
+            <h4>Management</h4>
+            <p>Lifecycle mutations require the save-once management URL or an account that owns this VM. The public status URL intentionally cannot reboot, extend, snapshot, or destroy it.</p>
         </div>
     </div>
     {% endif %}

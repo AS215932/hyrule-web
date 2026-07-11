@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { initStatus, renderStatus } from "./status";
+import { initManagementAccess, initStatus, renderStatus } from "./status";
 import type { VmStatus } from "./types";
 
 function makeVm(status: VmStatus["status"], extra: Partial<VmStatus> = {}): VmStatus {
@@ -85,18 +85,6 @@ describe("renderStatus", () => {
 });
 
 describe("initStatus", () => {
-  it("disables htmx attributes on the card", () => {
-    const card = document.getElementById("status-card")!;
-    card.setAttribute("hx-get", "/old");
-    card.setAttribute("hx-trigger", "every 2s");
-    card.setAttribute("hx-swap", "outerHTML");
-    initStatus(card);
-    expect(card.getAttribute("hx-disable")).toBe("true");
-    expect(card.hasAttribute("hx-get")).toBe(false);
-    expect(card.hasAttribute("hx-trigger")).toBe(false);
-    expect(card.hasAttribute("hx-swap")).toBe(false);
-  });
-
   it("polls the API and renders the returned status", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -109,8 +97,9 @@ describe("initStatus", () => {
 
     await vi.advanceTimersByTimeAsync(100);
     expect(mockFetch).toHaveBeenCalledWith("/api/v1/vm/vm-test/status");
-    expect(card.innerHTML).toContain("PROVISIONED");
-    expect(card.innerHTML).toContain("test.host");
+    const rendered = document.getElementById("status-card")!;
+    expect(rendered.innerHTML).toContain("PROVISIONED");
+    expect(rendered.innerHTML).toContain("test.host");
   });
 
   it("stops polling once the VM reaches a terminal state", async () => {
@@ -184,8 +173,24 @@ describe("initStatus", () => {
     initStatus(card);
 
     await vi.advanceTimersByTimeAsync(100);
-    const btn = card.querySelector<HTMLElement>("[data-copy='copy.test']")!;
+    const btn = document.querySelector<HTMLElement>("[data-copy='copy.test']")!;
     btn.click();
     expect(writeText).toHaveBeenCalledWith("copy.test");
+  });
+});
+
+describe("initManagementAccess", () => {
+  it("restores a save-once management credential from session storage", () => {
+    document.body.innerHTML = '<section id="management-access" data-vm-id="vm-test"></section>';
+    sessionStorage.setItem(
+      "hyr_vm_mgmt:vm-test",
+      JSON.stringify({ token: "hyr_vm_secret", url: "https://cloud.hyrule.host/v1/vm/vm-test" }),
+    );
+
+    initManagementAccess();
+
+    expect(document.body.textContent).toContain("VM management URL");
+    expect(document.body.textContent).toContain("https://cloud.hyrule.host/v1/vm/vm-test");
+    sessionStorage.clear();
   });
 });

@@ -14,6 +14,7 @@ most recently added matcher.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 
 import httpx
@@ -28,15 +29,37 @@ from hyrule_web.app import (
     _PRICING_CACHE,
     _PRODUCTS_CACHE,
     _RUNTIME_CACHE,
+    _SERVICE_STATUS_CACHE,
     app,
 )
-from hyrule_web.config import settings
+from hyrule_web.config import VM_TIERS, settings
 
 
 @pytest.fixture
 def mocked_api() -> Iterator[respx.MockRouter]:
     """Intercept every hyrule-cloud API call. Tests register their own routes."""
     with respx.mock(base_url=settings.api_base_url, assert_all_called=False) as rx:
+        quotes: dict[str, dict] = {}
+
+        def create_quote(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content.decode())["order_payload"]
+            quote_id = f"q_test_{len(quotes) + 1}"
+            amount_usd = VM_TIERS[payload["size"]]["price"] * payload["duration_days"]
+            quote = {
+                "quote_id": quote_id,
+                "status": "active",
+                "amount_usd": f"{amount_usd:.2f}",
+                "expires_at": "2026-07-11T13:00:00+00:00",
+                "order_payload": payload,
+                "accepted_payment_methods": {"evm": ["base"], "native": []},
+            }
+            quotes[quote_id] = quote
+            rx.get(f"/v1/vm/quote/{quote_id}").mock(
+                return_value=httpx.Response(200, json=quote)
+            )
+            return httpx.Response(201, json=quote)
+
+        rx.post("/v1/vm/quote").mock(side_effect=create_quote)
         rx.get("/v1/stats/runtime").mock(return_value=httpx.Response(200, json={
             "api_p50_ms": 24,
             "api_p50_source": "api-process-local-rolling-window",
@@ -45,6 +68,30 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             "live_vms": 5,
             "avg_provision_seconds": 60,
             "updated_at": "2026-05-19T00:00:00+00:00",
+        }))
+        rx.get("/v1/status").mock(return_value=httpx.Response(200, json={
+            "status": "operational",
+            "checked_at": "2026-07-11T12:00:00+00:00",
+            "stale": False,
+            "components": [
+                {"id": "api_checkout", "name": "API & checkout", "status": "operational",
+                 "message": "Purchasing and management API"},
+                {"id": "compute", "name": "Compute", "status": "operational",
+                 "message": "VM provisioning and reachability"},
+                {"id": "intelligence", "name": "Network intelligence", "status": "operational",
+                 "message": "Network diagnostics endpoints"},
+                {"id": "domains_dns", "name": "Domains & DNS", "status": "operational",
+                 "message": "Registration and authoritative DNS"},
+                {"id": "network_proxy", "name": "Network proxy", "status": "operational",
+                 "message": "Direct, Tor, I2P, and Yggdrasil egress"},
+            ],
+            "incidents": [],
+        }))
+        rx.get("/v1/os/list").mock(return_value=httpx.Response(200, json={
+            "templates": [
+                {"name": "debian-13", "description": "Debian 13 (Trixie)",
+                 "default": True, "family": "debian"},
+            ],
         }))
         # Block C (Wave 3): default payment networks so /faq, /llms.txt and the
         # review page render without each test re-wiring them. Override as needed.
@@ -128,6 +175,9 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     """
     _RUNTIME_CACHE["value"] = None
     _RUNTIME_CACHE["expires_at"] = 0.0
+    _SERVICE_STATUS_CACHE["value"] = None
+    _SERVICE_STATUS_CACHE["expires_at"] = 0.0
+    _SERVICE_STATUS_CACHE["successful_at"] = 0.0
     _NETWORK_CACHE["value"] = None
     _NETWORK_CACHE["expires_at"] = 0.0
     _CATALOG_CACHE["value"] = None

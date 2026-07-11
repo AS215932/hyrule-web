@@ -153,21 +153,6 @@
       "node_modules/@phosphor-icons/webcomponents/dist/icons/PhX.mjs"
     ]
   },
-  "frontend/src/main.ts": {
-    "file": "assets/main-BLb5Z9Ki.js",
-    "name": "main",
-    "src": "frontend/src/main.ts",
-    "isEntry": true,
-    "css": [
-      "assets/main-7kn1fH3o.css"
-    ]
-  },
-  "frontend/src/order.ts": {
-    "file": "assets/order-D5w5Gw4c.js",
-    "name": "order",
-    "src": "frontend/src/order.ts",
-    "isEntry": true
-  },
   "frontend/src/payment.ts": {
     "file": "assets/payment-CFToebI0.js",
     "name": "payment",
@@ -177,10 +162,25 @@
       "frontend/src/walletconnect.ts"
     ]
   },
+  "frontend/src/secret-copy.ts": {
+    "file": "assets/secrets-C9TXFISj.js",
+    "name": "secrets",
+    "src": "frontend/src/secret-copy.ts",
+    "isEntry": true
+  },
   "frontend/src/status.ts": {
-    "file": "assets/status-DkO_AjS_.js",
+    "file": "assets/status-auvKyU85.js",
     "name": "status",
     "src": "frontend/src/status.ts",
+    "isEntry": true
+  },
+  "frontend/src/styles/app.css": {
+    "file": "assets/styles-BkW_11bj.css",
+    "name": "styles",
+    "names": [
+      "styles.css"
+    ],
+    "src": "frontend/src/styles/app.css",
     "isEntry": true
   },
   "frontend/src/walletconnect.ts": {

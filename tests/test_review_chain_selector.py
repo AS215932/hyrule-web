@@ -76,7 +76,6 @@ def test_review_order_data_form_carries_all_fields(client: TestClient) -> None:
         ("size", "sm"),
         ("duration_days", "30"),
         ("ssh_pubkey", "ssh-ed25519 AAAA"),
-        ("hostname", "test-host"),
         ("domain_mode", "auto"),
     ):
         assert f'name="{name}" value="{value}"' in body, (

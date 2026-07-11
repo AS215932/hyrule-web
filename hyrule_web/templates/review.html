@@ -4,7 +4,7 @@
 {% block content %}
 {% set tier = vm_tiers[order.size] if order and order.size in vm_tiers else vm_tiers['sm'] %}
 {% set duration = order.duration if order else 30 %}
-{% set total = tier.price * duration %}
+{% set total = order.amount_usd if order and order.amount_usd is defined else tier.price * duration %}
 {% set payment_methods = order.payment_methods if order and order.payment_methods else {"evm": [], "native": []} %}
 {% set native_methods = payment_methods.native or [] %}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
@@ -72,7 +72,7 @@
                 <div class="price">
                     <div class="price-line"><span>VM ({{ tier.name }}, {{ duration }} days)</span><span>${{ "%.2f"|format(total) }}</span></div>
                     <div class="price-line"><span>DNS subdomain</span><span>$0.00</span></div>
-                    <div class="price-line"><span>x402 settlement</span><span class="text-ok">gas covered</span></div>
+                    <div class="price-line"><span>x402 settlement</span><span>gas covered</span></div>
                     <div class="price-line total"><span>Total</span><span>${{ "%.2f"|format(total) }} USDC</span></div>
                 </div>
             </div>

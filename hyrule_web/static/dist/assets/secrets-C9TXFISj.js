@@ -1,0 +1,2 @@
+document.querySelectorAll(`[data-copy-target], [data-copy-targets]`).forEach(e=>{e.addEventListener(`click`,()=>{let t=(e.dataset.copyTargets??e.dataset.copyTarget??``).split(`,`).map(e=>e.trim()).filter(Boolean).map(e=>document.getElementById(e)?.textContent?.trim()).filter(Boolean).join(`
+`);!t||!navigator.clipboard||navigator.clipboard.writeText(t).then(()=>{let t=e.textContent;e.textContent=`copied`,window.setTimeout(()=>{e.textContent=t},2e3)})})});

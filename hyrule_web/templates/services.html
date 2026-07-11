@@ -181,39 +181,6 @@
     </div>
 </section>
 
-{# ── 3. Privacy Considerations ───────────────────────────────────────────── #}
-<section class="container page-section">
-    <div class="section-heading split">
-        <div class="heading-main">
-            <span class="panel-label">3. privacy considerations</span>
-            <h2>What we hold, and what we never asked for.</h2>
-        </div>
-        <div class="heading-side">No-KYC isn't a marketing line. It's how the schema is shaped — there's no column to write your email into. See <a href="/transparency">/transparency</a> for the full inventory and <a href="/faq">/faq</a> for the recovery story.</div>
-    </div>
-    <div class="review-layout">
-        <div class="manifest">
-            <div class="manifest-head"><span>we collect</span><span class="badge">minimal</span></div>
-            <div class="manifest-rows">
-                <div class="manifest-k">vm config</div><div class="manifest-v">os, size, duration, ports you opened</div>
-                <div class="manifest-k">ssh pubkey</div><div class="manifest-v">you provide it; we don't generate one for you</div>
-                <div class="manifest-k">payer wallet</div><div class="manifest-v">EVM address for x402 orders; native rail metadata only when that rail is enabled</div>
-                <div class="manifest-k">account handle</div><div class="manifest-v">random <code>H&lt;10 hex&gt;</code>, only if you signed up</div>
-                <div class="manifest-k">/64 prefix hash</div><div class="manifest-v">sha256 of your IPv6 /64 + pepper, abuse-only</div>
-            </div>
-        </div>
-        <div class="manifest">
-            <div class="manifest-head"><span>we don't collect</span><span class="badge">never</span></div>
-            <div class="manifest-rows">
-                <div class="manifest-k">email</div><div class="manifest-v">no input field exists</div>
-                <div class="manifest-k">phone</div><div class="manifest-v">no input field exists</div>
-                <div class="manifest-k">name</div><div class="manifest-v">never asked</div>
-                <div class="manifest-k">payment KYC</div><div class="manifest-v">wallet/address is the customer</div>
-                <div class="manifest-k">VM contents</div><div class="manifest-v">bare VM, no agent, no introspection</div>
-            </div>
-        </div>
-    </div>
-</section>
-
 {% if os_templates %}
 <section class="container page-section">
     <div class="section-heading split">

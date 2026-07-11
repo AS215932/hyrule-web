@@ -17,6 +17,7 @@
 @import "./legacy.css";
 @import "./base.css";
 @import "./components.css";
+@import "./monochrome.css";
 
 @tailwind base;
 @tailwind components;

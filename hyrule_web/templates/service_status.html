@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Service status — Hyrule Cloud{% endblock %}
+{% block meta_description %}Current health and customer impact across Hyrule Cloud compute, API checkout, network intelligence, domains and DNS, and network proxy services.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero status-page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">status</span></div>
+            <span class="panel-label">Current service health</span>
+            <h1>{{ status_view.label }}</h1>
+            <p class="hero-blurb">Customer-impacting signals from the same monitoring system that watches Hyrule Cloud production.</p>
+        </div>
+        <div class="hero-side-card status-summary-card status-{{ status_view.tone }}">
+            <span class="status-dot status-{{ status_view.tone }}" aria-hidden="true"></span>
+            <div>
+                <strong>{{ status_view.label }}</strong>
+                {% if service_status.checked_at %}
+                <small>Checked {{ service_status.checked_at | replace('T', ' ') | replace('+00:00', ' UTC') }}</small>
+                {% else %}
+                <small>Live check unavailable</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    {% if service_status.stale %}
+    <div class="status-banner status-degraded">
+        <strong>Status feed delayed</strong>
+        <span>The last available state is shown. Hyrule Cloud could not confirm a fresh monitoring snapshot.</span>
+    </div>
+    {% endif %}
+
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Components</span>
+            <h2>What is affected.</h2>
+        </div>
+        <div class="heading-side">Each component describes customer impact, not internal host or provider state.</div>
+    </div>
+
+    <div class="service-status-grid">
+        {% for component in service_status.components %}
+        <article class="service-status-card status-{{ component.status }}">
+            <div class="service-status-card-head">
+                <span class="status-dot status-{{ component.status }}" aria-hidden="true"></span>
+                <h3>{{ component.name }}</h3>
+                <em>{{ component.status | replace('_', ' ') }}</em>
+            </div>
+            <p>{{ component.message }}</p>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Active incidents</span>
+            <h2>{% if service_status.incidents %}Current customer impact.{% else %}No active incidents.{% endif %}</h2>
+        </div>
+        <div class="heading-side"><a href="/status">Refresh this page</a> for a new server-rendered snapshot.</div>
+    </div>
+
+    {% if service_status.incidents %}
+    <div class="incident-list">
+        {% for incident in service_status.incidents %}
+        <article class="incident-card status-{{ incident.status }}">
+            <span class="panel-label">{{ incident.status | replace('_', ' ') }}</span>
+            <h3>{{ incident.title }}</h3>
+            <p>{{ incident.message }}</p>
+            {% if incident.started_at %}<small>Started {{ incident.started_at | replace('T', ' ') | replace('+00:00', ' UTC') }}</small>{% endif %}
+        </article>
+        {% endfor %}
+    </div>
+    {% elif service_status.status == 'operational' and not service_status.stale %}
+    <div class="panel panel-tight status-empty">
+        <span class="status-dot status-operational" aria-hidden="true"></span>
+        <p>No customer-impacting monitoring alerts are active.</p>
+    </div>
+    {% else %}
+    <div class="panel panel-tight status-empty">
+        <span class="status-dot status-{{ status_view.tone }}" aria-hidden="true"></span>
+        <p>No incident details are available for this status snapshot. Component state is shown above.</p>
+    </div>
+    {% endif %}
+
+    <p class="status-support">A specific VM can have its own lifecycle state even when the platform is operational. Use its private status URL or contact <a href="mailto:support@hyrule.host">support@hyrule.host</a>.</p>
+</section>
+{% endblock %}

@@ -1,61 +1,60 @@
 {% extends "base.html" %}
 {% block title %}FAQ — Hyrule Cloud{% endblock %}
-{% block meta_description %}Hyrule Cloud FAQ: no-KYC details, recovery options, IPv6 reachability, payment methods, AI-agent compatibility.{% endblock %}
+{% block meta_description %}Technical answers about Hyrule Cloud agent integration, x402 payments, VM provisioning, IPv6 networking, recovery, and privacy.{% endblock %}
 
-{# Build the FAQ items here so both the visual list and the JSON-LD stay in sync. #}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
-{% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed at /api/v1/payments/networks" %}
+{% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed by /v1/payments/networks" %}
 {% set native_methods = native or [] %}
 {% set native_sentence = (native_methods | join(" / ")) if native_methods else "" %}
 
 {% set faq_items = [
     {
-        "q": "Do you require KYC?",
-        "a": "No. There is no email field, no phone field, no name field, and no identity verification at any point in our flow. You can place anonymous one-shot orders without an account; if you sign up, your username is a random " ~ "H&lt;10 hex&gt;" ~ " handle that we generate and you cannot change."
+        "q": "Can autonomous agents purchase Hyrule Cloud services directly?",
+        "a": "Yes. Agents can discover the x402 manifest at <code>/.well-known/x402.json</code>, call a resource, satisfy the returned payment requirements, and retry with an <code>X-PAYMENT</code> header. VM creation returns a public status URL and a save-once management URL. See <a href='/agents'>the agent integration guide</a>."
     },
     {
         "q": "What payment methods do you accept?",
-        "a": "USDC via x402 on " ~ chain_sentence ~ "." ~ (" Native VM checkout rails currently enabled: " ~ native_sentence ~ "." if native_methods else " BTC/XMR are shown only when the native intent rail is live in the backend catalog.") ~ " Domains and network requests use x402 for this launch. The payment list is read from the backend at order time — we never hardcode it in the UI."
+        "a": "USDC via x402 on " ~ chain_sentence ~ "." ~ (" Native VM checkout rails currently enabled: " ~ native_sentence ~ "." if native_methods else " BTC/XMR appear only when the native intent rail is live in the backend catalog.") ~ " The browser reads this list from the API rather than hardcoding it."
     },
     {
-        "q": "What data do you collect about me?",
-        "a": "vm_id, the VM config you typed in, your SSH public key, the wallet address that paid (for x402 orders only), your random account handle and an argon2id password hash (if you signed up), and a sha256 of your /64 IPv6 prefix for abuse rate-limiting. We do not collect: email, phone, name, address, full IP, or anything inside your VM."
+        "q": "How fast is provisioning?",
+        "a": "Typical VM builds complete in about 60 seconds. The homepage shows a sanity-checked live average, and each create response includes a public status URL that moves from payment_required to provisioning and then provisioned, failed, or rolled_back."
     },
     {
-        "q": "Where are you located? What jurisdiction applies?",
-        "a": "Solo operator in the Netherlands. Compute is at OVH France. Routing peers are in NL and DE. See /transparency for the full host inventory."
+        "q": "Why IPv6-first? What if a workload needs IPv4?",
+        "a": "Every VM receives globally routed IPv6 inside <code>2a0c:b641:b51::/48</code>. NAT64 and DNS64 translate outbound connections to IPv4 destinations. Inbound IPv4 to customer VMs is not available in v1."
     },
     {
-        "q": "What if I lose my password?",
-        "a": "Two paths. (1) The recovery code we showed you once at signup — argon2id-hashed at rest, single-use, auto-rotated after consumption. (2) If you have ever settled an x402 EVM payment on the account, you can recover via wallet signature from the same wallet that paid. If you have neither, the account is unrecoverable — that is the cost of no-KYC."
+        "q": "Where can I see platform health?",
+        "a": "The header status control and <a href='/status'>/status</a> publish customer-impacting monitoring for API checkout, compute, network intelligence, domains and DNS, and network proxy. A VM also has its own lifecycle status URL."
     },
     {
-        "q": "Can you read what's running on my VM?",
-        "a": "No. The VM is bare: cloud-init drops your SSH key in and configures the firewall defaults, then we step out. There is no monitoring agent on customer VMs, no introspection API, no scheduled checks of disk contents."
+        "q": "How do accounts and password recovery work?",
+        "a": "Accounts use a generated <code>H&lt;10 hex&gt;</code> handle. Recovery uses either the single-use recovery code shown at signup or a signature from an EVM wallet that previously paid on the account. Without either proof, the account cannot be recovered."
     },
     {
-        "q": "Why IPv6-only? What if my client needs IPv4?",
-        "a": "We don't have IPv4 to spare — the OVH host gives us one /32, used by the router for NAT64 egress. Every VM gets a routable IPv6 /128 inside 2a0c:b641:b51::/48. NAT64 + DNS64 on the router translate to IPv4 destinations transparently. Inbound IPv4 to your VM is not available in v1."
+        "q": "Do you require KYC?",
+        "a": "No. Hyrule Cloud uses a no-KYC ordering model. One-shot orders can be placed without an account, and optional accounts use a generated handle rather than an identity profile."
     },
     {
-        "q": "How fast is provisioning, really?",
-        "a": "The homepage shows a live number computed from the backend's most recent " ~ "provisioned_at - created_at" ~ " values. Typical is ~60 seconds. Cold templates can take a little longer."
+        "q": "What service data do you retain?",
+        "a": "Hyrule Cloud stores the VM or service configuration, SSH public key where applicable, generated identifiers, lifecycle and payment state, and the minimum wallet metadata required to reconcile payment. The <a href='/privacy'>privacy page</a> contains the complete inventory and retention policy."
     },
     {
-        "q": "Can AI agents use Hyrule Cloud?",
-        "a": "Yes. We ship an x402 service manifest at /.well-known/x402.json so agents can discover, price, and pay per-call. POST /v1/vm/create with an X-Payment header is the whole flow. Scoped API keys (read, power, extend) for non-payment management land in plan Block D."
+        "q": "Can Hyrule Cloud inspect what runs on my VM?",
+        "a": "Customer VMs do not run a Hyrule monitoring agent. Network and host telemetry is used for reliability, capacity, and abuse response, but VM disk contents are not proactively inspected."
     },
     {
-        "q": "How do I report abuse?",
-        "a": "Send precise reports to abuse@as215932.net with reporter contact, URL or hostname or IP, allegation, evidence, timestamp, and urgency. Operational reports go to noc@as215932.net; customer support goes to support@hyrule.host. See /abuse and /legal for the notice/action flow."
+        "q": "Where is the platform operated?",
+        "a": "The operator is in the Netherlands, compute is hosted at OVH France, and AS215932 routing is distributed across European peers. The <a href='/transparency'>About page</a> publishes the technical inventory."
     },
     {
-        "q": "What does 'anonymous checkout' actually mean for the VM management?",
-        "a": "At order time we return a one-time management URL of the form /order/manage/{vm_id}?token=hyr_vm_…. The token cleartext is shown ONCE — save it. The token is sha256-hashed at rest; without it (or without an account that owns the VM), the management endpoints return 404. Status pages remain visible by vm_id alone."
+        "q": "How do I report abuse or request support?",
+        "a": "Email <a href='mailto:support@hyrule.host'>support@hyrule.host</a>. Use “Abuse report” in the subject for abuse cases and include the affected hostname, address or URL, evidence, timestamp with timezone, and urgency."
     },
     {
         "q": "What if I overpay on a native crypto intent?",
-        "a": "When native intent rails are enabled, overpay is fine — it provisions normally and the surplus stays in the receive wallet. Pay late but match a fresh rate quote within 1% slippage and it still provisions (LENIENT policy). Underpay queues the intent for manual review."
+        "a": "When native intent rails are enabled, an overpayment can still provision normally. A late payment may be accepted against a fresh rate quote within the published slippage policy; underpayments are held for manual review."
     }
 ] %}
 
@@ -70,22 +69,9 @@
     {
       "@type": "Question",
       "name": {{ item.q | tojson }},
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": {{ item.a | tojson }}
-      }
+      "acceptedAnswer": {"@type": "Answer", "text": {{ item.a | tojson }}}
     }{{ "," if not loop.last else "" }}
     {% endfor %}
-  ]
-}
-</script>
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "BreadcrumbList",
-  "itemListElement": [
-    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
-    {"@type": "ListItem", "position": 2, "name": "FAQ", "item": "https://hyrule.host/faq"}
   ]
 }
 </script>
@@ -95,35 +81,33 @@
 <section class="container">
     <div class="page-hero">
         <div>
-            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">faq</span></div>
-            <span class="panel-label">questions</span>
-            <h1>The questions worth answering up front.</h1>
-            <p class="hero-blurb">No marketing fluff. Each answer is what the system actually does — if it changes, this page changes with it.</p>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">faq</span></div>
+            <span class="panel-label">Technical FAQ</span>
+            <h1>How the platform actually behaves.</h1>
+            <p class="hero-blurb">Payment, provisioning, networking, recovery, and operations—answered from the implemented contracts.</p>
         </div>
         <div class="hero-side-card">
-            <span class="panel-label mb-2">live chains</span>
+            <span class="panel-label mb-2">live payment rails</span>
             <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-[0.85rem] text-text-muted">
                 {% if networks %}
-                {% for n in networks %}
-                <li>+ {{ n.display_name }} <code class="text-[0.78rem] text-text-soft">{{ n.caip2 }}</code></li>
+                {% for network in networks %}
+                <li>+ {{ network.display_name }} <code>{{ network.caip2 }}</code></li>
                 {% endfor %}
                 {% else %}
-                <li>+ <em>backend unreachable; check <code>/api/v1/payments/networks</code></em></li>
+                <li>+ Check <code>/v1/payments/networks</code></li>
                 {% endif %}
-                {% if native_methods %}
-                <li>+ native: {{ native_methods | join(" / ") }}</li>
-                {% endif %}
+                {% if native_methods %}<li>+ Native: {{ native_methods | join(" / ") }}</li>{% endif %}
             </ul>
         </div>
     </div>
 </section>
 
 <section class="container page-section">
-    <div class="flex flex-col gap-[18px]">
+    <div class="faq-list">
     {% for item in faq_items %}
         <details class="feature-card px-5 py-[18px]" {% if loop.index <= 2 %}open{% endif %}>
-            <summary class="cursor-pointer text-[1.05rem] font-semibold">{{ item.q }}</summary>
-            <p class="mt-3 leading-[1.65] text-text-muted">{{ item.a | safe }}</p>
+            <summary>{{ item.q }}</summary>
+            <p>{{ item.a | safe }}</p>
         </details>
     {% endfor %}
     </div>
@@ -131,11 +115,11 @@
 
 <section class="container page-section">
     <div class="cta">
-        <span class="panel-label">still curious</span>
-        <h2>Read the infra, or just deploy.</h2>
+        <span class="panel-label">Go deeper</span>
+        <h2>Read the contracts or inspect the infrastructure.</h2>
         <div class="cta-actions">
-            <a href="/transparency" class="btn btn-secondary btn-lg">Transparency</a>
-            <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
+            <a href="/agents" class="btn btn-primary btn-lg">Agent integration</a>
+            <a href="/transparency" class="btn btn-secondary btn-lg">About the platform</a>
         </div>
     </div>
 </section>
