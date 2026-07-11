@@ -135,6 +135,12 @@
     box-shadow: 0 24px 60px rgb(0 0 0 / 55%);
   }
 
+  /* Author display rules override the browser's details disclosure stylesheet,
+     so keep the menu explicitly hidden until the native control is open. */
+  .mobile-nav-menu:not([open]) > nav {
+    display: none;
+  }
+
   .mobile-nav-menu nav a {
     min-height: 44px;
     padding: 10px 12px;

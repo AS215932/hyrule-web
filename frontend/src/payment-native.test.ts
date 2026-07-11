@@ -1,6 +1,39 @@
 import { describe, expect, it } from "vitest";
 
-import { renderDepositCard, statusRedirectUrl } from "./payment-native";
+import {
+  gatherOrderPayload,
+  intentClientOrderStorageKey,
+  renderDepositCard,
+  statusRedirectUrl,
+} from "./payment-native";
+
+describe("native quote binding", () => {
+  it("carries the durable quote id into intent creation payloads", () => {
+    const form = document.createElement("form");
+    form.innerHTML = `
+      <input name="os" value="debian-13">
+      <input name="size" value="sm">
+      <input name="duration_days" value="30">
+      <input name="ssh_pubkey" value="ssh-ed25519 AAAA">
+      <input name="domain_mode" value="auto">
+      <input name="quote_id" value="q_locked">
+    `;
+
+    const payload = gatherOrderPayload(form);
+
+    expect(payload.quote_id).toBe("q_locked");
+    expect(intentClientOrderStorageKey("BTC", payload)).toBe(
+      "hyr_intent_client_order_id:BTC:q_locked",
+    );
+  });
+
+  it("does not reuse an unquoted intent key for a later quote", () => {
+    expect(intentClientOrderStorageKey("XMR", {})).toBe("hyr_intent_client_order_id:XMR:legacy");
+    expect(intentClientOrderStorageKey("XMR", { quote_id: "q_next" })).not.toBe(
+      "hyr_intent_client_order_id:XMR:legacy",
+    );
+  });
+});
 
 // Issue #8: the BTC/XMR deposit card must stay overflow-safe on narrow viewports
 // (the old layout was a fixed 256px QR + a 220px min-width text column ≈ 476px).

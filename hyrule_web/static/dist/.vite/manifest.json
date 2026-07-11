@@ -1,55 +1,55 @@
 {
-  "_AlertController-DxgAZxzt.js": {
-    "file": "assets/AlertController-DxgAZxzt.js",
+  "_AlertController-CgichTCc.js": {
+    "file": "assets/AlertController-CgichTCc.js",
     "name": "AlertController",
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
-      "_ApiController-Bp8uibnh.js",
-      "_index.es-_BXNWKVG.js"
+      "_ApiController-BMYW9UOz.js",
+      "_index.es-CklTzIV1.js"
     ]
   },
-  "_ApiController-Bp8uibnh.js": {
-    "file": "assets/ApiController-Bp8uibnh.js",
+  "_ApiController-BMYW9UOz.js": {
+    "file": "assets/ApiController-BMYW9UOz.js",
     "name": "ApiController",
     "imports": [
       "frontend/src/payment.ts",
-      "_ccip-vnzMRQz7.js"
+      "_ccip-CmORZgO0.js"
     ],
     "dynamicImports": [
-      "__esm-B_XuY3At.js"
+      "__esm-BhXBrdlJ.js"
     ]
   },
-  "_CaipNetworkUtil-BJjSzuUx.js": {
-    "file": "assets/CaipNetworkUtil-BJjSzuUx.js",
+  "_CaipNetworkUtil-CvAzH5xR.js": {
+    "file": "assets/CaipNetworkUtil-CvAzH5xR.js",
     "name": "CaipNetworkUtil",
     "imports": [
-      "_HelpersUtil-DbwE5kmS.js",
-      "_ApiController-Bp8uibnh.js",
-      "__esm-B_XuY3At.js"
+      "_HelpersUtil-CKu8i8xR.js",
+      "_ApiController-BMYW9UOz.js",
+      "__esm-BhXBrdlJ.js"
     ]
   },
-  "_HelpersUtil-DbwE5kmS.js": {
-    "file": "assets/HelpersUtil-DbwE5kmS.js",
+  "_HelpersUtil-CKu8i8xR.js": {
+    "file": "assets/HelpersUtil-CKu8i8xR.js",
     "name": "HelpersUtil",
     "imports": [
-      "_ApiController-Bp8uibnh.js"
+      "_ApiController-BMYW9UOz.js"
     ]
   },
-  "__esm-B_XuY3At.js": {
-    "file": "assets/_esm-B_XuY3At.js",
+  "__esm-BhXBrdlJ.js": {
+    "file": "assets/_esm-BhXBrdlJ.js",
     "name": "_esm",
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
       "frontend/src/payment.ts",
-      "_ccip-vnzMRQz7.js",
-      "_secp256k1-mzpqv9y0.js"
+      "_ccip-CmORZgO0.js",
+      "_secp256k1-YT0N5CUg.js"
     ],
     "dynamicImports": [
-      "_secp256k1-mzpqv9y0.js"
+      "_secp256k1-YT0N5CUg.js"
     ]
   },
-  "_ccip-vnzMRQz7.js": {
-    "file": "assets/ccip-vnzMRQz7.js",
+  "_ccip-CmORZgO0.js": {
+    "file": "assets/ccip-CmORZgO0.js",
     "name": "ccip",
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
@@ -57,30 +57,30 @@
       "_utils-GZfNnfRI.js"
     ],
     "dynamicImports": [
-      "_ccip-vnzMRQz7.js"
+      "_ccip-CmORZgO0.js"
     ]
   },
-  "_index.es-DcZTpml3.js": {
-    "file": "assets/index.es-DcZTpml3.js",
-    "name": "index.es",
-    "imports": [
-      "node_modules/@walletconnect/ethereum-provider/dist/index.js",
-      "_index.es-_BXNWKVG.js"
-    ]
-  },
-  "_index.es-_BXNWKVG.js": {
-    "file": "assets/index.es-_BXNWKVG.js",
+  "_index.es-CklTzIV1.js": {
+    "file": "assets/index.es-CklTzIV1.js",
     "name": "index.es",
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js"
+    ]
+  },
+  "_index.es-U265O_HG.js": {
+    "file": "assets/index.es-U265O_HG.js",
+    "name": "index.es",
+    "imports": [
+      "node_modules/@walletconnect/ethereum-provider/dist/index.js",
+      "_index.es-CklTzIV1.js"
     ]
   },
   "_property-BKqmXaKm.js": {
     "file": "assets/property-BKqmXaKm.js",
     "name": "property"
   },
-  "_secp256k1-mzpqv9y0.js": {
-    "file": "assets/secp256k1-mzpqv9y0.js",
+  "_secp256k1-YT0N5CUg.js": {
+    "file": "assets/secp256k1-YT0N5CUg.js",
     "name": "secp256k1",
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
@@ -91,12 +91,12 @@
     "file": "assets/utils-GZfNnfRI.js",
     "name": "utils"
   },
-  "_wui-list-item-D5ieqUJM.js": {
-    "file": "assets/wui-list-item-D5ieqUJM.js",
+  "_wui-list-item-Bh81MMb5.js": {
+    "file": "assets/wui-list-item-Bh81MMb5.js",
     "name": "wui-list-item",
     "imports": [
       "frontend/src/payment.ts",
-      "_HelpersUtil-DbwE5kmS.js"
+      "_HelpersUtil-CKu8i8xR.js"
     ],
     "dynamicImports": [
       "node_modules/@phosphor-icons/webcomponents/dist/icons/PhArrowCircleDown.mjs",
@@ -154,7 +154,7 @@
     ]
   },
   "frontend/src/payment.ts": {
-    "file": "assets/payment-CFToebI0.js",
+    "file": "assets/payment-Dvlu-6lW.js",
     "name": "payment",
     "src": "frontend/src/payment.ts",
     "isEntry": true,
@@ -175,7 +175,7 @@
     "isEntry": true
   },
   "frontend/src/styles/app.css": {
-    "file": "assets/styles-BkW_11bj.css",
+    "file": "assets/styles-OHFjKheU.css",
     "name": "styles",
     "names": [
       "styles.css"
@@ -184,7 +184,7 @@
     "isEntry": true
   },
   "frontend/src/walletconnect.ts": {
-    "file": "assets/walletconnect-4Pkj4VqE.js",
+    "file": "assets/walletconnect-PpmA94Cc.js",
     "name": "walletconnect",
     "src": "frontend/src/walletconnect.ts",
     "isDynamicEntry": true,
@@ -664,54 +664,54 @@
     ]
   },
   "node_modules/@reown/appkit-controllers/dist/esm/exports/features.js": {
-    "file": "assets/features-BktORWQb.js",
+    "file": "assets/features-BjDLc3s7.js",
     "name": "features",
     "src": "node_modules/@reown/appkit-controllers/dist/esm/exports/features.js",
     "isDynamicEntry": true,
     "imports": [
-      "_ApiController-Bp8uibnh.js"
+      "_ApiController-BMYW9UOz.js"
     ]
   },
   "node_modules/@reown/appkit-scaffold-ui/dist/esm/exports/basic.js": {
-    "file": "assets/basic-zX6OJJjs.js",
+    "file": "assets/basic-5f4Ohh7b.js",
     "name": "basic",
     "src": "node_modules/@reown/appkit-scaffold-ui/dist/esm/exports/basic.js",
     "isDynamicEntry": true,
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
-      "_HelpersUtil-DbwE5kmS.js",
-      "_wui-list-item-D5ieqUJM.js",
-      "_ApiController-Bp8uibnh.js",
-      "_CaipNetworkUtil-BJjSzuUx.js"
+      "_HelpersUtil-CKu8i8xR.js",
+      "_wui-list-item-Bh81MMb5.js",
+      "_ApiController-BMYW9UOz.js",
+      "_CaipNetworkUtil-CvAzH5xR.js"
     ]
   },
   "node_modules/@reown/appkit-scaffold-ui/dist/esm/exports/w3m-modal.js": {
-    "file": "assets/w3m-modal-Da7AI3Ht.js",
+    "file": "assets/w3m-modal-CG2yEgOI.js",
     "name": "w3m-modal",
     "src": "node_modules/@reown/appkit-scaffold-ui/dist/esm/exports/w3m-modal.js",
     "isDynamicEntry": true,
     "imports": [
-      "_HelpersUtil-DbwE5kmS.js",
-      "_wui-list-item-D5ieqUJM.js",
-      "_ApiController-Bp8uibnh.js",
-      "_AlertController-DxgAZxzt.js"
+      "_HelpersUtil-CKu8i8xR.js",
+      "_wui-list-item-Bh81MMb5.js",
+      "_ApiController-BMYW9UOz.js",
+      "_AlertController-CgichTCc.js"
     ]
   },
   "node_modules/@reown/appkit/dist/esm/exports/core.js": {
-    "file": "assets/core-zL8cJzKz.js",
+    "file": "assets/core-84S1g0uB.js",
     "name": "core",
     "src": "node_modules/@reown/appkit/dist/esm/exports/core.js",
     "isDynamicEntry": true,
     "imports": [
       "node_modules/@walletconnect/ethereum-provider/dist/index.js",
       "frontend/src/payment.ts",
-      "_HelpersUtil-DbwE5kmS.js",
-      "_ApiController-Bp8uibnh.js",
-      "_AlertController-DxgAZxzt.js",
-      "_CaipNetworkUtil-BJjSzuUx.js",
-      "_index.es-DcZTpml3.js",
-      "_index.es-_BXNWKVG.js",
-      "_ccip-vnzMRQz7.js"
+      "_HelpersUtil-CKu8i8xR.js",
+      "_ApiController-BMYW9UOz.js",
+      "_AlertController-CgichTCc.js",
+      "_CaipNetworkUtil-CvAzH5xR.js",
+      "_index.es-U265O_HG.js",
+      "_index.es-CklTzIV1.js",
+      "_ccip-CmORZgO0.js"
     ],
     "dynamicImports": [
       "node_modules/@reown/appkit-controllers/dist/esm/exports/features.js",
@@ -720,14 +720,14 @@
     ]
   },
   "node_modules/@walletconnect/ethereum-provider/dist/index.js": {
-    "file": "assets/dist-Bp_uQQf7.js",
+    "file": "assets/dist-m2paXebN.js",
     "name": "dist",
     "src": "node_modules/@walletconnect/ethereum-provider/dist/index.js",
     "isDynamicEntry": true,
     "imports": [
       "frontend/src/payment.ts",
-      "_index.es-DcZTpml3.js",
-      "_index.es-_BXNWKVG.js"
+      "_index.es-U265O_HG.js",
+      "_index.es-CklTzIV1.js"
     ],
     "dynamicImports": [
       "node_modules/@reown/appkit/dist/esm/exports/core.js"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 
@@ -12,6 +14,13 @@ def test_header_uses_native_details_mobile_menu(client: TestClient) -> None:
     assert '<summary aria-label="Open navigation">' in response.text
     assert "data-nav-toggle" not in response.text
     assert "data-nav-backdrop" not in response.text
+
+    css = (
+        Path(__file__).parent.parent / "frontend" / "src" / "styles" / "monochrome.css"
+    ).read_text()
+    assert ".mobile-nav-menu:not([open]) > nav" in css
+    closed_rule = css.split(".mobile-nav-menu:not([open]) > nav", 1)[1].split("}", 1)[0]
+    assert "display: none" in closed_rule
 
 
 def test_nav_links_render_in_desktop_and_mobile_navigation(client: TestClient) -> None:
