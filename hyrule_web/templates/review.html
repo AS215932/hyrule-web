@@ -2,7 +2,6 @@
 {% block title %}Review order — Hyrule Cloud{% endblock %}
 
 {% block content %}
-{% set tier = vm_tiers[order.size] if order and order.size in vm_tiers else vm_tiers['sm'] %}
 {% set duration = order.duration if order else 30 %}
 {% set total = order.amount_usd if order and order.amount_usd is defined else tier.price * duration %}
 {% set payment_methods = order.payment_methods if order and order.payment_methods else {"evm": [], "native": []} %}
