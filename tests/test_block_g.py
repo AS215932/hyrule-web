@@ -5,7 +5,7 @@ Covers:
   - /faq exposes FAQPage JSON-LD whose chain mentions come from the live
     /v1/payments/networks (never hardcoded)
   - homepage uses the live runtime stats (api_p50_ms, avg provision)
-  - base header pill is no longer hardcoded "24ms"
+  - service status in the header is independent of runtime latency
   - sitemap.xml includes /transparency, /faq, /login, /signup but NOT
     /dashboard or /order/manage/*
   - build_llms_txt unit-level (placeholder vs live chains)
@@ -31,24 +31,22 @@ def test_transparency_renders_with_breadcrumb_jsonld(
     assert "2a0c:b641:b50::/44" in r.text
     # Breadcrumb structured data must be present and name the page
     assert '"BreadcrumbList"' in r.text
-    assert '"Transparency"' in r.text
+    assert '"About"' in r.text
     # Real infra hosts surfaced from inventory
     assert "<code>rtr</code>" in r.text
     assert "<code>api</code>" in r.text
 
 
-def test_transparency_lists_data_collected_and_not_collected(
+def test_about_explains_the_service_record_privacy_model(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
     r = client.get("/transparency")
     body = r.text
-    # We collect: SSH pubkey, account handle, /64 prefix hash
-    assert "ssh pubkey" in body
-    assert "/64 prefix hash" in body
-    # We do NOT collect: email, phone, name
-    assert "email" in body
-    assert "phone" in body
-    assert '"green"' not in body  # no marketing colors smuggled into the negative list
+    assert "SSH public keys" in body
+    assert "generated identifiers" in body
+    assert "no-KYC ordering model" in body
+    # Privacy is factual context, not the old identity-negation slogan.
+    assert "No email. No phone. No PII." not in body
 
 
 # --- /faq ---
@@ -95,7 +93,7 @@ def test_faq_renders_when_backend_unreachable(
     r = client.get("/faq")
     assert r.status_code == 200
     # Fallback text directs to the API
-    assert "/api/v1/payments/networks" in r.text
+    assert "/v1/payments/networks" in r.text
 
 
 # --- homepage uses live runtime ---
@@ -104,8 +102,7 @@ def test_faq_renders_when_backend_unreachable(
 def test_homepage_renders_live_runtime_p50(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    """The default mock supplies api_p50_ms=24. The hardcoded 'api · 24ms'
-    pill is gone — the same number must now come from the runtime fetch."""
+    """Runtime latency belongs in the homepage infrastructure panel."""
     mocked_api.get("/v1/stats/runtime").mock(return_value=httpx.Response(200, json={
         "api_p50_ms": 17,
         "api_p50_source": "api-process-local-rolling-window",
@@ -117,7 +114,9 @@ def test_homepage_renders_live_runtime_p50(
     }))
     r = client.get("/")
     assert r.status_code == 200
-    assert "api · 17ms" in r.text
+    assert "API p50" in r.text
+    assert "17ms" in r.text
+    assert "api · 17ms" not in r.text
     # avg_provision_seconds shows up in the homepage hero stat
     assert "71s" in r.text or "~71s" in r.text
 
@@ -128,8 +127,11 @@ def test_homepage_falls_back_when_runtime_unavailable(
     mocked_api.get("/v1/stats/runtime").mock(side_effect=httpx.ConnectError("boom"))
     r = client.get("/")
     assert r.status_code == 200
-    # Falls back to em-dash in the header pill rather than lying about latency
-    assert "api · —" in r.text
+    # The runtime panel stays honest without turning the site-status control
+    # into an API-latency indicator.
+    assert "API p50" in r.text
+    assert "api ·" not in r.text
+    assert "—" in r.text
 
 
 def test_transparency_shows_live_fleet_numbers_from_network_endpoint(
@@ -191,11 +193,10 @@ def test_transparency_serves_stale_network_data_on_backend_error(
     assert "4</strong> BGP peers" in r2.text
 
 
-def test_base_header_pill_no_longer_hardcoded(
+def test_base_header_status_is_independent_of_runtime_latency(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    """Sanity: an arbitrary p50 from the mock must be reflected. Catches
-    regressions where someone re-hardcodes '24ms' in base.html."""
+    """The header reports service health, not a misleading latency sample."""
     mocked_api.get("/v1/stats/runtime").mock(return_value=httpx.Response(200, json={
         "api_p50_ms": 99,
         "api_p50_source": "api-process-local-rolling-window",
@@ -206,7 +207,9 @@ def test_base_header_pill_no_longer_hardcoded(
         "updated_at": "2026-05-17T00:00:00+00:00",
     }))
     r = client.get("/transparency")
-    assert "api · 99ms" in r.text
+    assert r.status_code == 200
+    assert 'popovertarget="service-status-popover"' in r.text
+    assert "99ms" not in r.text
 
 
 # --- sitemap updates ---
@@ -270,12 +273,14 @@ def test_build_llms_txt_with_native_rails_lists_them() -> None:
     assert "Native VM checkout rails currently enabled: BTC, XMR" in text
 
 
-def test_build_llms_txt_anonymity_section_always_present() -> None:
-    """No-KYC is the lead. It must appear regardless of payment state."""
+def test_build_llms_txt_keeps_privacy_as_agent_model_context() -> None:
+    """No-KYC remains factual context without displacing the agent workflow."""
     for nets in (None, [], [{"key": "base", "display_name": "Base", "caip2": "eip155:8453"}]):
         text = build_llms_txt(networks=nets)
-        assert "## Anonymity guarantees" in text
-        assert "No email" in text
+        assert "## Agent purchase model" in text
+        assert "No-KYC ordering" in text
+        assert "## Anonymity guarantees" not in text
+        assert "No email. No phone. No PII." not in text
 
 
 # --- header nav distinguishes logged-in vs anon ---

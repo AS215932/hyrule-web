@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Transparency — Hyrule Cloud infra inventory{% endblock %}
+{% block title %}About Hyrule Cloud — platform and network inventory{% endblock %}
 {% block meta_description %}Full inventory of the AS215932 infrastructure Hyrule Cloud runs on: hosts, routing, peering, jurisdiction, monitoring stack. Solo operator, public configs.{% endblock %}
 
 {% block head_meta %}
@@ -14,7 +14,7 @@
   "@type": "BreadcrumbList",
   "itemListElement": [
     {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
-    {"@type": "ListItem", "position": 2, "name": "Transparency", "item": "https://hyrule.host/transparency"}
+    {"@type": "ListItem", "position": 2, "name": "About", "item": "https://hyrule.host/transparency"}
   ]
 }
 </script>
@@ -24,10 +24,10 @@
 <section class="container">
     <div class="page-hero">
         <div>
-            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">transparency</span></div>
-            <span class="panel-label">infra truth</span>
-            <h1>The full inventory. No marketing diagrams.</h1>
-            <p class="hero-blurb">Everything Hyrule Cloud runs on — hosts, addresses, routing, peers, jurisdiction. Because "we run our own ASN" is a claim you should be able to verify.</p>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">about</span></div>
+            <span class="panel-label">About Hyrule Cloud</span>
+            <h1>The platform behind the API.</h1>
+            <p class="hero-blurb">Hosts, routing, peers, jurisdiction, and monitoring—the technical inventory behind Hyrule Cloud and AS215932.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">at a glance</span>
@@ -145,35 +145,15 @@
 </section>
 
 <section class="container page-section">
-    <div class="section-heading">
-        <span class="panel-label">data we collect</span>
-        <h2>What we hold, and what we don't.</h2>
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Privacy model</span>
+            <h2>Service records, not identity profiles.</h2>
+        </div>
+        <div class="heading-side">Hyrule Cloud uses a no-KYC ordering model. The complete field inventory and retention policy live on the <a href="/privacy">Privacy page</a>.</div>
     </div>
-    <div class="review-layout">
-        <div class="manifest">
-            <div class="manifest-head"><span>we collect</span><span class="badge">minimal</span></div>
-            <div class="manifest-rows">
-                <div class="manifest-k">vm_id</div><div class="manifest-v">opaque random identifier</div>
-                <div class="manifest-k">VM config</div><div class="manifest-v">size, OS, duration, ports you opened</div>
-                <div class="manifest-k">ssh pubkey</div><div class="manifest-v">your public key (you provide it)</div>
-                <div class="manifest-k">payer wallet</div><div class="manifest-v">EVM address only, if you paid via x402</div>
-                <div class="manifest-k">account_id</div><div class="manifest-v"><code>H&lt;10 hex&gt;</code>, only if you signed up</div>
-                <div class="manifest-k">password hash</div><div class="manifest-v">argon2id (irreversible)</div>
-                <div class="manifest-k">/64 prefix hash</div><div class="manifest-v">sha256 of your IPv6 /64 + pepper, for abuse rate-limit only</div>
-            </div>
-        </div>
-        <div class="manifest">
-            <div class="manifest-head"><span>we don't collect</span><span class="badge bg-[#0f3]">never</span></div>
-            <div class="manifest-rows">
-                <div class="manifest-k">email</div><div class="manifest-v">no signup field exists</div>
-                <div class="manifest-k">phone</div><div class="manifest-v">no signup field exists</div>
-                <div class="manifest-k">name</div><div class="manifest-v">never asked</div>
-                <div class="manifest-k">address</div><div class="manifest-v">never asked</div>
-                <div class="manifest-k">payment KYC</div><div class="manifest-v">no identity collection; enabled payment rails are listed by the API</div>
-                <div class="manifest-k">full IP</div><div class="manifest-v">only /64 prefix, sha256-hashed</div>
-                <div class="manifest-k">VM contents</div><div class="manifest-v">bare VM; no agent, no introspection</div>
-            </div>
-        </div>
+    <div class="panel panel-tight">
+        <p>Operational records cover service configuration, SSH public keys, generated identifiers, lifecycle state, payment reconciliation, and abuse-prevention signals. Customer VMs do not run a Hyrule monitoring agent.</p>
     </div>
 </section>
 
@@ -201,7 +181,7 @@
         <div class="feature-card">
             <span class="num">04</span>
             <h3>Reachable</h3>
-            <p>x402 service manifest at <code>/.well-known/x402.json</code>. <code>llms.txt</code> at <code>/llms.txt</code>. PGP, .onion mirror, status page on the way.</p>
+            <p>x402 service manifest at <code>/.well-known/x402.json</code>, agent context at <code>/llms.txt</code>, and customer-impacting health at <a href="/status"><code>/status</code></a>.</p>
         </div>
     </div>
 </section>

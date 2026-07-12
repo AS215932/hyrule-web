@@ -22,7 +22,6 @@ ROBOTS_TXT = """\
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /partials/
 Disallow: /dashboard
 Disallow: /order/manage/
 
@@ -45,20 +44,19 @@ Sitemap: https://hyrule.host/sitemap.xml
 _LLMS_TXT_PREAMBLE = """\
 # Hyrule Cloud
 
-> IPv6-native bare-metal VM provisioning on AS215932. No-KYC: a random
-> account handle and a password you set, or pay anonymously with crypto.
-> Clear daily pricing, ~60s provisioning, x402 for AI agents. The web
-> frontend is a thin shell over the API at /api/* (same origin).
+> Full-stack infrastructure that autonomous agents can discover, pay for,
+> and provision directly: compute, network intelligence, domains and DNS,
+> and network proxy on AS215932. x402 prices and requirements are published
+> as machine-readable contracts.
 
-## Anonymity guarantees
+## Agent purchase model
 
-- No email collected, ever.
-- No phone, no name, no address.
-- Account handles are random `H<10 hex>`; you set the password.
-- Anon checkout: no account at all, one-shot management URL.
-- We store: VM config you provide, your SSH public key, the payer wallet
-  address (x402 EVM only), a sha256 of your /64 IPv6 prefix for abuse rate
-  limiting. That's it.
+- Discover prices and schemas in `/.well-known/x402.json` and OpenAPI.
+- Call the resource normally; HTTP 402 returns exact payment requirements.
+- Sign, retry with `X-PAYMENT`, and consume the structured response.
+- VM creation returns public status and save-once management URLs.
+- Optional accounts use generated handles and recovery credentials.
+- No-KYC ordering is available; operational service and payment records still apply.
 
 ## Products
 
@@ -68,10 +66,12 @@ _LLMS_TXT_PREAMBLE = """\
 - [For agents](https://hyrule.host/agents): the x402 golden path, the async
   VM contract (public status poll vs token-gated management URL), MCP server
   config, ClawHub skills, and the full price schedule.
-- [Order a VM](https://hyrule.host/order): single-page order flow.
-- [Transparency](https://hyrule.host/transparency): operator,
+- [Order a VM](https://hyrule.host/order): server-rendered durable quote flow.
+- [Service status](https://hyrule.host/status): current customer-impacting
+  health for API checkout, compute, intelligence, domains/DNS, and proxy.
+- [About](https://hyrule.host/transparency): operator,
   jurisdiction, host inventory, BGP peering, monitoring stack.
-- [FAQ](https://hyrule.host/faq): no-KYC details, recovery, IPv6 reachability.
+- [FAQ](https://hyrule.host/faq): integration, recovery, IPv6, and operations.
 - [Terms](https://hyrule.host/terms), [Privacy](https://hyrule.host/privacy),
   [Abuse](https://hyrule.host/abuse), [Legal](https://hyrule.host/legal):
   service rules, data handling, notice/action flow, contact points.
@@ -85,6 +85,7 @@ origin). Key URLs:
 - OpenAPI schema: https://cloud.hyrule.host/openapi.json
 - x402 service manifest: https://cloud.hyrule.host/.well-known/x402.json
 - VM catalog: https://cloud.hyrule.host/v1/products/vms
+- Service status: https://cloud.hyrule.host/v1/status
 - Price a durable order (POST): https://cloud.hyrule.host/v1/vm/quote
 - Provision a VM (POST, x402): https://cloud.hyrule.host/v1/vm/create
 - Check/register domains: https://cloud.hyrule.host/v1/domain/check
@@ -242,12 +243,13 @@ def build_llms_txt(
 
 
 # Paths that exist as FastAPI routes but should not be in the sitemap:
-# either non-navigable (API proxy, HTMX partials), per-user dynamic
+# either non-navigable (API proxy), per-user dynamic
 # (status pages), or POST-only (order review), or auth-gated surfaces.
 _SITEMAP_EXCLUDE = {
     "/dashboard",
     "/robots.txt",
     "/sitemap.xml",
+    "/order/status",
     # Auth surfaces are reachable but uninteresting to crawlers.
     "/logout",
 }

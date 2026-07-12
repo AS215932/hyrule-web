@@ -76,7 +76,7 @@ export default {
         container: "var(--container)",
       },
       fontFamily: {
-        // "RFC 215932" editorial trio (mirrors the CSS vars in legacy.css).
+        // Editorial type trio used across the technical, monochrome theme.
         mono: ["IBM Plex Mono", "JetBrains Mono", "monospace"],
         serif: ["Newsreader", "Iowan Old Style", "Georgia", "serif"],
         display: ["Fraunces", "Newsreader", "Georgia", "serif"],

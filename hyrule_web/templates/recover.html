@@ -34,8 +34,7 @@
             <code id="new-rec" class="block break-all rounded-[4px] bg-[#1a1a1a] p-2.5">{{ success.new_recovery_code }}</code>
         </div>
         <div class="mb-4 flex flex-wrap gap-2">
-            <button type="button" class="btn btn-secondary btn-xs"
-                    onclick="navigator.clipboard.writeText(document.getElementById('new-rec').textContent);this.textContent='copied';">
+            <button type="button" class="btn btn-secondary btn-xs" data-copy-target="new-rec">
                 copy
             </button>
             <a class="btn btn-ghost btn-xs"
@@ -81,3 +80,4 @@
     </div>
 </section>
 {% endblock %}
+{% block scripts %}{% if success %}{{ vite_asset('secrets') }}{% endif %}{% endblock %}

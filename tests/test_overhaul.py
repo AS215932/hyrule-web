@@ -39,8 +39,10 @@ def test_index_advertises_all_four_pillars(client: TestClient) -> None:
     assert "$0.05/day" in body  # compute min
     assert "$0.001/req" in body  # intel min
     assert "$6.00" in body  # domains min
-    # BCP 14 privacy stance is part of the brand copy.
-    assert "MUST NOT" in body
+    # Agent purchase flow replaces the old BCP14/RFC role-play.
+    assert "Discover. Pay. Provision." in body
+    assert "MUST NOT" not in body
+    assert "RFC 215932" not in body
 
 
 def test_tier_grid_uses_live_product_catalog(

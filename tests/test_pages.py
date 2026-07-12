@@ -128,10 +128,9 @@ def test_order_uses_api_data_when_present(
     assert 'name="domain_mode" value="custom"' in r.text
     assert 'name="domain"' in r.text
     assert 'inputmode="text"' in r.text
-    assert (
-        'name="domain" placeholder="example.com" inputmode="text" autocomplete="off" disabled'
-        in r.text
-    )
+    assert 'placeholder="example.com" inputmode="text" autocomplete="off"' in r.text
+    assert "data-order-form" not in r.text
+    assert "data-duration-chips" not in r.text
     assert "support-assisted beta" not in r.text
 
 
@@ -146,11 +145,12 @@ def test_order_falls_back_when_api_unreachable(
 def test_legal_pages_render(client: TestClient) -> None:
     for path, needle in (
         ("/terms", "Customer Responsibilities"),
-        ("/privacy", "No-KYC Model"),
+        ("/privacy", "Ordering Model"),
         ("/abuse", "Report Channels"),
         ("/legal", "Crypto Payment Posture"),
     ):
         r = client.get(path)
         _assert_html_with_canonical(r)
         assert needle in r.text
-        assert "abuse@as215932.net" in r.text
+        assert "support@hyrule.host" in r.text
+        assert "@as215932.net" not in r.text

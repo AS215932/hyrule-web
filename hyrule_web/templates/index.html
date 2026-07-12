@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Hyrule Cloud — full-stack infrastructure for agents, no KYC{% endblock %}
-{% block meta_description %}RFC 215932: bare VMs, domains & DNS, network intelligence, and anonymous egress on AS215932. Paid per request via x402. No email, no phone, no PII.{% endblock %}
+{% block title %}Hyrule Cloud — full-stack infrastructure for autonomous agents{% endblock %}
+{% block meta_description %}Agents can discover, pay for, and provision compute, domains, network intelligence, and egress through one x402-enabled API on AS215932.{% endblock %}
 
 {% block content %}
 {% set native_methods = native or [] %}
@@ -9,43 +9,32 @@
 {% set domains_min = (x402_resources | selectattr('group', 'equalto', 'domains') | map(attribute='min_price') | map('float') | list) %}
 {% set proxy_min = (x402_resources | selectattr('group', 'equalto', 'proxy') | map(attribute='min_price') | map('float') | list) %}
 
-{# ── the memo header — every RFC opens like this ─────────────────────────── #}
 <section class="container hero">
-    <div class="rfc-head" role="presentation">
-        <span>Network Working Group</span><span class="r">D. Hyrule</span>
-        <span>Request for Comments: <span class="hi">215932</span></span><span class="r">Hyrule Networks</span>
-        <span>Category: Informational</span><span class="r">AS215932</span>
-        <span>Obsoletes: KYC, sales calls</span><span class="r">Expires: never</span>
+    <div class="hero-context" aria-label="Platform context">
+        <span>hyrule.host</span>
+        <span>AS215932</span>
+        <span>IPv6-first</span>
+        <span>x402</span>
     </div>
-    <hr class="rule-double mt-3">
 
     <h1 class="rfc-title">Full-Stack Infrastructure for Autonomous Agents</h1>
 
-    <p class="rfc-abstract text-center"><strong>No email. No phone. No PII.</strong>
-    Hyrule Cloud provisions bare VMs, registers domains, answers network-intelligence
-    queries, and relays anonymous egress — each billed per request in USDC via
-    <a href="/agents">x402</a>. Humans pay at checkout; agents pay inline with an
-    <code>X-PAYMENT</code> header. Root SSH in about
-    {% if runtime and runtime.avg_provision_seconds %}{{ runtime.avg_provision_seconds }}{% else %}60{% endif %} seconds.</p>
+    <p class="rfc-abstract text-center">Agents can discover a service, satisfy x402, and receive infrastructure in one machine-readable flow. Provision compute, register domains, run network intelligence, or relay egress directly through the API. VM requests return a public status URL and a save-once management credential.</p>
 
     <div class="hero-actions justify-center mt-6">
-        <a href="/order" class="btn btn-primary btn-lg"><span>Deploy a VM</span> <span aria-hidden="true">→</span></a>
-        <a href="/services" class="btn btn-secondary btn-lg">Service catalog</a>
-        <a href="/agents" class="btn btn-ghost"><code>for agents →</code></a>
-    </div>
-
-    <div class="mt-6 text-center">
-        <span class="stamp">No KYC · ever</span>
+        <a href="/agents" class="btn btn-primary btn-lg">Integrate an agent <span aria-hidden="true">→</span></a>
+        <a href="/order" class="btn btn-secondary btn-lg">Deploy a VM</a>
+        <a href="/services" class="btn btn-ghost">Service catalog</a>
     </div>
 
     <div class="hero-stats mt-8">
         <div class="hero-stat">
             <span class="hero-stat-num">{% if runtime and runtime.avg_provision_seconds %}<em>~</em>{{ runtime.avg_provision_seconds }}s{% else %}<em>~</em>60s{% endif %}</span>
-            <span class="hero-stat-label">avg to root prompt</span>
+            <span class="hero-stat-label">request to root prompt</span>
         </div>
         <div class="hero-stat">
             <span class="hero-stat-num">$0.001<em>+</em></span>
-            <span class="hero-stat-label">cheapest paid request</span>
+            <span class="hero-stat-label">per paid request</span>
         </div>
         <div class="hero-stat">
             <span class="hero-stat-num">IPv6<em>+NAT64</em></span>
@@ -54,248 +43,190 @@
     </div>
 </section>
 
-{# ── 1. Service Catalog ──────────────────────────────────────────────────── #}
 <section class="container page-section">
     <div class="section-heading split">
         <div class="heading-main">
-            <span class="panel-label">1. service catalog</span>
-            <h2>Four services. One payment header.</h2>
+            <span class="panel-label">Service catalog</span>
+            <h2>Four services. One payment protocol.</h2>
         </div>
-        <div class="heading-side">Everything below is one API surface: pay per request in USDC on {{ (networks | map(attribute='display_name') | join(', ')) if networks else 'facilitator-verified EVM chains' }}{% if native_methods %} — or {{ native_methods | join(" / ") }} for VM checkout{% endif %}. Prices are read live from the <a href="https://cloud.hyrule.host/.well-known/x402.json">published manifest</a>.</div>
+        <div class="heading-side">Prices are read from the live <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a>. Agents and the browser checkout consume the same API contracts.</div>
     </div>
 
     <div class="figure mb-6">
-        <div class="dotlead"><span class="no">1.1</span><span><a href="/services#compute">Compute — bare IPv6-native VMs, root SSH</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(compute_min | min if compute_min else 0.05) }}/day</span></div>
-        <div class="dotlead mt-2"><span class="no">1.2</span><span><a href="/services#intel">Network intelligence — DNS, BGP, TLS, mail, more</a></span><span class="dl"></span><span class="v">from ${{ "%.3f"|format(intel_min | min if intel_min else 0.001) }}/req</span></div>
-        <div class="dotlead mt-2"><span class="no">1.3</span><span><a href="/services#domains">Domains &amp; DNS — registration, zones, records</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(domains_min | min if domains_min else 6.00) }}</span></div>
-        <div class="dotlead mt-2"><span class="no">1.4</span><span><a href="/services#proxy">Network proxy — Direct, Tor, I2P, Yggdrasil</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(proxy_min | min if proxy_min else 0.01) }}/req</span></div>
-        <span class="figcap"><b>Table 1.</b> Service groups and entry prices — live from the x402 manifest</span>
+        <div class="dotlead"><span class="no">01</span><span><a href="/services#compute">Compute — IPv6-native VMs with root SSH</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(compute_min | min if compute_min else 0.05) }}/day</span></div>
+        <div class="dotlead mt-2"><span class="no">02</span><span><a href="/services#intel">Network intelligence — DNS, BGP, TLS, mail, and more</a></span><span class="dl"></span><span class="v">from ${{ "%.3f"|format(intel_min | min if intel_min else 0.001) }}/req</span></div>
+        <div class="dotlead mt-2"><span class="no">03</span><span><a href="/services#domains">Domains &amp; DNS — registration, zones, and records</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(domains_min | min if domains_min else 6.00) }}</span></div>
+        <div class="dotlead mt-2"><span class="no">04</span><span><a href="/services#proxy">Network proxy — Direct, Tor, I2P, and Yggdrasil</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(proxy_min | min if proxy_min else 0.01) }}/req</span></div>
     </div>
 
     <div class="pillar-grid">
-        <div class="pillar-card">
-            <span class="sec">§ 1.1</span>
+        <article class="pillar-card">
+            <span class="sec">01</span>
             <h3>Compute</h3>
-            <p>Bare VMs with root SSH, global IPv6, NAT64/DNS64 for the legacy internet, and an automatic <code>deploy.hyrule.host</code> subdomain. You bring a public key; we hand you a machine.</p>
+            <p>Bare VMs with root SSH, global IPv6, NAT64/DNS64, and an automatic <code>deploy.hyrule.host</code> name. A successful purchase returns lifecycle URLs immediately.</p>
             <span class="from"><a href="/services#compute">specs →</a> <b>${{ "%.2f"|format(compute_min | min if compute_min else 0.05) }}/day</b></span>
-        </div>
-        <div class="pillar-card">
-            <span class="sec">§ 1.2</span>
+        </article>
+        <article class="pillar-card">
+            <span class="sec">02</span>
             <h3>Intelligence</h3>
-            <p>BGP and routing over AS215932's own tables plus RouteViews/RIPE RIS, DNS and DNSSEC, deep TLS grading, mail deliverability, ports, NAT, VoIP — diagnostic evidence, not summaries.</p>
+            <p>BGP, routing, DNSSEC, TLS, mail, ports, NAT, and VoIP diagnostics backed by AS215932 data plus external sources. Responses return evidence, not prose summaries.</p>
             <span class="from"><a href="/services#intel">endpoints →</a> <b>${{ "%.3f"|format(intel_min | min if intel_min else 0.001) }}+/req</b></span>
-        </div>
-        <div class="pillar-card">
-            <span class="sec">§ 1.3</span>
+        </article>
+        <article class="pillar-card">
+            <span class="sec">03</span>
             <h3>Domains &amp; DNS</h3>
-            <p>Real domain registration via Openprovider and authoritative DNS zones with record management — the missing piece between "agent built an app" and "app has a name".</p>
+            <p>Domain registration and authoritative DNS record management complete the path from agent-built application to a globally resolvable service.</p>
             <span class="from"><a href="/services#domains">details →</a> <b>${{ "%.2f"|format(domains_min | min if domains_min else 6.00) }}+</b></span>
-        </div>
-        <div class="pillar-card">
-            <span class="sec">§ 1.4</span>
+        </article>
+        <article class="pillar-card">
+            <span class="sec">04</span>
             <h3>Network proxy</h3>
-            <p>Outbound requests over Direct, Tor, I2P, or Yggdrasil, per request. Payment settles only when the response is delivered — failed relays are never charged.</p>
+            <p>Outbound requests over Direct, Tor, I2P, or Yggdrasil. Payment settles only when the request is accepted for execution.</p>
             <span class="from"><a href="/services#proxy">routes →</a> <b>${{ "%.2f"|format(proxy_min | min if proxy_min else 0.01) }}+/req</b></span>
+        </article>
+    </div>
+</section>
+
+<section class="container page-section agent-flow-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Machine purchase flow</span>
+            <h2>Discover. Pay. Provision.</h2>
+        </div>
+        <div class="heading-side">No sales workflow sits between an agent and the service. The protocol response contains the price, payment requirements, and result contract.</div>
+    </div>
+
+    <div class="steps steps-four">
+        <article class="step">
+            <span class="step-num">01</span>
+            <h3 class="step-title">Discover</h3>
+            <p class="step-body">Read the x402 manifest, OpenAPI document, <code>llms.txt</code>, or MCP tools.</p>
+            <div class="step-cmd"><span class="prompt">GET</span> /.well-known/x402.json</div>
+        </article>
+        <article class="step">
+            <span class="step-num">02</span>
+            <h3 class="step-title">Request</h3>
+            <p class="step-body">Call the resource normally. A <code>402</code> returns exact payment requirements.</p>
+            <div class="step-cmd"><span class="prompt">POST</span> /v1/vm/create</div>
+        </article>
+        <article class="step">
+            <span class="step-num">03</span>
+            <h3 class="step-title">Settle</h3>
+            <p class="step-body">Sign the authorization and retry with the payment header. Settlement is bound to the request.</p>
+            <div class="step-cmd"><span class="prompt">X-PAYMENT</span> eyJ…</div>
+        </article>
+        <article class="step">
+            <span class="step-num">04</span>
+            <h3 class="step-title">Consume</h3>
+            <p class="step-body">Receive structured output, including status and save-once management URLs for asynchronous work.</p>
+            <div class="step-cmd"><span class="prompt">200</span> { "status_url": "…" }</div>
+        </article>
+    </div>
+
+    <div class="api-preview mt-6">
+        <div class="api-side">
+            <h3>Payment and provisioning share one machine-readable flow.</h3>
+            <p>The website mirrors the public API. Anything a human can purchase here can be discovered and requested directly by software.</p>
+            <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
+            <div class="row"><span class="k">Payment</span><span><code>X-PAYMENT</code> · x402</span></div>
+            <div class="row"><span class="k">Settlement</span><span>{% if networks %}USDC · {{ networks | map(attribute='display_name') | join(' · ') }}{% else %}Live settlement rails unavailable{% endif %}</span></div>
+            <div class="row"><span class="k">Provisioning</span><span>asynchronous · public status URL</span></div>
+        </div>
+        <div class="api-code api-code-details">
+            <details open>
+                <summary>HTTP sequence</summary>
+                <pre><code>POST /v1/vm/create
+→ 402 + payment requirements
+
+POST /v1/vm/create
+X-PAYMENT: &lt;signed authorization&gt;
+→ 200 + status_url + management_url</code></pre>
+            </details>
+            <details>
+                <summary>Agent loop</summary>
+                <pre><code>response = request(resource)
+if response.status == 402:
+    proof = wallet.sign(response.payment)
+    response = retry(resource, proof)
+return response.json()</code></pre>
+            </details>
         </div>
     </div>
 </section>
 
-{# ── 2. Terminology ──────────────────────────────────────────────────────── #}
 <section class="container page-section">
     <div class="section-heading">
-        <span class="panel-label">2. terminology</span>
-        <h2>The key words in this document.</h2>
-    </div>
-    <div class="panel panel-tight">
-        <p class="muted" style="max-width: 72ch;">The key words <span class="kw">MUST</span>, <span class="kw">MUST NOT</span>, and
-        <span class="kw">MAY</span> in this document are to be interpreted as described in BCP&nbsp;14.
-        The operator <span class="kw">MUST NOT</span> ask who you are — there is no column in the schema
-        to write your email into. Payment <span class="kw">MUST</span> settle before provisioning; nothing
-        is invoiced, everything is prepaid. Failed paid work <span class="kw">MUST NOT</span> be charged.
-        Customers <span class="kw">MAY</span> be autonomous agents, and increasingly are.
-        Agents <span class="kw">MAY</span> be humans. We don't check. That's the point.</p>
-    </div>
-</section>
-
-{# ── 3. Provisioning Flow ────────────────────────────────────────────────── #}
-<section class="container page-section">
-    <div class="section-heading">
-        <span class="panel-label">3. provisioning flow</span>
-        <h2>Three steps from blank page to SSH prompt.</h2>
-    </div>
-    <div class="steps">
-        <div class="step">
-            <span class="step-num">3.1</span>
-            <h3 class="step-title">Choose your image</h3>
-            <p class="step-body">Select OS template, server size, and runtime. Hostname and domain are optional.</p>
-            <div class="step-cmd"><span class="prompt">$</span> srv plan --size sm --days 30</div>
-        </div>
-        <div class="step">
-            <span class="step-num">3.2</span>
-            <h3 class="step-title">Pay your way</h3>
-            <p class="step-body">USDC via x402 with a gasless signature{% if native_methods %}, or send {{ native_methods | join(" / ") }} to a one-time deposit address{% endif %}. Enabled rails come from the API.</p>
-            <div class="step-cmd"><span class="prompt">↪</span> wallet.sign(eip3009){% if native_methods %} · native intent{% endif %}</div>
-        </div>
-        <div class="step">
-            <span class="step-num">3.3</span>
-            <h3 class="step-title">Save your one-time URL</h3>
-            <p class="step-body">Anon orders return a save-once management link. Want a dashboard? Sign up with a random handle — still no email.</p>
-            <div class="step-cmd"><span class="prompt">▸</span> /order/manage/vm_…?token=hyr_vm_…</div>
-        </div>
-    </div>
-</section>
-
-{# ── 4. Network Considerations ───────────────────────────────────────────── #}
-<section class="container page-section">
-    <div class="section-heading">
-        <span class="panel-label">4. network considerations</span>
-        <h2>We run our own ASN. Not a reseller.</h2>
+        <span class="panel-label">Network foundation</span>
+        <h2>First-party infrastructure on AS215932.</h2>
     </div>
     <div class="feature-grid">
-        <div class="feature-card">
-            <span class="num">4.1</span>
-            <h3>Our own ASN</h3>
-            <p>AS215932 on RIPE. Prefix <code>2a0c:b641:b50::/44</code>. Transit via AS34872 + AS210233. Routing policy lives in this same repo.</p>
-        </div>
-        <div class="feature-card">
-            <span class="num">4.2</span>
+        <article class="feature-card">
+            <span class="num">01</span>
+            <h3>Independent ASN</h3>
+            <p>AS215932 on RIPE, with an IPv6 allocation and routing policy operated alongside the services it carries.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">02</span>
             <h3>IPv6-native + NAT64</h3>
-            <p>Every VM gets a routable /128 inside <code>2a0c:b641:b51::/48</code>. NAT64 + DNS64 on rtr reaches IPv4 destinations transparently.</p>
-        </div>
-        <div class="feature-card">
-            <span class="num">4.3</span>
-            <h3>Boring open stack</h3>
-            <p>FRR, Knot, XCP-NG, Caddy, OpenBSD, nftables, WireGuard, Prometheus, Vault. No proprietary control plane. <a href="/transparency">See the inventory →</a></p>
-        </div>
-        <div class="feature-card">
-            <span class="num">4.4</span>
-            <h3>Crypto-native, no KYC</h3>
-            <p>USDC on facilitator-verified chains{% if native_methods %}, plus {{ native_methods | join(" and ") }}{% endif %}. Payment rails are fetched from the backend at order time and never hardcoded in the UI.</p>
-        </div>
-        <div class="feature-card">
-            <span class="num">4.5</span>
-            <h3>x402 for agents</h3>
-            <p>The API ships a `/.well-known/x402.json` manifest. Agents can discover, price, and pay per-call. <code>POST /v1/vm/create</code> with an `X-Payment` header is the whole flow. <a href="/agents">Read §agents →</a></p>
-        </div>
-        <div class="feature-card">
-            <span class="num">4.6</span>
-            <h3>Solo-operated, transparent</h3>
-            <p>One operator in NL, compute in OVH FR, routing across Servperso NL+DE. Every config is in a public-shaped repo. <a href="/faq">Read the FAQ →</a></p>
-        </div>
+            <p>Every VM receives globally routed IPv6. NAT64 and DNS64 provide transparent access to IPv4 destinations.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">03</span>
+            <h3>Open operational stack</h3>
+            <p>FRR, Knot, XCP-NG, Caddy, OpenBSD, WireGuard, Prometheus, and Vault. <a href="/transparency">Inspect the platform →</a></p>
+        </article>
+        <article class="feature-card">
+            <span class="num">04</span>
+            <h3>Observable service health</h3>
+            <p>Customer-impacting monitoring is published through the header status control and <a href="/status">service status page</a>.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">05</span>
+            <h3>x402-native</h3>
+            <p>Agents discover a price and satisfy it inline. No separate billing API or manual account approval is required.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">06</span>
+            <h3>Machine-readable lifecycle</h3>
+            <p>Quotes, payments, provisioning, DNS, and management return stable identifiers and structured status.</p>
+        </article>
     </div>
 </section>
 
-{# ── 5. Compute at a Glance ──────────────────────────────────────────────── #}
 <section class="container page-section">
     <div class="section-heading split">
         <div class="heading-main">
-            <span class="panel-label">5. compute at a glance</span>
-            <h2>Pick the footprint and keep moving.</h2>
+            <span class="panel-label">Compute</span>
+            <h2>Small footprints, direct provisioning.</h2>
         </div>
-        <div class="heading-side">
-            All prices are in USD, billed daily, specs read live from the API. Pay USDC ({{ (networks | map(attribute='display_name') | join(', ')) if networks else 'facilitator-verified EVM chains' }}){% if native_methods %} or {{ native_methods | join(" / ") }}{% endif %} at checkout. No account required.
-        </div>
+        <div class="heading-side">Specs and prices come from the live product API. Runtime is prepaid by day and can be extended later.</div>
     </div>
     {% include "_tier_grid.html" %}
 </section>
 
-{# ── 6. Programmatic Access ──────────────────────────────────────────────── #}
 <section class="container page-section">
-    <div class="section-heading">
-        <span class="panel-label">6. programmatic access</span>
-        <h2>The same flow, callable.</h2>
-    </div>
-    <div class="api-preview">
-        <div class="api-side">
-            <h3>x402 + multi-rail crypto. No KYC, no API tickets to file.</h3>
-            <p>The website mirrors the public API. Anything you can click here, an agent can POST.</p>
-            <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
-            <div class="row"><span class="k">Auth</span><span><code>X-Payment</code> · x402 (EVM) or scoped API key (D)</span></div>
-            <div class="row"><span class="k">Settlement</span><span>USDC · {{ (networks | map(attribute='display_name') | join(' · ')) if networks else 'EVM' }} · gasless</span></div>
-            <div class="row"><span class="k">Latency</span><span>p50 {% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %} <small class="text-text-soft">· per-worker</small></span></div>
-        </div>
-        <div class="api-code" data-api-tabs>
-            <div class="api-code-tabs">
-                <button class="api-code-tab" data-active="true" data-tab="curl">curl</button>
-                <button class="api-code-tab" data-tab="js">js</button>
-                <button class="api-code-tab" data-tab="py">py</button>
-            </div>
-            <div data-tab-panel="curl">
-                <div><span class="pcom"># deploy in one shot</span></div>
-                <div><span class="pmeth">curl</span> <span class="ppath">https://cloud.hyrule.host/v1/vm/create</span> \</div>
-                <div>&nbsp;&nbsp;-H <span class="pstr">"X-Payment: $(srv pay 3.00 --base usdc)"</span> \</div>
-                <div>&nbsp;&nbsp;-d <span class="pstr">'{"size":"sm","duration_days":30,"os":"debian-13","ssh_pubkey":"…"}'</span></div>
-            </div>
-            <div data-tab-panel="js" hidden>
-                <div><span class="pcom">// agent-friendly TS client</span></div>
-                <div><span class="pmeth">await</span> hyrule.<span class="ppath">vm.create</span>({</div>
-                <div>&nbsp;&nbsp;<span class="pkey">size</span>: <span class="pstr">'sm'</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">duration_days</span>: <span class="pnum">30</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">os</span>: <span class="pstr">'debian-13'</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">ssh_pubkey</span>: pubkey,</div>
-                <div>}, { signer });</div>
-            </div>
-            <div data-tab-panel="py" hidden>
-                <div><span class="pcom"># python — same call</span></div>
-                <div><span class="pmeth">vm</span> = hyrule.vm.create(</div>
-                <div>&nbsp;&nbsp;<span class="pkey">size</span>=<span class="pstr">"sm"</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">duration_days</span>=<span class="pnum">30</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">os</span>=<span class="pstr">"debian-13"</span>,</div>
-                <div>&nbsp;&nbsp;<span class="pkey">ssh_pubkey</span>=key,</div>
-                <div>)</div>
-            </div>
-        </div>
-    </div>
-</section>
-
-{# ── Appendix A. Example Session ─────────────────────────────────────────── #}
-<section class="container page-section">
-    <div class="section-heading">
-        <span class="panel-label">appendix a</span>
-        <h2>Example session.</h2>
-    </div>
-    <div class="hero-grid">
+    <div class="runtime-panel">
         <div>
-            <div class="terminal">
-                <div class="terminal-bar">
-                    <span class="terminal-dots"><i></i><i></i><i></i></span>
-                    <span class="terminal-title">srv@hyrule  ~  deploy</span>
-                    <span class="terminal-tag">[ live ]</span>
-                </div>
-                <div class="terminal-body">
-                    <div class="t-line"><span class="prompt">$</span><span class="output">srv deploy --size sm --os debian-13 --days 30</span></div>
-                    <div class="t-line"><span class="prompt">·</span><span class="output">tier <span class="val">Basic</span> · 1 vCPU · 1 GB · 20 GB SSD</span></div>
-                    <div class="t-line"><span class="prompt">·</span><span class="output">price <span class="val">$0.10/day</span> × 30 = <span class="val">$3.00 USDC</span></span></div>
-                    <div class="t-line"><span class="prompt">·</span><span class="output">awaiting wallet signature…</span></div>
-                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">x402 settled · gas covered</span></div>
-                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">vm-7c4a provisioning</span></div>
-                    <div class="t-line"><span class="prompt">✓</span><span class="output ok">ipv6 2a0c:b641:b51:7c4a::1</span></div>
-                    <div class="t-line t-cursor"><span class="prompt">$</span><span class="output">ssh root@vm-7c4a.deploy.hyrule.host</span></div>
-                </div>
-            </div>
-            <span class="figcap"><b>Figure 1.</b> A paid deploy, end to end — settlement to SSH</span>
+            <span class="panel-label">Runtime snapshot</span>
+            <h2>Live control-plane signals.</h2>
         </div>
-        <div class="hero-side">
-            <div class="mini-card">
-                <h4>runtime snapshot <small class="font-normal text-text-soft">· {{ runtime.api_p50_source if runtime else "fallback" }}</small></h4>
-                <div class="row"><span class="k">api p50</span><span class="v">{% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %}</span></div>
-                <div class="row"><span class="k">build queue</span><span class="v">{% if runtime and runtime.build_queue is not none %}{{ runtime.build_queue }} jobs{% else %}—{% endif %}</span></div>
-                <div class="row"><span class="k">avg provision</span><span class="v">{% if runtime and runtime.avg_provision_seconds is not none %}{{ runtime.avg_provision_seconds }}s{% else %}—{% endif %}</span></div>
-                <div class="row"><span class="k">live machines</span><span class="v">{% if runtime and runtime.live_vms is not none %}{{ "{:,}".format(runtime.live_vms) }}{% else %}—{% endif %}</span></div>
-            </div>
+        <div class="runtime-metrics">
+            <div><span>API p50</span><strong>{% if runtime and runtime.api_p50_ms is not none %}{{ runtime.api_p50_ms }}ms{% else %}—{% endif %}</strong></div>
+            <div><span>Build queue</span><strong>{% if runtime and runtime.build_queue is not none %}{{ runtime.build_queue }}{% else %}—{% endif %}</strong></div>
+            <div><span>Average provision</span><strong>{% if runtime and runtime.avg_provision_seconds is not none %}{{ runtime.avg_provision_seconds }}s{% else %}—{% endif %}</strong></div>
+            <div><span>Live machines</span><strong>{% if runtime and runtime.live_vms is not none %}{{ "{:,}".format(runtime.live_vms) }}{% else %}—{% endif %}</strong></div>
         </div>
     </div>
 </section>
 
-{# ── colophon CTA ────────────────────────────────────────────────────────── #}
 <section class="container page-section">
     <div class="cta">
-        <span class="panel-label">deploy now</span>
-        <h2>Bring an SSH key and a wallet. That's it.</h2>
-        <p>No email confirmation. No KYC form. No business plan. Hyrule Cloud handles provisioning, DNS, gas — you get root.</p>
+        <span class="panel-label">Start from code</span>
+        <h2>Infrastructure your agent can purchase itself.</h2>
+        <p>Use x402 to discover price, settle payment, and receive the service response through the same API flow.</p>
         <div class="cta-actions">
-            <a href="/order" class="btn btn-primary btn-lg">Start an order</a>
-            <a href="/agents" class="btn btn-secondary btn-lg">Integrate an agent</a>
+            <a href="/agents" class="btn btn-primary btn-lg">Read the agent integration</a>
+            <a href="/order" class="btn btn-secondary btn-lg">Open human checkout</a>
         </div>
     </div>
 </section>

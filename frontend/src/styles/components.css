@@ -1,17 +1,15 @@
 /*
- * Component layer — "RFC 215932" editorial theme.
+ * Component layer — monochrome technical editorial theme.
  *
  * The cross-cutting, shared components, restyled as pieces of a typeset
- * internet-draft: buttons as letterpress blocks, panels as bright paper
- * plates, the header as a running head over a double rule, the command
- * palette as an index card, cards ruled like spec tables. Selectors and
+ * document: buttons as compact controls, panels as structured surfaces,
+ * and cards ruled like technical tables. Selectors and
  * geometry are unchanged from the previous theme so every template
  * inherits the retheme without markup churn; only the visual language
- * moved from dark/terminal to paper/ink/rubrication-red.
+ * now follows the black/grey/white Hylian Shield system.
  *
- * New in this theme (bottom of file): the RFC vocabulary — .rfc-head,
- * .rfc-title, .dotlead, .figure/.figcap, .stamp, .kw — used by the
- * homepage, services, and agents templates.
+ * Editorial helpers such as .rfc-title (legacy class name), .dotlead, and
+ * .figure/.figcap remain for the useful document structure.
  */
 @layer components {
   /* ── reusable surfaces + utility text ──────────────────────────────────── */
@@ -89,17 +87,17 @@
     text-transform: uppercase;
     transition: var(--transition);
     white-space: nowrap;
-    box-shadow: 2px 2px 0 rgb(29 24 15 / 20%);
+    box-shadow: 2px 2px 0 rgb(255 255 255 / 20%);
   }
 
   .btn:hover {
     transform: translate(-1px, -1px);
-    box-shadow: 3px 3px 0 rgb(29 24 15 / 26%);
+    box-shadow: 3px 3px 0 rgb(255 255 255 / 26%);
   }
 
   .btn:active {
     transform: translate(1px, 1px);
-    box-shadow: 0 0 0 rgb(29 24 15 / 20%);
+    box-shadow: 0 0 0 rgb(255 255 255 / 20%);
   }
 
   .btn:disabled {
@@ -173,7 +171,7 @@
     position: sticky;
     top: 0;
     z-index: 30;
-    background: rgb(247 242 233 / 92%);
+    background: rgb(5 5 5 / 92%);
     backdrop-filter: saturate(120%) blur(10px);
     border-bottom: 3px double var(--line-bright);
   }
@@ -201,7 +199,7 @@
     border-radius: var(--radius-sm);
     background: var(--line-bright);
     border: 1px solid var(--line-bright);
-    color: #f5f0e6;
+    color: #050505;
     font-size: 0.92rem;
     letter-spacing: 0.04em;
     position: relative;
@@ -272,13 +270,13 @@
 
   .site-nav a:hover {
     color: var(--text);
-    background: rgb(29 24 15 / 5%);
+    background: rgb(255 255 255 / 5%);
   }
 
   .site-nav a[aria-current="page"] {
     color: var(--accent-strong);
     background: var(--accent-soft);
-    border-color: rgb(176 43 24 / 30%);
+    border-color: rgb(255 255 255 / 30%);
   }
 
   .site-nav a .nav-num {
@@ -295,35 +293,6 @@
     align-items: center;
     gap: 8px;
     justify-content: flex-end;
-  }
-
-  .cmdk-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 34px;
-    padding: 0 10px 0 12px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--radius-sm);
-    background: var(--panel);
-    color: var(--text-soft);
-    font-family: var(--font-mono);
-    font-size: 0.76rem;
-    cursor: pointer;
-    transition: var(--transition);
-  }
-
-  .cmdk-trigger:hover {
-    border-color: var(--accent);
-    color: var(--text);
-  }
-
-  .cmdk-trigger .cmdk-glyph {
-    color: var(--accent);
-  }
-
-  .cmdk-trigger kbd {
-    margin-left: 6px;
   }
 
   .status-pill {
@@ -373,145 +342,6 @@
     content: "·";
     color: var(--accent);
     font-weight: 700;
-  }
-
-  /* ── command palette — an index card ───────────────────────────────────── */
-  .cmdk-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
-    background: rgb(60 48 24 / 32%);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: flex-start;
-    justify-content: center;
-    padding-top: 12vh;
-    animation: fade-in 140ms ease;
-  }
-
-  .cmdk-overlay[hidden] {
-    display: none !important;
-  }
-
-  .cmdk-modal {
-    width: min(640px, calc(100% - 32px));
-    background: var(--panel-strong);
-    border: 1.5px solid var(--line-bright);
-    border-radius: var(--radius);
-    box-shadow:
-      6px 6px 0 rgb(29 24 15 / 16%),
-      0 30px 80px rgb(74 58 30 / 25%);
-    overflow: hidden;
-    animation: rise 160ms cubic-bezier(0.3, 0.7, 0.4, 1);
-  }
-
-  .cmdk-input-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .cmdk-prompt {
-    color: var(--accent);
-    font-family: var(--font-mono);
-    font-size: 0.95rem;
-  }
-
-  .cmdk-input {
-    flex: 1;
-    background: transparent;
-    border: 0;
-    outline: none;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: 0.95rem;
-    caret-color: var(--accent);
-  }
-
-  .cmdk-esc {
-    color: var(--text-soft);
-    font-family: var(--font-mono);
-    font-size: 0.74rem;
-  }
-
-  .cmdk-list {
-    max-height: 50vh;
-    overflow-y: auto;
-    padding: 6px 0;
-  }
-
-  .cmdk-section {
-    padding: 10px 16px 4px;
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-
-  .cmdk-row {
-    display: grid;
-    grid-template-columns: 24px 1fr auto;
-    gap: 12px;
-    padding: 8px 16px;
-    cursor: pointer;
-    align-items: center;
-  }
-
-  .cmdk-row[data-active="true"] {
-    background: var(--accent-soft);
-    border-left: 2px solid var(--accent);
-    padding-left: 14px;
-  }
-
-  .cmdk-row:hover {
-    background: rgb(29 24 15 / 4%);
-  }
-
-  .cmdk-row .cmdk-icon {
-    color: var(--accent);
-    font-family: var(--font-mono);
-  }
-
-  .cmdk-row .cmdk-meta {
-    color: var(--text-soft);
-    font-family: var(--font-mono);
-    font-size: 0.74rem;
-  }
-
-  .cmdk-row .cmdk-title {
-    color: var(--text);
-    font-size: 0.9rem;
-  }
-
-  .cmdk-row .cmdk-sub {
-    color: var(--text-soft);
-    font-family: var(--font-mono);
-    font-size: 0.74rem;
-  }
-
-  .cmdk-empty {
-    padding: 30px 16px;
-    text-align: center;
-    color: var(--text-soft);
-    font-size: 0.85rem;
-  }
-
-  .cmdk-foot {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 16px;
-    border-top: 1px solid var(--line);
-    color: var(--text-soft);
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-  }
-
-  .cmdk-foot kbd {
-    font-size: 0.66rem;
   }
 
   /* ── cards ─────────────────────────────────────────────────────────────── */
@@ -833,7 +663,7 @@
     font-size: 0.8rem;
   }
 
-  /* ── footer — the Author's Address block ───────────────────────────────── */
+  /* ── footer ────────────────────────────────────────────────────────────── */
   .site-footer {
     margin-top: 60px;
     padding: 28px 0 36px;
@@ -889,124 +719,9 @@
     letter-spacing: 0.06em;
   }
 
-  /* ── mobile nav drawer ─────────────────────────────────────────────────── */
-  .nav-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    color: var(--text-muted);
-    background: var(--panel);
-    border: 1px solid var(--line-2);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    transition: var(--transition);
-  }
+  /* ── editorial vocabulary ─────────────────────────────────────────────── */
 
-  .nav-toggle:hover {
-    color: var(--text);
-    border-color: var(--line-bright);
-  }
-
-  .mobile-nav-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 80;
-    background: rgb(60 48 24 / 32%);
-    backdrop-filter: blur(2px);
-    animation: fade-in 140ms ease;
-  }
-
-  .mobile-nav {
-    position: fixed;
-    inset: 0 0 0 auto;
-    z-index: 90;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    width: min(86vw, 320px);
-    padding: 1rem;
-    overflow-y: auto;
-    background: var(--panel-strong);
-    border-left: 1.5px solid var(--line-bright);
-    box-shadow: var(--shadow-1);
-  }
-
-  .mobile-nav-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .mobile-nav-title {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-soft);
-  }
-
-  .mobile-nav-close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    color: var(--text-muted);
-    background: transparent;
-    border: 0;
-    cursor: pointer;
-  }
-
-  .mobile-nav-close:hover {
-    color: var(--text);
-  }
-
-  .mobile-nav-links {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .mobile-nav-links a {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 44px;
-    padding: 0.5rem 0.25rem;
-    color: var(--text-muted);
-    text-decoration: none;
-    border-bottom: 1px solid var(--line);
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-  }
-
-  .mobile-nav-links a:hover {
-    color: var(--text);
-  }
-
-  .mobile-nav-links a[aria-current="page"] {
-    color: var(--accent);
-  }
-
-  .mobile-nav-links .nav-num {
-    font-size: 0.7rem;
-    color: var(--text-dim);
-  }
-
-  .nav-toggle[hidden],
-  .mobile-nav[hidden],
-  .mobile-nav-backdrop[hidden] {
-    display: none;
-  }
-
-  /* ── RFC vocabulary ────────────────────────────────────────────────────── */
-
-  /* the memo header: left/right metadata columns, mono, like an I-D's
-     first lines ("Network Working Group … D. Hyrule") */
+  /* legacy metadata-grid helper retained for secondary pages */
   .rfc-head {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -1135,7 +850,7 @@
     color: var(--ok);
   }
 
-  /* BCP 14 keywords — MUST, MUST NOT, MAY — set in red small caps */
+  /* legacy keyword helper */
   .kw {
     color: var(--accent);
     font-family: var(--font-mono);
@@ -1144,7 +859,7 @@
     letter-spacing: 0.06em;
   }
 
-  /* spec table: mono, ruled like an RFC's ASCII table but typeset */
+  /* spec table: compact mono rows with strong visual alignment */
   .spec-table {
     width: 100%;
     border-collapse: collapse;
@@ -1274,12 +989,6 @@
 
     .header-marquee {
       display: flex;
-    }
-
-    .nav-toggle,
-    .mobile-nav,
-    .mobile-nav-backdrop {
-      display: none;
     }
 
     .feature-grid,

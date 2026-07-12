@@ -1,5 +1,5 @@
 /*
- * Slim base layer — "RFC 215932" editorial theme.
+ * Slim base layer — monochrome editorial theme.
  *
  * Document-level foundation: warm-paper page, ink typography (Newsreader
  * prose, Fraunces display, IBM Plex Mono for technical matter), the
@@ -7,10 +7,8 @@
  * these must keep working), links, code/kbd, focus rings, keyframes,
  * reduced-motion, and the nav scroll-lock.
  *
- * The conceit: the whole site reads like a beautifully-typeset
- * internet-draft. Paper, ink, and one rubrication red. Ornaments mode adds
- * the paper grain and the proof-margin rule; switching it off leaves clean
- * white-room paper.
+ * The site keeps a typeset technical-document rhythm while using a black,
+ * grey, and white palette. Optional ornaments remain disabled in production.
  */
 @layer base {
   *,
@@ -28,9 +26,9 @@
     margin: 0;
     min-height: 100vh;
     background:
-      radial-gradient(circle at 90% -10%, rgb(176 43 24 / 4%), transparent 34%),
-      radial-gradient(circle at 0% 0%, rgb(255 255 255 / 55%), transparent 30%),
-      linear-gradient(180deg, #f7f2e9 0%, #f3edde 100%);
+      radial-gradient(circle at 90% -10%, rgb(255 255 255 / 5%), transparent 34%),
+      radial-gradient(circle at 0% 0%, rgb(255 255 255 / 3%), transparent 30%),
+      linear-gradient(180deg, #080809 0%, #050505 100%);
     background-attachment: fixed;
     color: var(--text);
     font-family: var(--font-body);
@@ -78,7 +76,7 @@
     inset: 0 auto 0 clamp(16px, 4vw, 56px);
     width: 1px;
     pointer-events: none;
-    background: rgb(176 43 24 / 22%);
+    background: rgb(255 255 255 / 22%);
     z-index: 0;
   }
 
@@ -123,7 +121,7 @@
   a {
     color: inherit;
     text-decoration: underline;
-    text-decoration-color: rgb(176 43 24 / 38%);
+    text-decoration-color: rgb(255 255 255 / 35%);
     text-decoration-thickness: 1px;
     text-underline-offset: 0.22em;
     transition:
@@ -145,8 +143,7 @@
   .btn,
   .brand,
   .footer-col a,
-  .tier-card a,
-  .cmdk-row {
+  .tier-card a {
     text-decoration: none;
   }
 
@@ -207,8 +204,8 @@
   }
 
   code {
-    background: rgb(29 24 15 / 5%);
-    border: 1px solid rgb(29 24 15 / 12%);
+    background: rgb(255 255 255 / 6%);
+    border: 1px solid rgb(255 255 255 / 13%);
     border-radius: 3px;
     padding: 0.05rem 0.4rem;
     color: var(--text);
@@ -220,7 +217,7 @@
     justify-content: center;
     min-width: 1.5em;
     padding: 0.05rem 0.4rem;
-    border: 1px solid rgb(29 24 15 / 22%);
+    border: 1px solid rgb(255 255 255 / 22%);
     border-bottom-width: 2px;
     border-radius: 3px;
     background: var(--panel);
@@ -243,7 +240,7 @@
   }
 
   ::selection {
-    background: rgb(176 43 24 / 16%);
+    background: rgb(255 255 255 / 20%);
   }
 
   .container {

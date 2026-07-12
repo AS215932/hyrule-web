@@ -80,7 +80,7 @@ function newClientOrderId(): string {
     .join("");
 }
 
-function gatherOrderPayload(formEl: HTMLFormElement): Record<string, unknown> {
+export function gatherOrderPayload(formEl: HTMLFormElement): Record<string, unknown> {
   const fd = new FormData(formEl);
   const payload: Record<string, unknown> = {
     os: fd.get("os"),
@@ -93,7 +93,18 @@ function gatherOrderPayload(formEl: HTMLFormElement): Record<string, unknown> {
   if (fd.get("domain") && fd.get("domain_mode") === "custom") {
     payload.domain = fd.get("domain");
   }
+  const quoteId = fd.get("quote_id");
+  if (quoteId) payload.quote_id = quoteId;
   return payload;
+}
+
+export function intentClientOrderStorageKey(
+  asset: string,
+  orderPayload: Record<string, unknown>,
+): string {
+  const quoteId = orderPayload.quote_id;
+  const orderScope = typeof quoteId === "string" && quoteId ? quoteId : "legacy";
+  return "hyr_intent_client_order_id:" + asset + ":" + orderScope;
 }
 
 interface IntentBody {
@@ -280,9 +291,10 @@ async function pay(asset: string, opts: NativePayOptions): Promise<void> {
     throw new Error("HyrulePaymentNative.pay: render + orderForm required");
   }
 
-  // Idempotent intent creation: a per-asset client_order_id is stashed so a
-  // reload doesn't allocate a fresh deposit.
-  const stashKey = "hyr_intent_client_order_id:" + asset;
+  const orderPayload = gatherOrderPayload(orderForm);
+  // Idempotent intent creation is scoped to the durable quote. A reload of the
+  // same quote reuses its deposit; a later order cannot recover an old intent.
+  const stashKey = intentClientOrderStorageKey(asset, orderPayload);
   let clientOrderId = sessionStorage.getItem(stashKey);
   if (!clientOrderId) {
     clientOrderId = newClientOrderId();
@@ -296,7 +308,7 @@ async function pay(asset: string, opts: NativePayOptions): Promise<void> {
     body: JSON.stringify({
       asset,
       client_order_id: clientOrderId,
-      order_payload: gatherOrderPayload(orderForm),
+      order_payload: orderPayload,
     }),
   });
   if (!createResp.ok) {

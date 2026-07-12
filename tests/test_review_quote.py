@@ -47,6 +47,52 @@ def test_review_renders_from_durable_quote(
     assert 'name="quote_id" value="q_test123"' in body
 
 
+def test_review_uses_backend_locked_amount_not_frontend_catalog(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    quote = _quote()
+    quote["amount_usd"] = "9.73"
+    mocked_api.get("/v1/vm/quote/q_locked").mock(
+        return_value=httpx.Response(200, json=quote)
+    )
+
+    body = client.get("/order/review/q_locked").text
+
+    assert "$9.73" in body
+    assert "Pay $9.73 with wallet" in body
+
+
+def test_review_survives_when_quoted_tier_leaves_live_catalog(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xl",
+                        "name": "Agent XL",
+                        "vcpu": 8,
+                        "ram_mb": 8192,
+                        "disk_gb": 160,
+                        "price_usd_day": "0.80",
+                    }
+                ]
+            },
+        )
+    )
+    mocked_api.get("/v1/vm/quote/q_retired").mock(
+        return_value=httpx.Response(200, json=_quote())
+    )
+
+    response = client.get("/order/review/q_retired")
+
+    assert response.status_code == 200
+    assert "Basic" in response.text
+    assert "$1.40" in response.text
+
+
 def test_review_unknown_quote_redirects_to_order(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

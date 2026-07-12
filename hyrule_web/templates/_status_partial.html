@@ -8,11 +8,7 @@
 {% set card_cls = 'ok' if is_provisioned else ('error' if is_failed or is_rolled_back else 'pending') %}
 
 <div id="status-card" class="status-card {{ card_cls }}"
-     data-vm-id="{{ vm_id }}"
-     hx-get="/order/status/{{ vm_id }}/partial"
-     hx-trigger="every 2s"
-     hx-swap="outerHTML"
-     {% if is_provisioned or is_failed or is_rolled_back %}hx-disable="true"{% endif %}>
+     data-vm-id="{{ vm_id }}" data-status="{{ vm.status if vm else 'provisioning' }}">
     <div class="status-row">
         <span class="status-dot"></span>
         <span class="status-label">{{ label }}</span>

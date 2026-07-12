@@ -129,7 +129,7 @@ def test_robots_txt_contains_sitemap_pointer_and_agent_allowlist() -> None:
     for ua in ("ClaudeBot", "OAI-SearchBot", "GPTBot", "Google-Extended", "PerplexityBot"):
         assert ua in ROBOTS_TXT
     assert "Disallow: /api/" in ROBOTS_TXT
-    assert "Disallow: /partials/" in ROBOTS_TXT
+    assert "/partials/" not in ROBOTS_TXT
 
 
 def test_llms_txt_is_markdown_with_required_sections() -> None:

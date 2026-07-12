@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import time
 import urllib.parse
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any
@@ -85,10 +87,10 @@ _DIST_DIR = BASE_DIR / "static" / "dist"
 _VITE_MANIFEST_PATH = _DIST_DIR / ".vite" / "manifest.json"
 # Friendly entry aliases → manifest keys (the Vite rollup input paths).
 _VITE_ENTRIES = {
-    "main": "frontend/src/main.ts",
-    "order": "frontend/src/order.ts",
+    "styles": "frontend/src/styles/app.css",
     "payment": "frontend/src/payment.ts",
     "status": "frontend/src/status.ts",
+    "secrets": "frontend/src/secret-copy.ts",
 }
 
 
@@ -138,13 +140,46 @@ def vite_asset(entry: str) -> Markup:
 templates.env.globals["vite_asset"] = vite_asset
 
 
-# Block B: frontend-side 15s cache so per-page renders never hit the backend
-# in a hot loop. The backend already caches /v1/stats/runtime at 20s; we stack
-# a smaller TTL here so the header pill stays responsive even if the backend
-# is briefly unavailable (the previous value lingers as a stale-on-error
-# fallback).
+def vite_styles(entry: str = "styles") -> Markup:
+    """Render a Vite CSS entry without adding an executable module script."""
+    key = _VITE_ENTRIES.get(entry, entry)
+    if settings.debug and settings.vite_dev_server:
+        base = settings.vite_dev_server.rstrip("/")
+        return Markup(f'<link rel="stylesheet" href="{base}/{key}">')
+
+    chunk = _vite_manifest().get(key)
+    if not chunk:
+        return Markup("")
+    files: list[str] = []
+    output = chunk.get("file")
+    if isinstance(output, str) and output.endswith(".css"):
+        files.append(output)
+    files.extend(css for css in chunk.get("css", []) if isinstance(css, str))
+    return Markup(
+        "\n".join(
+            f'<link rel="stylesheet" href="/static/dist/{path}">' for path in dict.fromkeys(files)
+        )
+    )
+
+
+templates.env.globals["vite_styles"] = vite_styles
+
+
+# Block B: frontend-side 15s cache for the homepage runtime panel. The backend
+# already caches /v1/stats/runtime at 20s; the previous value lingers as a
+# stale-on-error fallback when the backend is briefly unavailable.
 _RUNTIME_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _RUNTIME_TTL_SECONDS = 15
+# Customer-facing aggregate health from hyrule-cloud's curated /v1/status
+# contract. The header is server-rendered, so every informational page remains
+# useful with JavaScript disabled.
+_SERVICE_STATUS_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "successful_at": 0.0,
+}
+_SERVICE_STATUS_TTL_SECONDS = 15
+_SERVICE_STATUS_STALE_SECONDS = 120
 # Block H (Wave 5/6): fleet stats for /transparency. Longer TTL — these move
 # slowly and the backend already caches /v1/stats/network for 30s.
 _NETWORK_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
@@ -168,9 +203,153 @@ _MANIFEST_TTL_SECONDS = 300
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
 
+_SERVICE_COMPONENTS = (
+    ("api_checkout", "API & checkout", "Purchasing and management API"),
+    ("compute", "Compute", "VM provisioning and reachability"),
+    ("intelligence", "Network intelligence", "Network diagnostics endpoints"),
+    ("domains_dns", "Domains & DNS", "Registration and authoritative DNS"),
+    ("network_proxy", "Network proxy", "Direct, Tor, I2P, and Yggdrasil egress"),
+)
+
+
+def _unknown_service_status(
+    message: str = "Current service health could not be confirmed.",
+) -> dict[str, Any]:
+    return {
+        "status": "unknown",
+        "checked_at": None,
+        "stale": True,
+        "feed_unavailable": True,
+        "components": [
+            {"id": key, "name": name, "status": "unknown", "message": message}
+            for key, name, _description in _SERVICE_COMPONENTS
+        ],
+        "incidents": [],
+    }
+
+
+def _service_status_view(status: dict[str, Any] | None) -> dict[str, Any]:
+    status = status or _unknown_service_status()
+    state = status.get("status", "unknown")
+    raw_components = status.get("components")
+    components: list[Any] = raw_components if isinstance(raw_components, list) else []
+    affected = [
+        component
+        for component in components
+        if isinstance(component, dict) and component.get("status") in {"degraded", "outage"}
+    ]
+    if status.get("stale"):
+        return {"label": "Status feed delayed", "tone": "degraded", "affected": affected}
+    if state == "outage":
+        return {"label": "Major outage", "tone": "outage", "affected": affected}
+    if state == "degraded":
+        suffix = ""
+        if len(affected) == 1:
+            suffix = f" · {affected[0].get('name', 'service')}"
+        elif affected:
+            suffix = f" · {len(affected)} services"
+        return {"label": f"Degraded{suffix}", "tone": "degraded", "affected": affected}
+    if state == "operational":
+        return {"label": "Operational", "tone": "operational", "affected": []}
+    return {"label": "Status unavailable", "tone": "unknown", "affected": []}
+
+
+async def _refresh_service_status(request: Request) -> dict[str, Any]:
+    now = time.time()
+    cached = _SERVICE_STATUS_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_SERVICE_STATUS_CACHE["expires_at"]):
+        successful_at = float(_SERVICE_STATUS_CACHE.get("successful_at", 0.0))
+        stale_too_old = (
+            cached.get("stale")
+            and successful_at > 0
+            and now - successful_at > _SERVICE_STATUS_STALE_SECONDS
+        )
+        if stale_too_old:
+            unknown = _unknown_service_status("The live status feed is unavailable.")
+            _SERVICE_STATUS_CACHE.update(
+                value=unknown,
+                expires_at=now + _SERVICE_STATUS_TTL_SECONDS,
+                successful_at=0.0,
+            )
+            return unknown
+        return cached
+
+    client: httpx.AsyncClient | None = getattr(request.app.state, "http", None)
+    data: dict[str, Any] | None = None
+    if client is not None:
+        try:
+            response = await client.get("/v1/status", timeout=3.0)
+            candidate = response.json() if response.status_code == 200 else None
+            if isinstance(candidate, dict) and candidate.get("status") in {
+                "operational",
+                "degraded",
+                "outage",
+                "unknown",
+            }:
+                data = candidate
+        except (httpx.HTTPError, ValueError):
+            data = None
+
+    if data is not None:
+        _SERVICE_STATUS_CACHE.update(
+            value=data,
+            expires_at=now + _SERVICE_STATUS_TTL_SECONDS,
+            successful_at=now,
+        )
+        return data
+
+    successful_at = float(_SERVICE_STATUS_CACHE.get("successful_at", 0.0))
+    if isinstance(cached, dict) and now - successful_at <= _SERVICE_STATUS_STALE_SECONDS:
+        stale = {**cached, "stale": True, "feed_unavailable": True}
+        _SERVICE_STATUS_CACHE.update(value=stale, expires_at=now + _SERVICE_STATUS_TTL_SECONDS)
+        return stale
+    unknown = _unknown_service_status("The live status feed is unavailable.")
+    _SERVICE_STATUS_CACHE.update(
+        value=unknown,
+        expires_at=now + _SERVICE_STATUS_TTL_SECONDS,
+        successful_at=0.0,
+    )
+    return unknown
+
+
+@app.middleware("http")
+async def refresh_service_status_for_pages(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    path = request.url.path
+    excluded = (
+        path.startswith("/api/")
+        or path.startswith("/static/")
+        or path in {
+            "/favicon.ico",
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/robots.txt",
+            "/sitemap.xml",
+            "/llms.txt",
+        }
+    )
+    if request.method == "GET" and not excluded:
+        await _refresh_service_status(request)
+    return await call_next(request)
+
 
 def _copy(*parts: str) -> str:
     return " ".join(parts)
+
+
+_DOMAIN_LABEL_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.I)
+
+
+def _normalise_custom_domain(value: str) -> str | None:
+    domain = value.strip().lower().rstrip(".")
+    labels = domain.split(".")
+    if len(domain) > 253 or len(labels) < 2:
+        return None
+    if any(not _DOMAIN_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+    return domain
 
 
 LEGAL_PAGES: dict[str, dict[str, Any]] = {
@@ -236,15 +415,15 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     },
     "privacy": {
         "title": "Privacy",
-        "description": "Privacy details for no-KYC VM orders.",
+        "description": "Privacy details for Hyrule Cloud orders.",
         "updated": "2026-06-02",
         "sections": [
             (
-                "No-KYC Model",
+                "Ordering Model",
                 [
                     _copy(
-                        "We do not ask for email, phone, legal name, postal address,",
-                        "or identity documents for hosting orders.",
+                        "Hyrule Cloud uses a no-KYC ordering model and does not",
+                        "require identity verification for hosting orders.",
                     ),
                     _copy(
                         "Anonymous checkout returns a one-time management token.",
@@ -303,9 +482,9 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                 "Report Channels",
                 [
                     _copy(
-                        "Send network abuse reports to abuse@as215932.net. Send",
-                        "operational issues to noc@as215932.net. Customer support is",
-                        "support@hyrule.host.",
+                        "Send abuse reports, operational issues, and customer support",
+                        "requests to support@hyrule.host. Use 'Abuse report' in the",
+                        "subject for abuse cases.",
                     ),
                     _copy(
                         "Include a reporter contact, URL or hostname or IP, allegation,",
@@ -408,13 +587,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
 }
 
 
-def _render(request: Request, name: str, **kwargs: Any) -> Response:
+def _render(request: Request, name: str, *, status_code: int = 200, **kwargs: Any) -> Response:
     """Render a template with common context variables.
 
-    Injects the most recent `runtime` value (Block B) into every template so
-    `base.html`'s header pill can render without each handler having to fetch
-    /v1/stats/runtime itself. When the runtime fetch fails the value is None
-    and the template falls back to the `api · —` placeholder.
+    Injects the most recent runtime and customer-safe service-status snapshots.
+    Templates stay useful when either backend feed is temporarily unavailable.
     """
     ctx: dict[str, Any] = {
         "vm_tiers": VM_TIERS,
@@ -424,7 +601,12 @@ def _render(request: Request, name: str, **kwargs: Any) -> Response:
     }
     if "runtime" not in ctx:
         ctx["runtime"] = _RUNTIME_CACHE.get("value")
-    return templates.TemplateResponse(request, name, ctx)
+    service_status = _SERVICE_STATUS_CACHE.get("value")
+    if not isinstance(service_status, dict):
+        service_status = _unknown_service_status()
+    ctx["service_status"] = service_status
+    ctx["status_view"] = _service_status_view(service_status)
+    return templates.TemplateResponse(request, name, ctx, status_code=status_code)
 
 
 def _catalog_networks(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -678,9 +860,8 @@ def _require_auth_ui() -> None:
 
 @app.get("/", response_class=HTMLResponse)
 async def page_index(request: Request) -> Response:
-    """Block B: homepage pulls live runtime stats. Replaces the hardcoded
-    `api · 24ms / queue 3 / 58s / 1284 VMs` block with values from the
-    backend, cached for 15s and stale-on-error.
+    """Block B: the homepage renders backend runtime stats in its infrastructure
+    panel, cached for 15s and stale-on-error.
 
     Issue #14: the settlement-chain copy is also driven from the live
     /v1/payments/networks list (single source of truth, same as /faq and
@@ -742,10 +923,23 @@ async def page_order(request: Request) -> Response:
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+        order_error=None,
+        form_values={},
     )
 
 
-@app.post("/order/review", response_class=HTMLResponse)
+@app.get("/status", response_class=HTMLResponse)
+async def page_service_status(request: Request) -> Response:
+    await _refresh_service_status(request)
+    return _render(request, "service_status.html")
+
+
+@app.get("/order/status", include_in_schema=False)
+async def legacy_service_status_redirect() -> RedirectResponse:
+    return RedirectResponse("/status", status_code=308)
+
+
+@app.post("/order/review")
 async def page_review(
     request: Request,
     os: Annotated[str, Form()],
@@ -756,11 +950,7 @@ async def page_review(
     domain_mode: Annotated[str, Form()] = "auto",
     domain: Annotated[str, Form()] = "",
 ) -> Response:
-    tier = VM_TIERS.get(size, VM_TIERS["sm"])
-    daily = tier["price"]
-    total = daily * duration
-
-    order = {
+    form_values = {
         "os": os,
         "size": size,
         "duration": duration,
@@ -768,21 +958,69 @@ async def page_review(
         "hostname": hostname,
         "domain_mode": domain_mode,
         "domain": domain,
-        "id": "order-draft",
     }
-    catalog = await _refresh_networks(request)
-    order["payment_methods"] = {
-        "evm": _catalog_networks(catalog),
-        "native": _catalog_native(catalog),
-    }
+    vm_tiers = _live_vm_tiers(await _refresh_products(request))
+    custom_domain = _normalise_custom_domain(domain) if domain_mode == "custom" else None
+    error: str | None = None
+    if size not in vm_tiers:
+        error = "Choose a valid server size."
+    elif not 1 <= duration <= 365:
+        error = "Duration must be between 1 and 365 days."
+    elif domain_mode not in {"auto", "custom"}:
+        error = "Choose automatic or custom domain setup."
+    elif domain_mode == "custom" and custom_domain is None:
+        error = "Enter a valid fully-qualified domain name."
 
+    if error is None:
+        order_payload: dict[str, Any] = {
+            "os": os,
+            "size": size,
+            "duration_days": duration,
+            "ssh_pubkey": ssh_pubkey,
+            "domain_mode": domain_mode,
+        }
+        if custom_domain is not None:
+            order_payload["domain"] = custom_domain
+        backend = await _api_request(
+            request,
+            "/v1/vm/quote",
+            method="POST",
+            json={"order_payload": order_payload},
+        )
+        if backend is not None and backend.status_code in {200, 201}:
+            try:
+                quote_id = backend.json().get("quote_id")
+            except ValueError:
+                quote_id = None
+            if isinstance(quote_id, str) and quote_id:
+                review_path = f"/order/review/{urllib.parse.quote(quote_id, safe='')}"
+                return RedirectResponse(review_path, status_code=303)
+        if backend is not None:
+            try:
+                detail = backend.json().get("detail")
+            except ValueError:
+                detail = None
+            error = (
+                str(detail)
+                if detail
+                else "The quote could not be created. Check the form and try again."
+            )
+        else:
+            error = "The ordering API is temporarily unavailable. Your form has not been submitted."
+
+    os_data = await _fetch_api(request, "/v1/os/list")
+    os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
+    catalog = await _refresh_networks(request)
     return _render(
         request,
-        "review.html",
-        order=order,
-        tier=tier,
-        total=total,
+        "order.html",
+        os_templates=os_list,
         networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
+        vm_tiers=vm_tiers,
+        order_error=error,
+        form_values=form_values,
+        status_code=422,
     )
 
 
@@ -801,8 +1039,12 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
     payload: dict[str, Any] = quote.get("order_payload") or {}
     size = payload.get("size", "sm")
     duration = payload.get("duration_days", 30)
-    tier = VM_TIERS.get(size, VM_TIERS["sm"])
-    total = tier["price"] * duration
+    vm_tiers = _live_vm_tiers(await _refresh_products(request))
+    tier = vm_tiers.get(size, VM_TIERS["sm"])
+    try:
+        total = Decimal(str(quote["amount_usd"]))
+    except (KeyError, InvalidOperation):
+        total = Decimal(str(tier["price"])) * duration
     order = {
         "os": payload.get("os"),
         "size": size,
@@ -814,6 +1056,7 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
         "domain": payload.get("domain") or "",
         "id": quote_id,
         "quote_id": quote_id,
+        "amount_usd": total,
         "expired": quote.get("status") == "expired",
         "payment_methods": quote.get("accepted_payment_methods") or {},
     }
@@ -824,6 +1067,7 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
         order=order,
         tier=tier,
         total=total,
+        vm_tiers=vm_tiers,
         networks=_catalog_networks(catalog),
     )
 
@@ -1069,33 +1313,6 @@ async def dash_change_password(
         json={"current_password": current_password, "new_password": new_password},
     )
     return RedirectResponse("/dashboard", status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# HTMX partials
-# ---------------------------------------------------------------------------
-
-
-@app.post("/partials/price", response_class=HTMLResponse)
-async def partial_price(
-    size: Annotated[str, Form()] = "sm",
-    duration: Annotated[str, Form()] = "30",
-) -> HTMLResponse:
-    tier = VM_TIERS.get(size, VM_TIERS["sm"])
-    daily = tier["price"]
-    days = max(1, min(365, int(duration) if duration.isdigit() else 30))
-    total = daily * days
-    return HTMLResponse(
-        f'<span class="price-amount">${total:.2f}</span>'
-        f'<span class="price-detail">{days} days &times; ${daily:.2f}/day</span>'
-    )
-
-
-@app.get("/order/status/{vm_id}/partial", response_class=HTMLResponse)
-async def partial_status(request: Request, vm_id: str) -> Response:
-    # Block A0: same sanitized public endpoint as the full page.
-    data = await _fetch_vm_status(request, vm_id)
-    return _render(request, "_status_partial.html", vm_id=vm_id, vm=data)
 
 
 # ---------------------------------------------------------------------------

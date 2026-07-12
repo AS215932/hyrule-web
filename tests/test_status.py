@@ -1,5 +1,4 @@
-"""/order/status/{vm_id} and the HTMX /order/status/{vm_id}/partial — both
-must render whether the backend returns a VM, an error, or nothing.
+"""The durable /order/status/{vm_id} page renders across every VM state.
 
 Block A0 (2026-05-18): the upstream API now serves the sanitized status
 shape at `/v1/vm/{id}/status` (the legacy `/v1/vm/{id}` is management-
@@ -121,45 +120,6 @@ def test_status_page_with_backend_error(
     assert r.status_code == 200
 
 
-def test_status_partial_with_provisioned_vm(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    mocked_api.get("/v1/vm/vm-abc/status").mock(
-        return_value=httpx.Response(200, json=_VM_PROVISIONED)
-    )
-    r = client.get("/order/status/vm-abc/partial")
-    assert r.status_code == 200
-    assert "PROVISIONED" in r.text
-
-
-def test_status_partial_with_payment_required(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    mocked_api.get("/v1/vm/vm-abc/status").mock(
-        return_value=httpx.Response(200, json=_VM_PAYMENT_REQUIRED)
-    )
-    r = client.get("/order/status/vm-abc/partial")
-    assert r.status_code == 200
-    assert "PAYMENT REQUIRED" in r.text
-
-
-def test_status_partial_with_failed_vm(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    mocked_api.get("/v1/vm/vm-abc/status").mock(return_value=httpx.Response(200, json=_VM_FAILED))
-    r = client.get("/order/status/vm-abc/partial")
-    assert r.status_code == 200
-    assert "FAILED" in r.text
-
-
-def test_status_partial_with_missing_vm(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    mocked_api.get("/v1/vm/vm-x/status").mock(return_value=httpx.Response(404))
-    r = client.get("/order/status/vm-x/partial")
-    assert r.status_code == 200
-
-
 # --- Block A0 management-URL banner ---
 
 
@@ -179,7 +139,7 @@ def test_status_page_renders_management_banner_when_token_query_present(
     )
     assert r.status_code == 200
     body = r.text
-    assert "save this once" in body.lower()
+    assert "save once" in body.lower()
     # The banner offers a copy button + download link.
     assert "download" in body.lower()
     # Exact URL shape: scheme://cloud.<stripped-host>/v1/vm/<id>?token=<urlencoded>
@@ -205,7 +165,7 @@ def test_status_page_renders_management_banner_even_when_api_404s(
     )
     assert r.status_code == 200
     body = r.text
-    assert "save this once" in body.lower()
+    assert "save once" in body.lower()
     assert "hyr_vm_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" in body
 
 
@@ -231,8 +191,9 @@ def test_status_page_session_storage_fallback_uses_same_origin_api_proxy(
     )
     r = client.get("/order/status/vm-abc")
     assert r.status_code == 200
-    assert "'/api/v1/vm/'" in r.text
-    assert "'//cloud.' +" not in r.text
+    assert 'data-vm-id="vm-abc"' in r.text
+    assert "/assets/status-" in r.text
+    assert "data-management-url=" not in r.text
 
 
 def test_status_page_ignores_malformed_token_query(

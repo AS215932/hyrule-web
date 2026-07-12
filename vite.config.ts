@@ -13,14 +13,14 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       input: {
-        // Loaded on every page (base.html): command palette + global styles.
-        main: "frontend/src/main.ts",
-        // Loaded on the order form (order.html): durable-quote submit.
-        order: "frontend/src/order.ts",
+        // CSS-only global entry. Informational pages intentionally ship no JS.
+        styles: "frontend/src/styles/app.css",
         // Loaded on the review/checkout page: the payment dispatcher.
         payment: "frontend/src/payment.ts",
         // Loaded on the status page: launch-proof status polling.
         status: "frontend/src/status.ts",
+        // Loaded only where a one-time credential benefits from copy affordance.
+        secrets: "frontend/src/secret-copy.ts",
       },
     },
   },

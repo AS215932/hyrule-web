@@ -1,8 +1,7 @@
 /**
  * Status-page entry (status.html). Issue #26.
  *
- * Progressive enhancement: on load, disables htmx polling on #status-card and
- * takes over with client-side fetch from the launch-proof /v1/vm/{id}/status
+ * Progressive enhancement: polls the launch-proof /v1/vm/{id}/status
  * endpoint. Renders each lifecycle state (payment_required → provisioning →
  * provisioned → failed → rolled_back) with customer-safe copy.
  */
@@ -138,12 +137,6 @@ export function initStatus(card: HTMLElement): () => void {
   const vmId = card.getAttribute("data-vm-id") ?? "";
   if (!vmId) return () => {};
 
-  // Disable htmx before it initializes so the custom polling wins.
-  card.setAttribute("hx-disable", "true");
-  card.removeAttribute("hx-get");
-  card.removeAttribute("hx-trigger");
-  card.removeAttribute("hx-swap");
-
   let stopped = false;
   let timer: number | null = null;
 
@@ -153,7 +146,16 @@ export function initStatus(card: HTMLElement): () => void {
       const resp = await fetch(`/api/v1/vm/${encodeURIComponent(vmId)}/status`);
       if (resp.ok) {
         const data = (await resp.json()) as VmStatus;
-        card.innerHTML = renderStatus(data);
+        const container = document.createElement("div");
+        container.innerHTML = renderStatus(data).trim();
+        const replacement = container.firstElementChild;
+        if (replacement instanceof HTMLElement) {
+          replacement.id = "status-card";
+          replacement.dataset.vmId = vmId;
+          replacement.dataset.status = data.status;
+          card.replaceWith(replacement);
+          card = replacement;
+        }
         attachCopyHandlers(card);
         if (
           data.status === "provisioned" ||
@@ -182,7 +184,46 @@ export function initStatus(card: HTMLElement): () => void {
   return stop;
 }
 
+export function initManagementAccess(): void {
+  const root = document.querySelector<HTMLElement>("#management-access");
+  if (!root) return;
+  const vmId = root.dataset.vmId ?? "";
+  let managementUrl = root.dataset.managementUrl ?? "";
+
+  if (!managementUrl && vmId) {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(`hyr_vm_mgmt:${vmId}`) ?? "null") as {
+        token?: string;
+        url?: string;
+      } | null;
+      if (saved?.token?.startsWith("hyr_vm_")) {
+        managementUrl =
+          saved.url ??
+          `/api/v1/vm/${encodeURIComponent(vmId)}?token=${encodeURIComponent(saved.token)}`;
+      }
+    } catch {
+      managementUrl = "";
+    }
+  }
+
+  if (managementUrl && !root.querySelector(".management-card")) {
+    root.innerHTML = `
+      <div class="mini-card management-card">
+        <span class="panel-label">Save once</span>
+        <h3>VM management URL</h3>
+        <p>This credential is required to reboot, extend, inspect, or destroy an order that is not attached to an account. Save it now.</p>
+        <div class="credential-row">
+          <code id="mgmt-url">${escapeHtml(managementUrl)}</code>
+          <button type="button" class="btn btn-secondary btn-xs" data-copy="${escapeHtml(managementUrl)}">Copy</button>
+          <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,${encodeURIComponent(managementUrl)}" download="hyrule-${escapeHtml(vmId)}-management-url.txt">Download .txt</a>
+        </div>
+      </div>`;
+  }
+  attachCopyHandlers(root);
+}
+
 const card = document.querySelector<HTMLElement>("#status-card");
 if (card) {
   initStatus(card);
 }
+initManagementAccess();
