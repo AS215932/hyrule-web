@@ -228,10 +228,6 @@ _SERVICE_STATUS_CACHE: dict[str, Any] = {
 }
 _SERVICE_STATUS_TTL_SECONDS = 15
 _SERVICE_STATUS_STALE_SECONDS = 120
-# Block H (Wave 5/6): fleet stats for /transparency. Longer TTL — these move
-# slowly and the backend already caches /v1/stats/network for 30s.
-_NETWORK_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
-_NETWORK_TTL_SECONDS = 30
 # Block G (Wave 6): payment-networks catalog for /faq + /llms.txt. Crawlers hit
 # llms.txt frequently — cache so we don't re-query the backend chain list per
 # request.
@@ -289,6 +285,11 @@ def _service_status_view(status: dict[str, Any] | None) -> dict[str, Any]:
         for component in components
         if isinstance(component, dict) and component.get("status") in {"degraded", "outage"}
     ]
+    # An unknown response is not a last-known snapshot. Calling it merely
+    # "delayed" implies that the component states below are trustworthy when
+    # the monitoring feed may never have returned a usable state at all.
+    if state == "unknown":
+        return {"label": "Status unavailable", "tone": "unknown", "affected": []}
     if status.get("stale"):
         return {"label": "Status feed delayed", "tone": "degraded", "affected": affected}
     if state == "outage":
@@ -736,22 +737,6 @@ async def _refresh_runtime(request: Request) -> dict[str, Any] | None:
         _RUNTIME_CACHE["expires_at"] = now + _RUNTIME_TTL_SECONDS
         return data
     # Hold the last good value past its TTL when the backend is down.
-    return cached
-
-
-async def _refresh_network(request: Request) -> dict[str, Any] | None:
-    """Pull /v1/stats/network, cache for 30s. Stale-on-error, same as runtime.
-    The backend itself returns _source="fallback" on Prometheus failure, so
-    None here only means the backend itself is unreachable."""
-    now = time.time()
-    cached: dict[str, Any] | None = _NETWORK_CACHE.get("value")
-    if cached is not None and now < float(_NETWORK_CACHE["expires_at"]):
-        return cached
-    data = await _fetch_api(request, "/v1/stats/network")
-    if data is not None:
-        _NETWORK_CACHE["value"] = data
-        _NETWORK_CACHE["expires_at"] = now + _NETWORK_TTL_SECONDS
-        return data
     return cached
 
 
@@ -1995,14 +1980,17 @@ async def apple_touch_icon() -> FileResponse:
     )
 
 
-@app.get("/transparency", response_class=HTMLResponse)
-async def page_transparency(request: Request) -> Response:
-    """Infra-truth page: ASN, hosts, peering, jurisdiction (Block G). Live fleet
-    numbers (BGP peers, NAT64 sessions, IPv6 prefixes) come from
-    /v1/stats/network; falls back to the static shape when it's unreachable."""
+@app.get("/about", response_class=HTMLResponse)
+async def page_about(request: Request) -> Response:
+    """Mission, operating principles, and abuse-handling overview."""
     await _refresh_runtime(request)
-    network = await _refresh_network(request)
-    return _render(request, "transparency.html", network=network)
+    return _render(request, "about.html")
+
+
+@app.get("/transparency", include_in_schema=False)
+async def page_transparency_redirect() -> RedirectResponse:
+    """Keep old inbound links working without indexing duplicate content."""
+    return RedirectResponse(url="/about", status_code=308)
 
 
 @app.get("/faq", response_class=HTMLResponse)

@@ -11,7 +11,7 @@ PUBLIC_HTML_ROUTES = (
     "/",
     "/services",
     "/agents",
-    "/transparency",
+    "/about",
     "/faq",
     "/terms",
     "/privacy",

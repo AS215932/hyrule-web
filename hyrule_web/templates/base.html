@@ -116,7 +116,9 @@
                 </div>
                 <span class="status-dot status-{{ status_view.tone }}" aria-hidden="true"></span>
             </div>
-            {% if service_status.stale %}
+            {% if service_status.status == 'unknown' %}
+            <p class="status-feed-note">Live monitoring is unavailable. Component health cannot be confirmed.</p>
+            {% elif service_status.stale %}
             <p class="status-feed-note">Live monitoring is delayed. The last available component state is shown below.</p>
             {% endif %}
             <div class="status-component-list">
@@ -184,7 +186,7 @@
                 </div>
                 <div class="footer-col">
                     <h2 class="footer-heading">Company</h2>
-                    <a href="/transparency">About</a>
+                    <a href="/about">About &amp; policy</a>
                     <a href="/faq">FAQ</a>
                     <a href="/terms">Terms</a>
                     <a href="/privacy">Privacy</a>

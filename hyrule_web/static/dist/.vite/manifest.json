@@ -195,7 +195,7 @@
     "isEntry": true
   },
   "frontend/src/styles/app.css": {
-    "file": "assets/styles-gz7WxPL8.css",
+    "file": "assets/styles-BAoMuew5.css",
     "name": "styles",
     "names": [
       "styles.css"
@@ -211,7 +211,7 @@
     ]
   },
   "frontend/src/toolbox.ts": {
-    "file": "assets/toolbox-DcnYOp2o.js",
+    "file": "assets/toolbox-Clinf7bt.js",
     "name": "toolbox",
     "src": "frontend/src/toolbox.ts",
     "isEntry": true,
@@ -220,7 +220,7 @@
       "_payment-evm-Bq8ZQaUI.js"
     ],
     "css": [
-      "assets/toolbox-CrXXMhZL.css"
+      "assets/toolbox-FCBQrZ_K.css"
     ]
   },
   "frontend/src/wallet-auth.ts": {

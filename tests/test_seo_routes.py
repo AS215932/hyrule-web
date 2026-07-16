@@ -99,6 +99,7 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
         "https://hyrule.host/",
         "https://hyrule.host/services",
         "https://hyrule.host/order",
+        "https://hyrule.host/about",
         "https://hyrule.host/llms.txt",
         "https://hyrule.host/terms",
         "https://hyrule.host/privacy",
@@ -106,6 +107,7 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
         "https://hyrule.host/legal",
     ):
         assert path in body
+    assert "https://hyrule.host/transparency" not in body
 
 
 def test_llms_txt_diagnostics_need_an_enabled_chain_and_live_discovery() -> None:

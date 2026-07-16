@@ -20,6 +20,22 @@ def test_index(client: TestClient) -> None:
     _assert_html_with_canonical(r)
 
 
+def test_about_is_the_canonical_policy_overview(client: TestClient) -> None:
+    r = client.get("/about")
+    _assert_html_with_canonical(r)
+    assert "The Agentic ISP" in r.text
+    assert "autonomous in <em>Autonomous System.</em>" in r.text
+    assert "Evidence first. Proportionate action." in r.text
+    assert "https://as215932.net/" in r.text
+    assert "/v1/stats/network" not in r.text
+
+
+def test_legacy_transparency_url_redirects_to_about(client: TestClient) -> None:
+    r = client.get("/transparency", follow_redirects=False)
+    assert r.status_code == 308
+    assert r.headers["location"] == "/about"
+
+
 def test_dashboard_redirects_to_login_when_not_authed(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

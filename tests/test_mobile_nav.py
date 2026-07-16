@@ -27,7 +27,10 @@ def test_nav_links_render_in_desktop_and_mobile_navigation(client: TestClient) -
     response = client.get("/")
     assert response.text.count('href="/services"') >= 2
     assert response.text.count('href="/agents"') >= 2
-    assert response.text.count('href="/transparency"') >= 2
+    # About is intentionally footer-only; it does not compete with product
+    # navigation in either the desktop or mobile primary nav.
+    assert response.text.count('href="/about"') == 1
+    assert 'href="/transparency"' not in response.text
     assert response.text.count('href="/status"') >= 2
     assert response.text.count('href="/login"') >= 2
     assert 'href="/order/status"' not in response.text

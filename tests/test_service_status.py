@@ -112,13 +112,29 @@ def test_stale_or_unreachable_feed_never_renders_green(
 
     response = client.get("/")
 
-    assert "Status feed delayed" in response.text
+    assert "Status unavailable" in response.text
+    assert "Live monitoring is unavailable" in response.text
     assert "The live status feed is unavailable." in response.text
     assert "status-operational" not in response.text
 
     status_page = client.get("/status")
     assert "No incident details are available" in status_page.text
     assert "status-operational" not in status_page.text
+
+
+def test_known_stale_snapshot_is_labelled_delayed(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/status").mock(
+        return_value=httpx.Response(200, json=_status_payload(stale=True))
+    )
+    _SERVICE_STATUS_CACHE.update(value=None, expires_at=0.0, successful_at=0.0)
+
+    response = client.get("/status")
+
+    assert "Status feed delayed" in response.text
+    assert "The last available state is shown" in response.text
+    assert "Status unavailable" not in response.text
 
 
 def test_status_cache_short_circuits_repeated_page_requests(

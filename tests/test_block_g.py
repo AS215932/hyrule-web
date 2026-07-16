@@ -1,12 +1,12 @@
-"""Block G: copy / SEO / transparency surface.
+"""Block G: copy / SEO / policy surface.
 
 Covers:
-  - new /transparency and /faq routes render and ship Breadcrumb JSON-LD
+  - /about and /faq routes render and ship Breadcrumb JSON-LD
   - /faq exposes FAQPage JSON-LD whose chain mentions come from the live
     /v1/payments/networks (never hardcoded)
   - homepage uses the live runtime stats (api_p50_ms, avg provision)
   - service status in the header is independent of runtime latency
-  - sitemap.xml includes /transparency, /faq, /login, /signup but NOT
+  - sitemap.xml includes /about, /faq, /login, /signup but NOT
     /dashboard or /order/manage/*
   - build_llms_txt unit-level (placeholder vs live chains)
 """
@@ -19,32 +19,30 @@ from fastapi.testclient import TestClient
 
 from hyrule_web.seo import build_llms_txt
 
-# --- /transparency ---
+# --- /about ---
 
 
-def test_transparency_renders_with_breadcrumb_jsonld(
+def test_about_renders_mission_policy_and_breadcrumb_jsonld(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    r = client.get("/transparency")
+    r = client.get("/about")
     assert r.status_code == 200
-    assert "AS215932" in r.text
-    assert "2a0c:b641:b50::/44" in r.text
-    # Breadcrumb structured data must be present and name the page
+    assert "The Agentic ISP" in r.text
+    assert "Operating principles" in r.text
+    assert "Abuse handling" in r.text
     assert '"BreadcrumbList"' in r.text
-    assert '"About"' in r.text
-    # Real infra hosts surfaced from inventory
-    assert "<code>rtr</code>" in r.text
-    assert "<code>api</code>" in r.text
+    assert '"About & policy"' in r.text
+    assert "https://as215932.net/" in r.text
 
 
 def test_about_explains_the_service_record_privacy_model(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    r = client.get("/transparency")
+    r = client.get("/about")
     body = r.text
-    assert "SSH public keys" in body
-    assert "generated identifiers" in body
-    assert "no-KYC ordering model" in body
+    assert "operational service and payment records" in body
+    assert "identity profiles" in body
+    assert 'href="/privacy"' in body
     # Privacy is factual context, not the old identity-negation slogan.
     assert "No email. No phone. No PII." not in body
 
@@ -134,65 +132,6 @@ def test_homepage_falls_back_when_runtime_unavailable(
     assert "—" in r.text
 
 
-def test_transparency_shows_live_fleet_numbers_from_network_endpoint(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    """Block H: /transparency surfaces BGP peers / IPv6 prefixes / NAT64 sessions
-    from /v1/stats/network. Conftest mock supplies 4 peers, 1284 nat64 sessions."""
-    r = client.get("/transparency")
-    assert r.status_code == 200
-    # Live numbers from the conftest default
-    assert "4</strong> BGP peers" in r.text
-    assert "1284</strong> NAT64 sessions" in r.text
-    assert "AS34872, AS210233" in r.text
-    # Source label proves the data is live
-    assert "prometheus-" in r.text
-
-
-def test_transparency_falls_back_when_network_endpoint_unavailable(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    """Block H: /v1/stats/network down → page still renders, with the static
-    `_source: fallback` shape from the backend (which the backend itself
-    serves on Prometheus failure)."""
-    mocked_api.get("/v1/stats/network").mock(
-        return_value=httpx.Response(200, json={
-            "bgp_peers_established": None,
-            "ipv6_prefixes_announced": 3,
-            "nat64_sessions_active": None,
-            "transit_providers": ["AS34872", "AS210233"],
-            "_source": "fallback",
-            "updated_at": "2026-05-17T00:00:00+00:00",
-        })
-    )
-    r = client.get("/transparency")
-    assert r.status_code == 200
-    # bgp_peers_established=None hides that field entirely
-    assert "BGP peers" not in r.text
-    # Static-fallback values still render
-    assert "3</strong> IPv6 prefixes" in r.text
-    assert "source: fallback" in r.text
-
-
-def test_transparency_serves_stale_network_data_on_backend_error(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
-    """_refresh_network is stale-on-error: once the live numbers are cached, an
-    expired cache + an unreachable backend serves the last-good value rather
-    than punching through to the static fallback."""
-    # First request caches the live numbers (4 peers from the conftest default).
-    r1 = client.get("/transparency")
-    assert "4</strong> BGP peers" in r1.text
-    # Expire the cache and take the backend down.
-    from hyrule_web.app import _NETWORK_CACHE
-    _NETWORK_CACHE["expires_at"] = 0.0
-    mocked_api.get("/v1/stats/network").mock(side_effect=httpx.ConnectError("boom"))
-    # Stale-on-error: still the last-good 4 peers, not a hole.
-    r2 = client.get("/transparency")
-    assert r2.status_code == 200
-    assert "4</strong> BGP peers" in r2.text
-
-
 def test_base_header_status_is_independent_of_runtime_latency(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
@@ -206,7 +145,7 @@ def test_base_header_status_is_independent_of_runtime_latency(
         "avg_provision_seconds": None,
         "updated_at": "2026-05-17T00:00:00+00:00",
     }))
-    r = client.get("/transparency")
+    r = client.get("/about")
     assert r.status_code == 200
     assert 'popovertarget="service-status-popover"' in r.text
     assert "99ms" not in r.text
@@ -215,10 +154,11 @@ def test_base_header_status_is_independent_of_runtime_latency(
 # --- sitemap updates ---
 
 
-def test_sitemap_includes_transparency_and_faq(client: TestClient) -> None:
+def test_sitemap_includes_about_and_faq(client: TestClient) -> None:
     r = client.get("/sitemap.xml")
     body = r.text
-    assert "https://hyrule.host/transparency" in body
+    assert "https://hyrule.host/about" in body
+    assert "https://hyrule.host/transparency" not in body
     assert "https://hyrule.host/faq" in body
 
 

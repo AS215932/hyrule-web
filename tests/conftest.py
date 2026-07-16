@@ -24,7 +24,6 @@ from fastapi.testclient import TestClient
 
 from hyrule_web.app import (
     _CATALOG_CACHE,
-    _NETWORK_CACHE,
     _PRICING_CACHE,
     _PRODUCTS_CACHE,
     _RUNTIME_CACHE,
@@ -196,20 +195,6 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "refreshed_at": "2026-07-15T10:00:00+00:00",
                         }
                     ],
-                },
-            )
-        )
-        # Block H (Wave 5/6): default fleet stats for /transparency.
-        rx.get("/v1/stats/network").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "bgp_peers_established": 4,
-                    "ipv6_prefixes_announced": 3,
-                    "nat64_sessions_active": 1284,
-                    "transit_providers": ["AS34872", "AS210233"],
-                    "_source": "prometheus-http://[2a0c:b641:b50:2::50]:9090",
-                    "updated_at": "2026-05-19T00:00:00+00:00",
                 },
             )
         )
@@ -526,8 +511,6 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _SERVICE_STATUS_CACHE["value"] = None
     _SERVICE_STATUS_CACHE["expires_at"] = 0.0
     _SERVICE_STATUS_CACHE["successful_at"] = 0.0
-    _NETWORK_CACHE["value"] = None
-    _NETWORK_CACHE["expires_at"] = 0.0
     _CATALOG_CACHE["value"] = None
     _CATALOG_CACHE["expires_at"] = 0.0
     _PRODUCTS_CACHE["value"] = None

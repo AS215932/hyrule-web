@@ -26,7 +26,12 @@
 </section>
 
 <section class="container page-section">
-    {% if service_status.stale %}
+    {% if service_status.status == 'unknown' %}
+    <div class="status-banner status-unknown">
+        <strong>Status unavailable</strong>
+        <span>Hyrule Cloud could not retrieve a valid monitoring snapshot. Component health cannot be confirmed.</span>
+    </div>
+    {% elif service_status.stale %}
     <div class="status-banner status-degraded">
         <strong>Status feed delayed</strong>
         <span>The last available state is shown. Hyrule Cloud could not confirm a fresh monitoring snapshot.</span>
