@@ -441,6 +441,20 @@ def test_domain_dashboard_redirects_on_detail_failure(
     assert response.headers["location"] == location
 
 
+def test_domain_dashboard_reports_detail_api_outage_instead_of_redirecting(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/domains/example.dev").mock(
+        side_effect=httpx.ConnectError("backend unavailable")
+    )
+
+    response = client.get("/dashboard/domains/example.dev", follow_redirects=False)
+
+    assert response.status_code == 503
+    assert "temporarily unreachable" in response.text
+    assert "location" not in response.headers
+
+
 def test_domain_dashboard_handles_zone_and_wallet_outages(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

@@ -1649,7 +1649,18 @@ async def dashboard_domain(request: Request, domain: str) -> Response:
     _require_auth_ui()
     encoded = urllib.parse.quote(domain, safe="")
     detail_response = await _api_request(request, f"/v1/domains/{encoded}")
-    if detail_response is None or detail_response.status_code == 401:
+    if detail_response is None:
+        return _render(
+            request,
+            "dashboard.html",
+            me=None,
+            vms=[],
+            domains=[],
+            wallet=None,
+            error=_backend_detail(detail_response, "The domain could not be loaded."),
+            status_code=503,
+        )
+    if detail_response.status_code == 401:
         return RedirectResponse("/login", status_code=303)
     if detail_response.status_code != 200:
         return RedirectResponse("/dashboard", status_code=303)
