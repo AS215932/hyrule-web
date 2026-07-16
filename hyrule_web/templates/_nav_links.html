@@ -3,6 +3,7 @@
 <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}>Services</a>
 <a href="/domains"{% if request.url.path.startswith('/domains') %} aria-current="page"{% endif %}>Domains</a>
 <a href="/toolbox"{% if request.url.path == '/toolbox' %} aria-current="page"{% endif %}>Toolbox</a>
+{% if ip_check_enabled %}<a href="/ip-check"{% if request.url.path == '/ip-check' %} aria-current="page"{% endif %}>IP check</a>{% endif %}
 <a href="/agents"{% if request.url.path == '/agents' %} aria-current="page"{% endif %}>Agents</a>
 <a href="/transparency"{% if request.url.path == '/transparency' %} aria-current="page"{% endif %}>About</a>
 <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}>Deploy</a>

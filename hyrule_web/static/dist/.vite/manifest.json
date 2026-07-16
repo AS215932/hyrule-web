@@ -173,6 +173,15 @@
       "_payment-evm-Bq8ZQaUI.js"
     ]
   },
+  "frontend/src/ip-check.ts": {
+    "file": "assets/ip_check-_TDv-T7C.js",
+    "name": "ip_check",
+    "src": "frontend/src/ip-check.ts",
+    "isEntry": true,
+    "css": [
+      "assets/ip_check-BR4A8Qps.css"
+    ]
+  },
   "frontend/src/payment.ts": {
     "file": "assets/payment-utdgVwmc.js",
     "name": "payment",
@@ -195,7 +204,7 @@
     "isEntry": true
   },
   "frontend/src/styles/app.css": {
-    "file": "assets/styles-gz7WxPL8.css",
+    "file": "assets/styles-DA8CNdSu.css",
     "name": "styles",
     "names": [
       "styles.css"
@@ -211,7 +220,7 @@
     ]
   },
   "frontend/src/toolbox.ts": {
-    "file": "assets/toolbox-DcnYOp2o.js",
+    "file": "assets/toolbox-DC7f4aTo.js",
     "name": "toolbox",
     "src": "frontend/src/toolbox.ts",
     "isEntry": true,

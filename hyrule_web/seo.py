@@ -129,6 +129,23 @@ _LLMS_TXT_WHAT_SHIPS = """\
 """
 
 
+_LLMS_TXT_IP_CHECK = """\
+## Agent-first network environment check
+
+- [Network environment check](https://hyrule.host/ip-check) provides an optional
+  browser adapter; a browser is not required.
+- `POST https://cloud.hyrule.host/v1/ip-check/sessions` returns a 15-minute,
+  machine-readable HTTPS, DNS, STUN, and provenance probe manifest.
+- Run probes from the environment being measured. A remote MCP gateway measures
+  the gateway, not the user's device.
+- The Python client and local MCP tool `network_environment_check` execute the
+  manifest and return a correlated report.
+- Browser and agent fingerprints are session-scoped. Declared model/vendor names
+  are claims; wallet signatures and future workload attestations are reported at
+  their actual assurance level.
+"""
+
+
 def _render_tools_section(tools: Iterable[dict[str, Any]]) -> str:
     rows = [tool for tool in tools if isinstance(tool, dict)]
     if not rows:
@@ -218,6 +235,7 @@ def build_llms_txt(
     native: Iterable[str] | None = None,
     diagnostics_live: bool = True,
     tools: Iterable[dict[str, Any]] | None = None,
+    ip_check_live: bool = False,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
@@ -245,6 +263,8 @@ def build_llms_txt(
         section = _render_tools_section(tools)
         if section:
             text += "\n" + section
+    if ip_check_live:
+        text += "\n" + _LLMS_TXT_IP_CHECK
     return text
 
 
@@ -261,9 +281,12 @@ _SITEMAP_EXCLUDE = {
 }
 
 
-def iter_sitemap_paths(app: FastAPI) -> list[str]:
+def iter_sitemap_paths(
+    app: FastAPI, *, additional_excludes: Iterable[str] = ()
+) -> list[str]:
     """Enumerate public, static, GET-able routes for the sitemap."""
     paths: set[str] = set()
+    excluded = _SITEMAP_EXCLUDE | set(additional_excludes)
     for route in app.routes:
         if not isinstance(route, APIRoute):
             continue
@@ -276,21 +299,23 @@ def iter_sitemap_paths(app: FastAPI) -> list[str]:
             continue
         if path.startswith("/dashboard"):
             continue
-        if path in _SITEMAP_EXCLUDE:
+        if path in excluded:
             continue
         paths.add(path)
     paths.add("/llms.txt")
     return sorted(paths)
 
 
-def render_sitemap_xml(app: FastAPI) -> str:
+def render_sitemap_xml(
+    app: FastAPI, *, additional_excludes: Iterable[str] = ()
+) -> str:
     today = date.today().isoformat()
     urls = "\n".join(
         f"  <url>\n"
         f"    <loc>{escape(SITE_BASE_URL + path)}</loc>\n"
         f"    <lastmod>{today}</lastmod>\n"
         f"  </url>"
-        for path in iter_sitemap_paths(app)
+        for path in iter_sitemap_paths(app, additional_excludes=additional_excludes)
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'

@@ -27,6 +27,8 @@ export default defineConfig({
         wallet_auth: "frontend/src/wallet-auth.ts",
         // Enabled-only x402 diagnostics, autonomous WebMCP, and browser wallets.
         toolbox: "frontend/src/toolbox.ts",
+        // Optional browser adapter for the agent-first network observation API.
+        ip_check: "frontend/src/ip-check.ts",
       },
     },
   },
