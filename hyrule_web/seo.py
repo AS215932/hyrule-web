@@ -135,18 +135,20 @@ Beyond VMs, the same API sells network-intelligence lookups an agent can
 buy per request — $0.001 to $0.10 each, same 402 → sign → retry flow:
 
 - DNS/DNSSEC/propagation: POST /v1/dns/lookup, /v1/dns/propagation
-- IP intelligence (geo/ASN/rDNS): POST /v1/ip/lookup
-- BGP/routing: POST /v1/bgp/lookup, /v1/path/ping, /v1/path/report
+- IP intelligence (ASN/rDNS/RDAP/WHOIS): POST /v1/ip/lookup
+- BGP/routing: POST /v1/bgp/lookup
 - Registry: POST /v1/rdap/lookup, /v1/whois/lookup
 - Web/TLS: POST /v1/web/check, /v1/web/tls/deep
 - Mail deliverability: POST /v1/mx/check (SPF/DKIM/DMARC/blacklists)
-- Reachability: POST /v1/ports/check, /v1/nat/lookup
-- VoIP/SIP: POST /v1/voip/check, /v1/voip/number/lookup
+- Reachability: POST /v1/ports/check, /v1/nat/port-forward/check
+- VoIP/SIP: POST /v1/voip/check
 - Anonymous egress: POST /v1/network/request (direct/Tor/I2P/Yggdrasil)
 
 Discovery: every paid endpoint is listed with price in
 https://cloud.hyrule.host/.well-known/x402.json (`discoverable` entries
-carry machine-readable input/output schemas in their 402 responses).
+carry machine-readable input/output schemas in their 402 responses), and
+the API origin serves its own generated guide at
+https://cloud.hyrule.host/llms.txt.
 The diagnostic services (dns, ip, bgp, rdap, whois, web, mx, path, ports,
 nat, threat, voip) each describe their product boundary at
 `/v1/<service>/capabilities`; the egress endpoint is documented in the

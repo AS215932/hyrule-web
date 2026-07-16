@@ -4,7 +4,8 @@ Covers the three behaviours the overhaul introduced:
 - tier grids render the LIVE /v1/products/vms catalog (the hardcoded config
   mirror once drifted: xs shipped 1 GB while the site said 512 MB);
 - /services + /agents render per-endpoint prices from the published x402
-  manifest, with the curated config fallback when the fetch fails;
+  manifest, with a last-good disk snapshot (never a hardcoded mirror) when
+  the fetch fails;
 - the new /agents page documents the 402 golden path + the async VM contract.
 """
 
@@ -106,19 +107,44 @@ def test_services_renders_intel_and_proxy_price_tables(
     assert "Paid direct and Tor HTTP requests" in body
 
 
-def test_services_price_tables_fall_back_to_curated_catalog(
+def test_services_price_tables_survive_outage_via_snapshot_not_mirror(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
+    """There is no hardcoded catalog mirror any more (the old one drifted into
+    advertising the legally-gated domain product). Backend down + no snapshot
+    -> explicit degraded state; with a last-good snapshot -> real stale rows."""
+    import json as _json
+
+    from hyrule_web.app import _manifest_snapshot_path
+
     _mock_os_list(mocked_api)
     mocked_api.get("/.well-known/x402.json").mock(side_effect=httpx.ConnectError("boom"))
     mocked_api.get("/v1/pricing").mock(side_effect=httpx.ConnectError("boom"))
+
     r = client.get("/services")
     assert r.status_code == 200
-    body = r.text
-    # The curated config mirror still lists the flagship endpoints + routes.
-    assert "/v1/dns/lookup" in body
-    assert "/v1/bgp/lookup" in body
-    assert "yggdrasil" in body
+    assert "temporarily unavailable" in r.text
+    assert "/v1/domains/orders" not in r.text  # the old mirror's drifted row
+    assert "yggdrasil" in r.text  # static proxy copy still renders
+
+    snapshot = {
+        "resources": [
+            {
+                "path": "/v1/dns/lookup",
+                "method": "POST",
+                "description": "Paid read-only DNS lookup",
+                "minPrice": "0.001",
+            }
+        ]
+    }
+    path = _manifest_snapshot_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json.dumps(snapshot))
+
+    r2 = client.get("/services")
+    assert r2.status_code == 200
+    assert "/v1/dns/lookup" in r2.text
+    assert "temporarily unavailable" not in r2.text
 
 
 def test_agents_page_documents_the_x402_contract(client: TestClient) -> None:

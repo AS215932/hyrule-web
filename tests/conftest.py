@@ -35,6 +35,13 @@ from hyrule_web.app import (
 from hyrule_web.config import VM_TIERS, settings
 
 
+@pytest.fixture(autouse=True)
+def _isolated_state_dir(tmp_path, monkeypatch) -> None:
+    """Point the last-good manifest snapshot at a per-test directory so tests
+    never read another test's (or the host's) snapshot."""
+    monkeypatch.setattr(settings, "state_dir", str(tmp_path / "state"))
+
+
 @pytest.fixture
 def mocked_api() -> Iterator[respx.MockRouter]:
     """Intercept every hyrule-cloud API call. Tests register their own routes."""

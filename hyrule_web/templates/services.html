@@ -127,6 +127,10 @@
                     <td>{{ r.description }}</td>
                     <td class="price">${{ r.min_price }}<span class="unit">/req</span></td>
                 </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">The live catalog is temporarily unavailable — fetch <code>https://cloud.hyrule.host/.well-known/x402.json</code> directly.</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>

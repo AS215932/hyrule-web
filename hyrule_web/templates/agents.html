@@ -94,6 +94,9 @@
         <div class="heading-side">Rendered live from the published manifest — if it's listed here, it answers a 402 with exactly this minimum price. The manifest is also what the x402 Bazaar and scanners index.</div>
     </div>
     <div class="figure">
+        {% if x402_degraded and x402_resources %}
+        <p class="hero-blurb"><em>The live catalog is temporarily unreachable — showing the last published manifest; verify prices against <code>/.well-known/x402.json</code> before paying.</em></p>
+        {% endif %}
         <table class="spec-table">
             <thead>
                 <tr><th>endpoint</th><th>description</th><th class="price">min price</th></tr>
@@ -104,6 +107,10 @@
                     <td><code>{{ r.method }} {{ r.path }}</code></td>
                     <td>{{ r.description }}</td>
                     <td class="price">${{ r.min_price }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3">The live catalog is temporarily unavailable — fetch <code>https://cloud.hyrule.host/.well-known/x402.json</code> directly.</td>
                 </tr>
                 {% endfor %}
             </tbody>

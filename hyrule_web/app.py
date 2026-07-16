@@ -34,7 +34,6 @@ from .config import (
     DEFAULT_OS_TEMPLATES,
     PROXY_PRICES_FALLBACK,
     VM_TIERS,
-    X402_RESOURCES_FALLBACK,
     settings,
 )
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
@@ -219,8 +218,8 @@ _CATALOG_TTL_SECONDS = 60
 _PRODUCTS_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRODUCTS_TTL_SECONDS = 300
 # Overhaul: the published x402 manifest (/.well-known/x402.json) — per-endpoint
-# prices for /services and /agents. Slow-moving; fallback is the curated
-# config.X402_RESOURCES_FALLBACK mirror.
+# prices for /services and /agents. Slow-moving; fallback ladder is stale
+# memory -> last-good disk snapshot -> empty (never a hardcoded mirror).
 _MANIFEST_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _MANIFEST_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
@@ -760,10 +759,50 @@ async def _refresh_products(request: Request) -> dict[str, Any] | None:
     )
 
 
-async def _refresh_manifest(request: Request) -> dict[str, Any] | None:
-    return await _refresh_cached(
-        request, _MANIFEST_CACHE, _MANIFEST_TTL_SECONDS, "/.well-known/x402.json"
-    )
+def _manifest_snapshot_path() -> Path:
+    return Path(settings.state_dir) / "x402-manifest.json"
+
+
+def _write_manifest_snapshot(data: dict[str, Any]) -> None:
+    """Best-effort last-good persistence so /agents and /services keep real
+    (if stale) prices across backend outages and web restarts."""
+    path = _manifest_snapshot_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data))
+        tmp.replace(path)
+    except OSError as exc:
+        log.warn("manifest_snapshot_write_failed", path=str(path), error=str(exc))
+
+
+def _read_manifest_snapshot() -> dict[str, Any] | None:
+    try:
+        raw = json.loads(_manifest_snapshot_path().read_text())
+    except (OSError, ValueError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+async def _refresh_manifest(request: Request) -> tuple[dict[str, Any] | None, bool]:
+    """Published x402 manifest plus a `degraded` flag for the templates.
+
+    Ladder: fresh fetch -> stale in-memory value -> last-good disk snapshot ->
+    None. There is no hardcoded mirror: the old one drifted into advertising a
+    legally-gated product, and real-but-stale beats fabricated."""
+    now = time.time()
+    cached: dict[str, Any] | None = _MANIFEST_CACHE.get("value")
+    if cached is not None and now < float(_MANIFEST_CACHE["expires_at"]):
+        return cached, False
+    data = await _fetch_api(request, "/.well-known/x402.json")
+    if data is not None:
+        _MANIFEST_CACHE["value"] = data
+        _MANIFEST_CACHE["expires_at"] = now + _MANIFEST_TTL_SECONDS
+        _write_manifest_snapshot(data)
+        return data, False
+    if cached is not None:
+        return cached, True
+    return _read_manifest_snapshot(), True
 
 
 async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
@@ -808,10 +847,10 @@ def _x402_group(path: str) -> str:
 
 def _x402_resources(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Normalize the published manifest's resources for the price tables on
-    /services and /agents; falls back to the curated config mirror."""
+    /services and /agents; empty when no live or snapshot data exists."""
     rows = (manifest or {}).get("resources")
     if not isinstance(rows, list) or not rows:
-        return X402_RESOURCES_FALLBACK
+        return []
     out: list[dict[str, Any]] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -829,7 +868,7 @@ def _x402_resources(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
                 "group": _x402_group(path),
             }
         )
-    return out or X402_RESOURCES_FALLBACK
+    return out
 
 
 def _proxy_prices(pricing: dict[str, Any] | None) -> dict[str, str]:
@@ -935,7 +974,7 @@ async def page_index(request: Request) -> Response:
     llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
     catalog = await _refresh_networks(request)
-    resources = _x402_resources(await _refresh_manifest(request))
+    manifest, manifest_degraded = await _refresh_manifest(request)
     return _render(
         request,
         "index.html",
@@ -943,7 +982,8 @@ async def page_index(request: Request) -> Response:
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
-        x402_resources=resources,
+        x402_resources=_x402_resources(manifest),
+        x402_degraded=manifest_degraded,
     )
 
 
@@ -951,13 +991,14 @@ async def page_index(request: Request) -> Response:
 async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    resources = _x402_resources(await _refresh_manifest(request))
+    manifest, manifest_degraded = await _refresh_manifest(request)
     return _render(
         request,
         "services.html",
         os_templates=os_list,
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
-        x402_resources=resources,
+        x402_resources=_x402_resources(manifest),
+        x402_degraded=manifest_degraded,
         proxy_prices=_proxy_prices(await _refresh_pricing(request)),
     )
 
@@ -965,16 +1006,17 @@ async def page_services(request: Request) -> Response:
 @app.get("/agents", response_class=HTMLResponse)
 async def page_agents(request: Request) -> Response:
     """Overhaul: the x402 story for agents — manifest, golden path, per-endpoint
-    prices (live from the published manifest, curated fallback), MCP config,
-    ClawHub skills, and the live payment-rail list."""
+    prices (live from the published manifest, last-good snapshot fallback),
+    MCP config, ClawHub skills, and the live payment-rail list."""
     catalog = await _refresh_networks(request)
-    resources = _x402_resources(await _refresh_manifest(request))
+    manifest, manifest_degraded = await _refresh_manifest(request)
     return _render(
         request,
         "agents.html",
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
-        x402_resources=resources,
+        x402_resources=_x402_resources(manifest),
+        x402_degraded=manifest_degraded,
     )
 
 
