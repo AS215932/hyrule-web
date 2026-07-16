@@ -130,7 +130,7 @@ async function pollOrder(orderId: string, statusElement: HTMLElement | null): Pr
   );
 }
 
-async function setupCheckout(container: HTMLElement): Promise<void> {
+export async function setupCheckout(container: HTMLElement): Promise<void> {
   const quoteId = container.dataset.quoteId || "";
   const termsVersion = container.dataset.termsVersion || "";
   const payButton = document.getElementById("domain-pay") as HTMLButtonElement | null;
@@ -146,12 +146,7 @@ async function setupCheckout(container: HTMLElement): Promise<void> {
   );
   if (!quoteId || !payButton) return;
 
-  const networksResponse = await fetch("/api/payments/networks");
-  const catalog = networksResponse.ok ? await networksResponse.json() : { networks: [] };
   const networks = new Map<string, PaymentNetwork>();
-  for (const network of (catalog.networks || []) as PaymentNetwork[]) {
-    if (network.family === "evm") networks.set(network.key, network);
-  }
 
   function method(): string {
     return (
@@ -213,6 +208,20 @@ async function setupCheckout(container: HTMLElement): Promise<void> {
       );
     });
   });
+
+  // Register the controls before waiting on the optional EVM catalog. A slow
+  // or unavailable catalog must not leave BTC/XMR checkout with an inert pay
+  // button; USDC attempts fail clearly while this map remains empty.
+  try {
+    const networksResponse = await fetch("/api/payments/networks");
+    if (!networksResponse.ok) return;
+    const catalog = await networksResponse.json();
+    for (const network of (catalog.networks || []) as PaymentNetwork[]) {
+      if (network.family === "evm") networks.set(network.key, network);
+    }
+  } catch {
+    return;
+  }
 }
 
 async function signMessage(

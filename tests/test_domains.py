@@ -191,6 +191,23 @@ def test_domain_order_status_preserves_path_across_login(
     )
 
 
+def test_domain_order_status_reports_backend_outage_instead_of_redirecting(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/domains/orders/do_api_outage").mock(
+        side_effect=httpx.ConnectError("backend unavailable")
+    )
+
+    response = client.get(
+        "/domains/orders/do_api_outage",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 503
+    assert "temporarily unreachable" in response.text
+    assert "location" not in response.headers
+
+
 def test_native_domain_payment_instructions_survive_reload(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

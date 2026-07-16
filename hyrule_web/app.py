@@ -1103,7 +1103,15 @@ async def domain_order_status(request: Request, order_id: str) -> Response:
         request,
         f"/v1/domains/orders/{urllib.parse.quote(order_id, safe='')}",
     )
-    if response is None or response.status_code == 401:
+    if response is None:
+        return _render(
+            request,
+            "domain_order.html",
+            order=None,
+            error=_backend_detail(response, "The domain order could not be loaded."),
+            status_code=503,
+        )
+    if response.status_code == 401:
         return RedirectResponse(
             "/login?" + urllib.parse.urlencode({"next": order_path}),
             status_code=303,
