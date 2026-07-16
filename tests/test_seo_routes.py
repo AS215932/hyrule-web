@@ -61,18 +61,16 @@ def test_llms_txt_constant_is_the_fallback_variant() -> None:
 def test_llms_txt_advertises_paid_network_diagnostics(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    """The diagnostics section points agents at the network-intel suite and
-    ClawHub skills — but never at unbuilt services (mail, speedtest)."""
+    """The operation section is generated only from enabled OpenAPI."""
     r = client.get("/llms.txt")
     assert r.status_code == 200
     text = r.text
     assert "/v1/dns/lookup" in text
     assert "/v1/bgp/lookup" in text
-    assert "/v1/mx/check" in text
-    assert "/v1/web/check" in text
+    assert "/v1/web/tls/deep" in text
     assert "/v1/network/request" in text
-    assert "hyrule-network-intel" in text  # ClawHub skill pointer
-    # Unbuilt services must not be promised to agents.
+    # Operations absent from the enabled document must not be promised.
+    assert "/v1/mx/check" not in text
     assert "/v1/mail" not in text
     assert "/v1/speedtest" not in text
 
@@ -91,16 +89,22 @@ def test_sitemap_xml_excludes_api_partials_and_dynamic_routes(client: TestClient
     assert "/api/" not in body
     assert "/partials/" not in body
     assert "/order/status/" not in body  # dynamic per-user
-    assert "/order/review" not in body   # POST-only
+    assert "/order/review" not in body  # POST-only
 
 
 def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
     r = client.get("/sitemap.xml")
     body = r.text
-    for path in ("https://hyrule.host/", "https://hyrule.host/services",
-                 "https://hyrule.host/order", "https://hyrule.host/llms.txt",
-                 "https://hyrule.host/terms", "https://hyrule.host/privacy",
-                 "https://hyrule.host/abuse", "https://hyrule.host/legal"):
+    for path in (
+        "https://hyrule.host/",
+        "https://hyrule.host/services",
+        "https://hyrule.host/order",
+        "https://hyrule.host/llms.txt",
+        "https://hyrule.host/terms",
+        "https://hyrule.host/privacy",
+        "https://hyrule.host/abuse",
+        "https://hyrule.host/legal",
+    ):
         assert path in body
 
 
@@ -117,19 +121,27 @@ def test_llms_txt_diagnostics_need_an_enabled_chain_and_live_discovery() -> None
         "family": "evm",
     }
 
-    live = build_llms_txt([base], diagnostics_live=True)
-    assert "Paid network diagnostics" in live
+    tool = {
+        "method": "POST",
+        "path": "/v1/dns/lookup",
+        "description": "DNS",
+        "price_display": "$0.001",
+        "executable": True,
+    }
+    live = build_llms_txt([base], diagnostics_live=True, tools=[tool])
+    assert "Enabled x402 operations" in live
 
-    no_chains = build_llms_txt([], diagnostics_live=True)
-    assert "Paid network diagnostics" not in no_chains
+    no_chains = build_llms_txt([], diagnostics_live=True, tools=[tool])
+    assert "Enabled x402 operations" not in no_chains
 
-    stale = build_llms_txt([base], diagnostics_live=False)
-    assert "Paid network diagnostics" not in stale
+    stale = build_llms_txt([base], diagnostics_live=False, tools=[tool])
+    assert "Enabled x402 operations" not in stale
 
     # The golden path needs EIP-3009 signing: an SVM-only catalog is not a
     # payable x402 surface for these endpoints.
     svm_only = build_llms_txt(
         [{"key": "solana", "display_name": "Solana", "family": "svm"}],
         diagnostics_live=True,
+        tools=[tool],
     )
-    assert "Paid network diagnostics" not in svm_only
+    assert "Enabled x402 operations" not in svm_only

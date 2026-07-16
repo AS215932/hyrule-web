@@ -10,7 +10,7 @@
 {% set faq_items = [
     {
         "q": "Can autonomous agents purchase Hyrule Cloud services directly?",
-        "a": "Yes. Agents can discover the x402 manifest at <code>/.well-known/x402.json</code>, call a resource, satisfy the returned payment requirements, and retry with an <code>X-PAYMENT</code> header. VM creation returns a public status URL and a save-once management URL. See <a href='/agents'>the agent integration guide</a>."
+        "a": "Yes. Agents can discover the x402 manifest at <code>/.well-known/x402.json</code>, call a resource, satisfy the returned payment requirements, and retry with a <code>Payment-Signature</code> header. VM creation returns a public status URL and a save-once management URL. See <a href='/agents'>the agent integration guide</a>."
     },
     {
         "q": "What payment methods do you accept?",

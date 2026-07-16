@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Services — Hyrule Cloud{% endblock %}
-{% block meta_description %}The Hyrule Cloud service catalog: bare IPv6-native VMs, network intelligence, domains and DNS, and anonymous network proxy — every price read live from the x402 manifest.{% endblock %}
+{% block meta_description %}The Hyrule Cloud service catalog: bare IPv6-native VMs, network intelligence, domains and DNS, and anonymous network proxy — enabled operations read live from OpenAPI.{% endblock %}
 
 {% block structured_data %}
 {{ super() }}
@@ -125,12 +125,13 @@
                 <tr>
                     <td><code>{{ r.method }} {{ r.path }}</code></td>
                     <td>{{ r.description }}</td>
-                    <td class="price">${{ r.min_price }}<span class="unit">/req</span></td>
+                    <td class="price">{{ r.price_display }}{% if r.min_price %}<span class="unit">/req</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
+                {% if not intel_rows %}<tr><td colspan="3">No network-intelligence operation is currently confirmed by the enabled OpenAPI catalog.</td></tr>{% endif %}
             </tbody>
         </table>
-        <span class="figcap"><b>Table 2.</b> Network-intelligence endpoints — prices live from the x402 manifest</span>
+        <span class="figcap"><b>Table 2.</b> Enabled network-intelligence endpoints — discovery prices live from OpenAPI</span>
     </div>
 </section>
 
@@ -146,7 +147,7 @@
     <div class="figure">
         <div class="dotlead"><span class="no">a.</span><span>Auto subdomain — <code>&lt;id&gt;.deploy.hyrule.host</code>, AAAA to your VM</span><span class="dl"></span><span class="v">free</span></div>
         {% for r in domain_rows %}
-        <div class="dotlead mt-2"><span class="no">{{ loop.cycle('b.', 'c.', 'd.') }}</span><span>{{ r.description }} — <code>{{ r.method }} {{ r.path }}</code></span><span class="dl"></span><span class="v">from ${{ r.min_price }}</span></div>
+        <div class="dotlead mt-2"><span class="no">{{ loop.cycle('b.', 'c.', 'd.') }}</span><span>{{ r.description }} — <code>{{ r.method }} {{ r.path }}</code></span><span class="dl"></span><span class="v">{{ r.price_display }}</span></div>
         {% endfor %}
         <div class="dotlead mt-2"><span class="no">＋</span><span>DNS zone + record management on registered domains</span><span class="dl"></span><span class="v">included</span></div>
         <span class="figcap"><b>Table 3.</b> Domains &amp; DNS — registration price varies by TLD</span>
@@ -175,6 +176,7 @@
                     <td class="price">{{ price }}</td>
                 </tr>
                 {% endfor %}
+                {% if not proxy_prices %}<tr><td colspan="3">{% if proxy_enabled %}Live proxy pricing is temporarily unavailable. Query <code>GET /v1/pricing</code> before purchase.{% else %}The proxy is not currently confirmed by the enabled OpenAPI catalog.{% endif %}</td></tr>{% endif %}
             </tbody>
         </table>
         <span class="figcap"><b>Table 4.</b> Proxy routes — prices live from <code>GET /v1/pricing</code></span>
@@ -207,7 +209,7 @@
     <div class="cta">
         <span class="panel-label">ready</span>
         <h2>Pick a plan and launch it.</h2>
-        <p>You only need an SSH key, a duration, and a wallet for an enabled payment rail. Everything else on this page is one <code>X-PAYMENT</code> header away.</p>
+        <p>You only need an SSH key, a duration, and a wallet for an enabled payment rail. Everything else on this page is one <code>Payment-Signature</code> header away.</p>
         <div class="cta-actions">
             <a href="/order" class="btn btn-primary btn-lg">Open order flow</a>
             <a href="/agents" class="btn btn-secondary btn-lg">Integrate an agent</a>

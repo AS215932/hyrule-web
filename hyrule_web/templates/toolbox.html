@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Network diagnostics toolbox — Hyrule Cloud{% endblock %}
+{% block meta_description %}Run enabled DNS, BGP, IP, registry, web, TLS, mail, port, NAT, and VoIP diagnostics with x402 and a browser or agent wallet.{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Hyrule Network Toolbox","url":"https://hyrule.host/toolbox","applicationCategory":"DeveloperApplication","operatingSystem":"Web browser"}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container toolbox-hero">
+    <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">toolbox</span></div>
+    <span class="panel-label">x402 network toolbox</span>
+    <h1>Look up anything the network can prove.</h1>
+    <p class="hero-blurb">Search the enabled catalog, build a schema-valid request, get the exact 402 quote, and settle with a browser or agent wallet. Humans and WebMCP agents share the same visible state.</p>
+    <label class="toolbox-search-label" for="toolbox-search">Search by tool, target, or question</label>
+    <div class="toolbox-search-row">
+        <input id="toolbox-search" type="search" placeholder="DNS, example.com, BGP, TLS, mail…" autocomplete="off">
+        <button id="toolbox-search-button" class="btn btn-primary" type="button">Find tools</button>
+    </div>
+    <div id="toolbox-categories" class="toolbox-categories" aria-label="Tool categories"></div>
+</section>
+
+<section class="container page-section">
+    {% if catalog_status == 'live' %}
+    <div class="catalog-state catalog-state-live" role="status"><span class="status-dot status-operational"></span> Live enabled catalog · {% if execution_enabled %}exact price confirmed before signing{% else %}payment-network discovery unavailable, so execution is paused{% endif %}</div>
+    {% elif catalog_status == 'stale' %}
+    <div class="catalog-state catalog-state-stale" role="alert">Discovery is stale. The last known tools are visible, but execution is disabled until the API confirms what is enabled.</div>
+    {% else %}
+    <div class="catalog-state catalog-state-unavailable" role="alert">Live tool discovery is unavailable. No static endpoint list or price is being substituted.</div>
+    {% endif %}
+
+    <div id="toolbox-grid" class="toolbox-grid" aria-label="Enabled x402 operations">
+        {% for tool in tools %}
+        <article class="tool-card{% if not tool.executable %} tool-card-handoff{% endif %}"
+                 data-tool-card data-operation-id="{{ tool.operation_id }}"
+                 data-search="{{ tool.search_terms|join(' ')|lower }}"
+                 data-category="{{ tool.category }}">
+            <div class="tool-card-head"><span>{{ tool.category }}</span><code>{{ tool.method }}</code></div>
+            <h2>{{ tool.title }}</h2>
+            <p>{{ tool.description }}</p>
+            <div class="tool-card-foot">
+                <span>{% if catalog_status == 'live' %}{{ tool.price_display }}{% else %}price unavailable{% endif %}</span>
+                {% if tool.executable %}
+                <button class="btn btn-secondary btn-sm" type="button" data-select-tool="{{ tool.operation_id }}" {% if not execution_enabled %}disabled{% endif %}>Configure</button>
+                {% else %}
+                <a class="btn btn-ghost btn-sm" href="{{ tool.handoff_url }}">Open product</a>
+                {% endif %}
+            </div>
+        </article>
+        {% else %}
+        <p>No enabled operations can be confirmed right now.</p>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section toolbox-workspace" id="toolbox-workspace" hidden>
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">configure</span><h2 id="toolbox-title">Choose a diagnostic</h2><code id="toolbox-path"></code></div>
+        <div id="toolbox-description" class="heading-side"></div>
+    </div>
+
+    <div class="toolbox-columns">
+        <form id="toolbox-form" class="toolbox-form" novalidate>
+            <div class="toolbox-network-field">
+                <label for="toolbox-network"><strong>Settlement network</strong></label>
+                <select id="toolbox-network" name="network" required>
+                    {% for network in networks if network.family == 'evm' %}
+                    <option value="{{ network.caip2 or network.key }}">{{ network.display_name }} · {{ network.asset }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="toolbox-fields"></div>
+            <details class="toolbox-advanced">
+                <summary>Advanced JSON request</summary>
+                <label for="toolbox-json">Request body</label>
+                <textarea id="toolbox-json" rows="12" spellcheck="false"></textarea>
+            </details>
+            <div id="toolbox-validation" class="form-error" role="alert" hidden></div>
+            <button id="toolbox-quote" class="btn btn-primary btn-lg" type="submit">Get exact x402 quote</button>
+        </form>
+
+        <aside class="toolbox-checkout" aria-live="polite">
+            <span class="panel-label">quote &amp; settlement</span>
+            <div id="toolbox-empty-quote"><p>Configure a diagnostic to request its exact payment requirements.</p></div>
+            <div id="toolbox-quote-panel" hidden>
+                <div class="toolbox-price"><span>Exact amount</span><strong id="toolbox-amount">—</strong><small id="toolbox-asset"></small></div>
+                <dl class="toolbox-quote-details">
+                    <div><dt>Network</dt><dd id="toolbox-quote-network"></dd></div>
+                    <div><dt>Expires</dt><dd id="toolbox-quote-expiry"></dd></div>
+                    <div><dt>Quote handle</dt><dd><code id="toolbox-quote-handle"></code></dd></div>
+                </dl>
+                <button id="toolbox-pay-wallet" class="btn btn-primary btn-lg btn-block" type="button">Pay with browser wallet</button>
+                <details class="toolbox-agent-payment">
+                    <summary>Use an agent-signed x402 payload</summary>
+                    <label for="toolbox-payment-signature">Payment-Signature value</label>
+                    <textarea id="toolbox-payment-signature" rows="5" spellcheck="false" placeholder="Base64 x402 v2 payload"></textarea>
+                    <button id="toolbox-pay-signed" class="btn btn-secondary btn-block" type="button">Submit signed payment</button>
+                </details>
+            </div>
+            <div id="toolbox-payment-status" class="payment-status" role="status"></div>
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section" id="toolbox-results" hidden>
+    <div class="section-heading split"><div class="heading-main"><span class="panel-label">result</span><h2 id="toolbox-result-title">Diagnostic result</h2></div><div class="heading-side" id="toolbox-result-summary"></div></div>
+    <div id="toolbox-findings" class="toolbox-findings"></div>
+    <div id="toolbox-downloads" class="toolbox-downloads"></div>
+    <details class="toolbox-raw"><summary>Raw response</summary><pre id="toolbox-result-raw"></pre></details>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><span class="panel-label">this tab</span><h2>Recent diagnostics</h2></div>
+    <ol id="toolbox-history" class="toolbox-history"><li>No diagnostics run in this tab yet.</li></ol>
+</section>
+
+<script id="toolbox-catalog-data" type="application/json">{{ tool_catalog | tojson }}</script>
+<script id="toolbox-networks-data" type="application/json">{{ networks | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}{{ vite_asset('toolbox') }}{% endblock %}

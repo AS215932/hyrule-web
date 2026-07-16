@@ -1,7 +1,7 @@
 """Direct unit tests for the _fetch_api helper.
 
 Page-level tests (test_pages.py) already exercise it through the route layer,
-but covering its three branches (200 / non-200 / HTTPError) directly keeps
+but covering its success and failure branches directly keeps
 the helper's contract testable in isolation if the page surface changes.
 """
 
@@ -50,4 +50,18 @@ async def test_fetch_api_returns_none_on_http_error(request_with_http) -> None:
     with respx.mock(base_url=settings.api_base_url, assert_all_called=True) as rx:
         rx.get("/v1/boom").mock(side_effect=httpx.ConnectError("nope"))
         result = await _fetch_api(request_with_http, "/v1/boom")
+    assert result is None
+
+
+@pytest.mark.parametrize(
+    ("response", "path"),
+    [
+        (httpx.Response(200, json=[{"a": 1}]), "/v1/list"),
+        (httpx.Response(200, text="not json"), "/v1/invalid-json"),
+    ],
+)
+async def test_fetch_api_rejects_non_object_json(request_with_http, response, path) -> None:
+    with respx.mock(base_url=settings.api_base_url, assert_all_called=True) as rx:
+        rx.get(path).mock(return_value=response)
+        result = await _fetch_api(request_with_http, path)
     assert result is None

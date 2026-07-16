@@ -2154,7 +2154,7 @@
     max-width: 36ch;
   }
 
-  .footer-col h5 {
+  .footer-col .footer-heading {
     font-family: var(--font-mono);
     color: var(--text-soft);
     font-size: 0.74rem;

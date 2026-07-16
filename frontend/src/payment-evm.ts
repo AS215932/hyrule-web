@@ -19,6 +19,13 @@ import type {
   PaymentNetwork,
   TransferWithAuthorizationTypedData,
 } from "./types";
+import {
+  encodeBase64Json,
+  executeX402,
+  quoteX402,
+  type X402Acceptance,
+  type X402Quote,
+} from "./x402";
 
 function setStatus(statusEl: HTMLElement | null, msg: string, cls?: string): void {
   if (!statusEl) return;
@@ -52,7 +59,10 @@ export function statusRedirectUrl(result: ProvisionedResult): string {
   return result.vm_id ? "/order/status/" + result.vm_id : "/order";
 }
 
-async function ensureChain(network: PaymentNetwork, provider: Eip1193Provider): Promise<void> {
+export async function ensureChain(
+  network: PaymentNetwork,
+  provider: Eip1193Provider,
+): Promise<void> {
   // EIP-1193: wallet_switchEthereumChain. If the chain isn't yet known to the
   // wallet, fall back to wallet_addEthereumChain with the explorer/rpc info.
   const chainIdHex = "0x" + network.chain_id.toString(16);
@@ -102,7 +112,7 @@ export function buildTypedData(
   network: PaymentNetwork,
   from: string,
   payTo: string,
-  valueUnits: number,
+  valueUnits: string | number,
   validAfter: string,
   validBefore: string,
   nonce: string,
@@ -142,6 +152,77 @@ export function buildTypedData(
   };
 }
 
+function sameAddress(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
+/** Sign one exact x402 acceptance with the configured browser wallet. */
+export async function signX402Quote(
+  quote: X402Quote,
+  network: PaymentNetwork,
+  provided?: Eip1193Provider,
+): Promise<string> {
+  const accept: X402Acceptance = quote.accept;
+  if (accept.network !== network.caip2 && accept.network !== network.key) {
+    throw new Error("The selected wallet network does not match the live quote.");
+  }
+  if (accept.asset?.startsWith("0x") && !sameAddress(accept.asset, network.token_address)) {
+    throw new Error("The quoted token contract is not enabled for this network.");
+  }
+  const payTo = accept.payTo || accept.pay_to;
+  if (!payTo) throw new Error("The live quote does not contain a payment recipient.");
+  if (!/^\d+$/.test(accept.amount))
+    throw new Error("The live quote contains an invalid base-unit amount.");
+
+  const provider = provided || (await getEvmProvider());
+  if (!provider) throw new Error("No browser wallet is available.");
+  const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
+  const from = accounts[0];
+  if (!from) throw new Error("The wallet did not return an account.");
+  await ensureChain(network, provider);
+
+  const timeout = Math.max(60, Math.min(Number(accept.maxTimeoutSeconds || 300), 3600));
+  const now = Math.floor(Date.now() / 1000);
+  const validAfter = String(now - 60);
+  const validBefore = String(now + timeout);
+  const nonce = nonceHex32();
+  const domainName =
+    typeof accept.extra?.name === "string" ? accept.extra.name : network.eip712_domain.name;
+  const domainVersion =
+    typeof accept.extra?.version === "string"
+      ? accept.extra.version
+      : network.eip712_domain.version;
+  const typedData = buildTypedData(
+    { ...network, eip712_domain: { name: domainName, version: domainVersion } },
+    from,
+    payTo,
+    accept.amount,
+    validAfter,
+    validBefore,
+    nonce,
+  );
+  const signature = (await provider.request({
+    method: "eth_signTypedData_v4",
+    params: [from, JSON.stringify(typedData)],
+  })) as string;
+  return encodeBase64Json({
+    x402Version: 2,
+    scheme: accept.scheme || "exact",
+    network: accept.network,
+    payload: {
+      authorization: {
+        from,
+        to: payTo,
+        value: accept.amount,
+        validAfter,
+        validBefore,
+        nonce,
+      },
+      signature,
+    },
+  });
+}
+
 /**
  * Resolve an EIP-1193 provider: the injected wallet (desktop / wallet in-app
  * browser) if present, otherwise WalletConnect (lazy-loaded — mobile), otherwise
@@ -157,129 +238,37 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
   const { network, button, statusEl, orderPath, body, headers = {}, onSuccess } = opts;
 
   if (button) button.disabled = true;
-  setStatus(statusEl, "Connecting wallet…", "payment-pending");
+  setStatus(statusEl, "Requesting exact payment details…", "payment-pending");
 
   try {
-    const provider = await getEvmProvider();
-    if (!provider) {
-      setStatus(
-        statusEl,
-        "No wallet available. On mobile, tap Pay to connect with WalletConnect; on " +
-          "desktop, install MetaMask or Rabby. Other payment rails appear only when enabled.",
-        "payment-error",
-      );
-      if (button) button.disabled = false;
-      return;
-    }
-    const accounts = (await provider.request({ method: "eth_requestAccounts" })) as string[];
-    const from = accounts[0];
-
-    await ensureChain(network, provider);
-
-    // First request: 402 with payment requirements.
-    setStatus(statusEl, "Requesting payment details…", "payment-pending");
-    const firstResp = await fetch(orderPath, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
-      body: JSON.stringify(body),
-    });
-
-    if (firstResp.status !== 402) {
-      if (firstResp.ok) {
-        // Some test/dev paths bypass payment — still preserve the one-time
-        // management token without putting it in the URL.
-        const okResult = await firstResp.json();
-        if (onSuccess) {
-          onSuccess(okResult);
-          return;
-        }
-        stashManagementToken(okResult);
-        window.location.href = statusRedirectUrl(okResult);
-        return;
-      }
-      const errBody = await firstResp.json().catch(() => ({}));
-      throw new Error(errBody.detail || errBody.error || "API error: " + firstResp.status);
-    }
-
-    const paymentHeader = firstResp.headers.get("x-payment-required");
-    if (!paymentHeader) throw new Error("Missing X-PAYMENT-REQUIRED header");
-    const paymentReq = JSON.parse(atob(paymentHeader));
-    // Pick the accept entry that matches OUR chain — fall back to first.
-    const accept =
-      (paymentReq.accepts || []).find(
-        (a: { network?: string }) => a.network === network.caip2 || a.network === network.key,
-      ) || (paymentReq.accepts || [])[0];
-    if (!accept) throw new Error("No matching `accepts` entry for " + network.caip2);
-
-    const priceStr = (accept.price || "0").replace("$", "");
-    const valueUnits = Math.round(parseFloat(priceStr) * Math.pow(10, network.token_decimals));
-
-    const nonce = nonceHex32();
-    const now = Math.floor(Date.now() / 1000);
-    const validAfter = String(now - 600);
-    const validBefore = String(now + 3600);
-    const payTo = accept.payTo || accept.pay_to;
-    if (!payTo) throw new Error("Facilitator response missing payTo");
-
-    const typedData = buildTypedData(
-      network,
-      from,
-      payTo,
-      valueUnits,
-      validAfter,
-      validBefore,
-      nonce,
+    const quoteResult = await quoteX402(
+      {
+        url: orderPath,
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      },
+      network.caip2 || network.key,
     );
-
-    setStatus(statusEl, "Please sign the payment in your wallet…", "payment-pending");
-    const signature = (await provider.request({
-      method: "eth_signTypedData_v4",
-      params: [from, JSON.stringify(typedData)],
-    })) as string;
-
-    const paymentPayload = {
-      x402Version: 2,
-      scheme: accept.scheme || "exact",
-      network: accept.network,
-      payload: {
-        authorization: {
-          from,
-          to: payTo,
-          value: String(valueUnits),
-          validAfter,
-          validBefore,
-          nonce,
-        },
-        signature,
-      },
-    };
-    const paymentB64 = btoa(JSON.stringify(paymentPayload));
-
-    setStatus(statusEl, "Processing payment…", "payment-pending");
-    const paidResp = await fetch(orderPath, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-PAYMENT": paymentB64,
-        ...headers,
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!paidResp.ok) {
-      const paidErr = await paidResp.json().catch(() => ({}));
-      throw new Error(paidErr.detail || paidErr.error || "Payment failed: " + paidResp.status);
+    let result: Record<string, unknown>;
+    if (quoteResult.kind === "response") {
+      result = (await quoteResult.response.json()) as Record<string, unknown>;
+    } else {
+      setStatus(statusEl, "Connect and sign the exact payment…", "payment-pending");
+      const paymentSignature = await signX402Quote(quoteResult.quote, network);
+      setStatus(statusEl, "Processing payment…", "payment-pending");
+      const paidResp = await executeX402(quoteResult.quote, paymentSignature);
+      result = (await paidResp.json()) as Record<string, unknown>;
     }
-
-    const result = await paidResp.json();
     setStatus(statusEl, "Payment successful! Redirecting…", "payment-ok");
     if (onSuccess) {
       onSuccess(result);
       return;
     }
-    stashManagementToken(result);
+    const provisioned = result as ProvisionedResult;
+    stashManagementToken(provisioned);
     setTimeout(() => {
-      window.location.href = statusRedirectUrl(result);
+      window.location.href = statusRedirectUrl(provisioned);
     }, 1000);
   } catch (err) {
     if ((err as { code?: number }).code === 4001) {

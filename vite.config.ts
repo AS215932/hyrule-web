@@ -25,6 +25,8 @@ export default defineConfig({
         domain: "frontend/src/domain.ts",
         // Passwordless login plus primary-wallet link and two-signature rotation.
         wallet_auth: "frontend/src/wallet-auth.ts",
+        // Enabled-only x402 diagnostics, autonomous WebMCP, and browser wallets.
+        toolbox: "frontend/src/toolbox.ts",
       },
     },
   },

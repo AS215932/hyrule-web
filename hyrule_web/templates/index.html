@@ -4,10 +4,14 @@
 
 {% block content %}
 {% set native_methods = native or [] %}
-{% set compute_min = (x402_resources | selectattr('group', 'equalto', 'compute') | map(attribute='min_price') | map('float') | list) %}
-{% set intel_min = (x402_resources | selectattr('group', 'equalto', 'intel') | map(attribute='min_price') | map('float') | list) %}
-{% set domains_min = (x402_resources | selectattr('group', 'equalto', 'domains') | map(attribute='min_price') | map('float') | list) %}
-{% set proxy_min = (x402_resources | selectattr('group', 'equalto', 'proxy') | map(attribute='min_price') | map('float') | list) %}
+{% set compute_min = (x402_resources | selectattr('group', 'equalto', 'compute') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
+{% set intel_min = (x402_resources | selectattr('group', 'equalto', 'intel') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
+{% set domains_min = (x402_resources | selectattr('group', 'equalto', 'domains') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
+{% set proxy_min = (x402_resources | selectattr('group', 'equalto', 'proxy') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
+{% set compute_label = ('$%.2f/day' | format(compute_min | min)) if compute_min else 'live quote' %}
+{% set intel_label = ('$%.3f/req' | format(intel_min | min)) if intel_min else 'live quote' %}
+{% set domains_label = ('$%.2f+' | format(domains_min | min)) if domains_min else 'priced by TLD' %}
+{% set proxy_label = ('$%.2f/req' | format(proxy_min | min)) if proxy_min else 'live quote' %}
 
 <section class="container hero">
     <div class="hero-context" aria-label="Platform context">
@@ -33,7 +37,7 @@
             <span class="hero-stat-label">request to root prompt</span>
         </div>
         <div class="hero-stat">
-            <span class="hero-stat-num">$0.001<em>+</em></span>
+            <span class="hero-stat-num">{% if intel_min %}${{ "%.3f"|format(intel_min|min) }}<em>+</em>{% else %}live{% endif %}</span>
             <span class="hero-stat-label">per paid request</span>
         </div>
         <div class="hero-stat">
@@ -49,14 +53,14 @@
             <span class="panel-label">Service catalog</span>
             <h2>Four services. One payment protocol.</h2>
         </div>
-        <div class="heading-side">Prices are read from the live <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a>. Agents and the browser checkout consume the same API contracts.</div>
+        <div class="heading-side">Offerings and discovery prices are read from the enabled-only <a href="https://cloud.hyrule.host/openapi.json">OpenAPI document</a>. The exact price always comes from the live 402 challenge.</div>
     </div>
 
     <div class="figure mb-6">
-        <div class="dotlead"><span class="no">01</span><span><a href="/services#compute">Compute — IPv6-native VMs with root SSH</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(compute_min | min if compute_min else 0.05) }}/day</span></div>
-        <div class="dotlead mt-2"><span class="no">02</span><span><a href="/services#intel">Network intelligence — DNS, BGP, TLS, mail, and more</a></span><span class="dl"></span><span class="v">from ${{ "%.3f"|format(intel_min | min if intel_min else 0.001) }}/req</span></div>
-        <div class="dotlead mt-2"><span class="no">03</span><span><a href="/services#domains">Domains &amp; DNS — registration, zones, and records</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(domains_min | min if domains_min else 6.00) }}</span></div>
-        <div class="dotlead mt-2"><span class="no">04</span><span><a href="/services#proxy">Network proxy — Direct, Tor, I2P, and Yggdrasil</a></span><span class="dl"></span><span class="v">from ${{ "%.2f"|format(proxy_min | min if proxy_min else 0.01) }}/req</span></div>
+        <div class="dotlead"><span class="no">01</span><span><a href="/services#compute">Compute — IPv6-native VMs with root SSH</a></span><span class="dl"></span><span class="v">{{ compute_label }}</span></div>
+        <div class="dotlead mt-2"><span class="no">02</span><span><a href="/services#intel">Network intelligence — DNS, BGP, TLS, mail, and more</a></span><span class="dl"></span><span class="v">{{ intel_label }}</span></div>
+        <div class="dotlead mt-2"><span class="no">03</span><span><a href="/services#domains">Domains &amp; DNS — registration, zones, and records</a></span><span class="dl"></span><span class="v">{{ domains_label }}</span></div>
+        <div class="dotlead mt-2"><span class="no">04</span><span><a href="/services#proxy">Network proxy — Direct, Tor, I2P, and Yggdrasil</a></span><span class="dl"></span><span class="v">{{ proxy_label }}</span></div>
     </div>
 
     <div class="pillar-grid">
@@ -64,25 +68,25 @@
             <span class="sec">01</span>
             <h3>Compute</h3>
             <p>Bare VMs with root SSH, global IPv6, NAT64/DNS64, and an automatic <code>deploy.hyrule.host</code> name. A successful purchase returns lifecycle URLs immediately.</p>
-            <span class="from"><a href="/services#compute">specs →</a> <b>${{ "%.2f"|format(compute_min | min if compute_min else 0.05) }}/day</b></span>
+            <span class="from"><a href="/services#compute">specs →</a> <b>{{ compute_label }}</b></span>
         </article>
         <article class="pillar-card">
             <span class="sec">02</span>
             <h3>Intelligence</h3>
             <p>BGP, routing, DNSSEC, TLS, mail, ports, NAT, and VoIP diagnostics backed by AS215932 data plus external sources. Responses return evidence, not prose summaries.</p>
-            <span class="from"><a href="/services#intel">endpoints →</a> <b>${{ "%.3f"|format(intel_min | min if intel_min else 0.001) }}+/req</b></span>
+            <span class="from"><a href="/toolbox">open toolbox →</a> <b>{{ intel_label }}</b></span>
         </article>
         <article class="pillar-card">
             <span class="sec">03</span>
             <h3>Domains &amp; DNS</h3>
             <p>Domain registration and authoritative DNS record management complete the path from agent-built application to a globally resolvable service.</p>
-            <span class="from"><a href="/services#domains">details →</a> <b>${{ "%.2f"|format(domains_min | min if domains_min else 6.00) }}+</b></span>
+            <span class="from"><a href="/services#domains">details →</a> <b>{{ domains_label }}</b></span>
         </article>
         <article class="pillar-card">
             <span class="sec">04</span>
             <h3>Network proxy</h3>
             <p>Outbound requests over Direct, Tor, I2P, or Yggdrasil. Payment settles only when the request is accepted for execution.</p>
-            <span class="from"><a href="/services#proxy">routes →</a> <b>${{ "%.2f"|format(proxy_min | min if proxy_min else 0.01) }}+/req</b></span>
+            <span class="from"><a href="/services#proxy">routes →</a> <b>{{ proxy_label }}</b></span>
         </article>
     </div>
 </section>
@@ -100,7 +104,7 @@
         <article class="step">
             <span class="step-num">01</span>
             <h3 class="step-title">Discover</h3>
-            <p class="step-body">Read the x402 manifest, OpenAPI document, <code>llms.txt</code>, or MCP tools.</p>
+            <p class="step-body">Read the x402 manifest, OpenAPI document, <code>llms.txt</code>, or browser-native WebMCP tools.</p>
             <div class="step-cmd"><span class="prompt">GET</span> /.well-known/x402.json</div>
         </article>
         <article class="step">
@@ -113,7 +117,7 @@
             <span class="step-num">03</span>
             <h3 class="step-title">Settle</h3>
             <p class="step-body">Sign the authorization and retry with the payment header. Settlement is bound to the request.</p>
-            <div class="step-cmd"><span class="prompt">X-PAYMENT</span> eyJ…</div>
+            <div class="step-cmd"><span class="prompt">Payment-Signature</span> eyJ…</div>
         </article>
         <article class="step">
             <span class="step-num">04</span>
@@ -128,7 +132,7 @@
             <h3>Payment and provisioning share one machine-readable flow.</h3>
             <p>The website mirrors the public API. Anything a human can purchase here can be discovered and requested directly by software.</p>
             <div class="row"><span class="k">Endpoint</span><span><code>POST /v1/vm/create</code></span></div>
-            <div class="row"><span class="k">Payment</span><span><code>X-PAYMENT</code> · x402</span></div>
+            <div class="row"><span class="k">Payment</span><span><code>Payment-Signature</code> · x402</span></div>
             <div class="row"><span class="k">Settlement</span><span>{% if networks %}USDC · {{ networks | map(attribute='display_name') | join(' · ') }}{% else %}Live settlement rails unavailable{% endif %}</span></div>
             <div class="row"><span class="k">Provisioning</span><span>asynchronous · public status URL</span></div>
         </div>
@@ -139,7 +143,7 @@
 → 402 + payment requirements
 
 POST /v1/vm/create
-X-PAYMENT: &lt;signed authorization&gt;
+Payment-Signature: &lt;signed authorization&gt;
 → 200 + status_url + management_url</code></pre>
             </details>
             <details>
