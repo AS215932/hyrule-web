@@ -58,6 +58,25 @@ interface DomainOrder {
   } | null;
 }
 
+export function domainOrderPayload(
+  quoteId: string,
+  paymentMethod: string,
+  termsVersion: string,
+  refundAddress?: string,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    quote_id: quoteId,
+    payment_method: paymentMethod,
+    terms_version: termsVersion,
+  };
+  if (paymentMethod !== "usdc") {
+    const normalized = refundAddress?.trim() || "";
+    if (!normalized) throw new Error("A refund address is required for BTC/XMR.");
+    body.refund_address = normalized;
+  }
+  return body;
+}
+
 function renderNative(container: HTMLElement, order: DomainOrder): void {
   const payment = order.payment;
   container.replaceChildren();
@@ -153,17 +172,7 @@ async function setupCheckout(container: HTMLElement): Promise<void> {
       if (!terms?.checked) throw new Error("Accept the domain terms before paying.");
       const selectedMethod = method();
       if (!selectedMethod) throw new Error("No payment method is currently available.");
-      const body: Record<string, unknown> = {
-        quote_id: quoteId,
-        payment_method: selectedMethod,
-        terms_version: termsVersion,
-        on_domain_failure: "keep_vm",
-      };
-      if (selectedMethod !== "usdc") {
-        if (!refundInput?.value.trim())
-          throw new Error("A refund address is required for BTC/XMR.");
-        body.refund_address = refundInput.value.trim();
-      }
+      const body = domainOrderPayload(quoteId, selectedMethod, termsVersion, refundInput?.value);
       const idempotencyKey = storedKey(`${quoteId}:${selectedMethod}`);
       if (selectedMethod === "usdc") {
         const network = chainSelect

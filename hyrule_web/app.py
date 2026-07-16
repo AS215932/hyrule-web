@@ -68,6 +68,18 @@ HOSTNAME_RE = re.compile(
 )
 
 
+def _safe_next_path(value: str | None, *, fallback: str = "/dashboard") -> str:
+    """Return a same-origin absolute path suitable for an auth redirect."""
+    if not value or "\\" in value or any(ord(char) < 32 for char in value):
+        return fallback
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
+        return fallback
+    if parsed.path.startswith("//"):
+        return fallback
+    return urllib.parse.urlunsplit(("", "", parsed.path, parsed.query, ""))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.http = httpx.AsyncClient(
@@ -1304,7 +1316,12 @@ async def page_status(request: Request, vm_id: str) -> Response:
 @app.get("/signup", response_class=HTMLResponse)
 async def page_signup(request: Request) -> Response:
     _require_auth_ui()
-    return _render(request, "signup.html", error=None)
+    return _render(
+        request,
+        "signup.html",
+        error=None,
+        next_path=_safe_next_path(request.query_params.get("next")),
+    )
 
 
 @app.post("/signup", response_class=HTMLResponse)
@@ -1312,28 +1329,51 @@ async def do_signup(
     request: Request,
     password: Annotated[str, Form()],
     password_confirm: Annotated[str, Form()],
+    next_path: Annotated[str, Form(alias="next")] = "/dashboard",
 ) -> Response:
     """Mirror the backend's password rules (min 12 chars) before round-tripping
     so we can return an inline error without burning the per-IP signup quota
     on /v1/auth/register."""
     _require_auth_ui()
+    next_path = _safe_next_path(next_path)
     if password != password_confirm:
-        return _render(request, "signup.html", error="Passwords do not match.")
+        return _render(
+            request,
+            "signup.html",
+            error="Passwords do not match.",
+            next_path=next_path,
+        )
     if len(password) < 12:
-        return _render(request, "signup.html", error="Password must be at least 12 characters.")
+        return _render(
+            request,
+            "signup.html",
+            error="Password must be at least 12 characters.",
+            next_path=next_path,
+        )
 
     backend = await _api_request(
         request, "/v1/auth/register", method="POST", json={"password": password}
     )
     if backend is None:
-        return _render(request, "signup.html", error="Backend unreachable. Try again.")
+        return _render(
+            request,
+            "signup.html",
+            error="Backend unreachable. Try again.",
+            next_path=next_path,
+        )
     if backend.status_code == 429:
         return _render(
             request, "signup.html",
             error="Too many signups from your network; try later.",
+            next_path=next_path,
         )
     if backend.status_code != 200:
-        return _render(request, "signup.html", error="Signup failed. Try again.")
+        return _render(
+            request,
+            "signup.html",
+            error="Signup failed. Try again.",
+            next_path=next_path,
+        )
 
     body = backend.json()
     # signup_success is the *only* place the recovery code is ever shown.
@@ -1343,6 +1383,7 @@ async def do_signup(
         request, "signup_success.html",
         account_id=body["account_id"],
         recovery_code=body["recovery_code"],
+        next_path=next_path,
     )
     _copy_set_cookie(backend, rendered)
     return rendered
@@ -1351,7 +1392,12 @@ async def do_signup(
 @app.get("/login", response_class=HTMLResponse)
 async def page_login(request: Request) -> Response:
     _require_auth_ui()
-    return _render(request, "login.html", error=None)
+    return _render(
+        request,
+        "login.html",
+        error=None,
+        next_path=_safe_next_path(request.query_params.get("next")),
+    )
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -1359,20 +1405,37 @@ async def do_login(
     request: Request,
     account_id: Annotated[str, Form()],
     password: Annotated[str, Form()],
+    next_path: Annotated[str, Form(alias="next")] = "/dashboard",
 ) -> Response:
     _require_auth_ui()
+    next_path = _safe_next_path(next_path)
     backend = await _api_request(
         request, "/v1/auth/login", method="POST",
         json={"account_id": account_id.strip().upper(), "password": password},
     )
     if backend is None:
-        return _render(request, "login.html", error="Backend unreachable.")
+        return _render(
+            request,
+            "login.html",
+            error="Backend unreachable.",
+            next_path=next_path,
+        )
     if backend.status_code == 429:
-        return _render(request, "login.html", error="Too many login attempts; try later.")
+        return _render(
+            request,
+            "login.html",
+            error="Too many login attempts; try later.",
+            next_path=next_path,
+        )
     if backend.status_code != 200:
-        return _render(request, "login.html", error="Invalid credentials.")
+        return _render(
+            request,
+            "login.html",
+            error="Invalid credentials.",
+            next_path=next_path,
+        )
 
-    redirect = RedirectResponse("/dashboard", status_code=303)
+    redirect = RedirectResponse(next_path, status_code=303)
     _copy_set_cookie(backend, redirect)
     return redirect
 

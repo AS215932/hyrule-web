@@ -161,7 +161,7 @@
     ]
   },
   "frontend/src/domain.ts": {
-    "file": "assets/domain-BDy5fc34.js",
+    "file": "assets/domain-b1pyqWF2.js",
     "name": "domain",
     "src": "frontend/src/domain.ts",
     "isEntry": true,
@@ -200,7 +200,7 @@
     "isEntry": true
   },
   "frontend/src/wallet-auth.ts": {
-    "file": "assets/wallet_auth-B6uWZNtL.js",
+    "file": "assets/wallet_auth-DvP5n063.js",
     "name": "wallet_auth",
     "src": "frontend/src/wallet-auth.ts",
     "isEntry": true,

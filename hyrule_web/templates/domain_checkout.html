@@ -39,7 +39,8 @@
             <div class="wallet-amount">pay <em>${{ quote.price.total_usd }}</em></div>
             {% if not authenticated %}
             <div class="payment-status payment-warn">Domain orders belong to an account. Log in or create an account before paying.</div>
-            <div class="mt-3 flex gap-2"><a class="btn btn-primary" href="/login">Log in</a><a class="btn btn-secondary" href="/signup">Sign up</a></div>
+            {% set return_to = "/domains/checkout/" ~ quote.quote_id %}
+            <div class="mt-3 flex gap-2"><a class="btn btn-primary" href="/login?next={{ return_to | urlencode }}">Log in</a><a class="btn btn-secondary" href="/signup?next={{ return_to | urlencode }}">Sign up</a></div>
             {% else %}
             {% set has_usdc = networks | length > 0 %}
             {% set has_btc = "BTC" in native %}

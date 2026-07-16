@@ -89,7 +89,7 @@ async function login(): Promise<void> {
   status("Sign the Hyrule login challenge…", "payment-pending");
   await verify(request.nonce, await sign(provider, address, request.message));
   status("Signed in. Redirecting…", "payment-ok");
-  window.location.href = "/dashboard";
+  window.location.href = walletLogin?.dataset.next || "/dashboard";
 }
 
 async function link(): Promise<void> {
@@ -150,7 +150,8 @@ function run(action: () => Promise<void>): void {
   });
 }
 
-document.getElementById("wallet-login")?.addEventListener("click", () => run(login));
+const walletLogin = document.getElementById("wallet-login") as HTMLButtonElement | null;
+walletLogin?.addEventListener("click", () => run(login));
 document.getElementById("wallet-link")?.addEventListener("click", () => run(link));
 const walletContainer = document.getElementById("wallet-account");
 document.getElementById("wallet-rotate")?.addEventListener("click", () => {

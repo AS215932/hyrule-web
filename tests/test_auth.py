@@ -34,10 +34,12 @@ def test_signup_page_renders(client: TestClient) -> None:
 
 
 def test_login_page_renders(client: TestClient) -> None:
-    r = client.get("/login")
+    r = client.get("/login?next=%2Fdomains%2Fcheckout%2Fdq_test")
     assert r.status_code == 200
     assert 'name="account_id"' in r.text
     assert 'name="password"' in r.text
+    assert 'name="next" value="/domains/checkout/dq_test"' in r.text
+    assert 'data-next="/domains/checkout/dq_test"' in r.text
 
 
 def test_recover_page_renders(client: TestClient) -> None:
@@ -62,13 +64,18 @@ def test_signup_happy_path_renders_recovery_code(
     ))
     r = client.post(
         "/signup",
-        data={"password": "correcthorsebattery", "password_confirm": "correcthorsebattery"},
+        data={
+            "password": "correcthorsebattery",
+            "password_confirm": "correcthorsebattery",
+            "next": "/domains/checkout/dq_signup",
+        },
         follow_redirects=False,
     )
     assert r.status_code == 200
     assert "ACCT_NEW1" in r.text
     assert "hyr-rec-zzzzz" in r.text
     assert "save this once" in r.text.lower()
+    assert 'href="/domains/checkout/dq_signup"' in r.text
     assert r.cookies.get("hyr_sess") == "newsess"
 
 
@@ -161,6 +168,38 @@ def test_login_happy_path_redirects_to_dashboard(
     assert r.status_code == 303
     assert r.headers["location"] == "/dashboard"
     assert r.cookies.get("hyr_sess") == "loginsess"
+
+
+def test_login_returns_to_safe_checkout_and_rejects_external_redirects(
+    client: TestClient,
+    mocked_api: respx.MockRouter,
+) -> None:
+    mocked_api.post("/v1/auth/login").mock(
+        return_value=httpx.Response(200, json={"account_id": "ACCT_RETURN"})
+    )
+    checkout = client.post(
+        "/login",
+        data={
+            "account_id": "acct_return",
+            "password": "correcthorsebattery",
+            "next": "/domains/checkout/dq_return",
+        },
+        follow_redirects=False,
+    )
+    assert checkout.status_code == 303
+    assert checkout.headers["location"] == "/domains/checkout/dq_return"
+
+    external = client.post(
+        "/login",
+        data={
+            "account_id": "acct_return",
+            "password": "correcthorsebattery",
+            "next": "https://attacker.example/steal",
+        },
+        follow_redirects=False,
+    )
+    assert external.status_code == 303
+    assert external.headers["location"] == "/dashboard"
 
 
 def test_login_uppercases_account_id_before_calling_backend(

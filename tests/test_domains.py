@@ -104,6 +104,8 @@ def test_domain_checkout_requires_account_before_payment(
     assert response.status_code == 200
     assert "Log in or create an account before paying" in response.text
     assert "Pay and place order" not in response.text
+    assert "/login?next=/domains/checkout/dq_example123456789" in response.text
+    assert "/signup?next=/domains/checkout/dq_example123456789" in response.text
 
 
 def test_domain_checkout_excludes_non_evm_payment_networks(

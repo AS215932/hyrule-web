@@ -22,6 +22,7 @@
         <div class="payment-status payment-error mb-4">{{ error }}</div>
         {% endif %}
         <form method="post" action="/login">
+            <input type="hidden" name="next" value="{{ next_path }}">
             <div class="form-section">
                 <label for="aid"><strong>Account ID</strong></label>
                 <input id="aid" name="account_id" required
@@ -38,10 +39,10 @@
             <button type="submit" class="btn btn-primary">Log in</button>
         </form>
         <div class="my-5 flex items-center gap-3 text-text-soft"><span class="h-px flex-1 bg-white/10"></span><span>or</span><span class="h-px flex-1 bg-white/10"></span></div>
-        <button id="wallet-login" type="button" class="btn btn-secondary btn-block">Sign in with wallet</button>
+        <button id="wallet-login" type="button" class="btn btn-secondary btn-block" data-next="{{ next_path }}">Sign in with wallet</button>
         <div id="wallet-auth-status" class="payment-status"></div>
         <p class="mt-4 text-[0.85em] text-text-soft">
-            No account? <a href="/signup">Sign up</a>.<br>
+            No account? <a href="/signup?next={{ next_path | urlencode }}">Sign up</a>.<br>
             Lost your password? <a href="/recover">Use recovery code</a>.
         </p>
     </div>
