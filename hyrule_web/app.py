@@ -1648,6 +1648,7 @@ def _valid_nameserver(value: str) -> str | None:
 async def dashboard_domain(request: Request, domain: str) -> Response:
     _require_auth_ui()
     encoded = urllib.parse.quote(domain, safe="")
+    domain_path = f"/dashboard/domains/{encoded}"
     detail_response = await _api_request(request, f"/v1/domains/{encoded}")
     if detail_response is None:
         return _render(
@@ -1661,7 +1662,10 @@ async def dashboard_domain(request: Request, domain: str) -> Response:
             status_code=503,
         )
     if detail_response.status_code == 401:
-        return RedirectResponse("/login", status_code=303)
+        return RedirectResponse(
+            "/login?" + urllib.parse.urlencode({"next": domain_path}),
+            status_code=303,
+        )
     if detail_response.status_code != 200:
         return RedirectResponse("/dashboard", status_code=303)
     zone_response = await _api_request(request, f"/v1/domains/{encoded}/dns")

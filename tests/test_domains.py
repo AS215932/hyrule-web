@@ -425,7 +425,10 @@ def test_domain_dnssec_mutation_requires_valid_ds_and_reuses_form_key(
 
 @pytest.mark.parametrize(
     ("status", "location"),
-    [(401, "/login"), (404, "/dashboard")],
+    [
+        (401, "/login?next=%2Fdashboard%2Fdomains%2Fexample.dev"),
+        (404, "/dashboard"),
+    ],
 )
 def test_domain_dashboard_redirects_on_detail_failure(
     client: TestClient,

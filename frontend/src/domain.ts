@@ -27,6 +27,10 @@ function storedKey(scope: string): string {
   return value;
 }
 
+function rotateStoredKey(scope: string): void {
+  sessionStorage.setItem("hyr_domain_idempotency:" + scope, randomKey());
+}
+
 function setStatus(element: HTMLElement | null, message: string, tone = ""): void {
   if (!element) return;
   element.textContent = message;
@@ -243,13 +247,14 @@ async function signMessage(
   }
 }
 
-async function setupTransfer(container: HTMLElement): Promise<void> {
+export async function setupTransfer(container: HTMLElement): Promise<void> {
   const button = document.getElementById("domain-transfer-button") as HTMLButtonElement | null;
   const statusElement = document.getElementById("domain-transfer-status");
   if (!button) return;
   button.addEventListener("click", () => {
     void (async () => {
       const domain = container.dataset.domain || "";
+      const idempotencyScope = `transfer:${domain}`;
       const linked = (container.dataset.wallet || "").toLowerCase();
       const provider = await getEvmProvider();
       if (!provider) throw new Error("No wallet is available.");
@@ -282,7 +287,7 @@ async function setupTransfer(container: HTMLElement): Promise<void> {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Idempotency-Key": storedKey(`transfer:${domain}`),
+            "Idempotency-Key": storedKey(idempotencyScope),
           },
           body: JSON.stringify({ nonce: challenge.nonce, signature }),
         },
@@ -305,8 +310,10 @@ async function setupTransfer(container: HTMLElement): Promise<void> {
           setStatus(statusElement, "Domain unlocked. Save the one-time code now.", "payment-ok");
           return;
         }
-        if (current.status === "failed")
+        if (current.status === "failed") {
+          rotateStoredKey(idempotencyScope);
           throw new Error(current.error_detail || "Transfer-out failed.");
+        }
       }
       throw new Error("Transfer-out is still pending. Contact support with the operation ID.");
     })().catch((error: unknown) => {
