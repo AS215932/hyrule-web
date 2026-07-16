@@ -1,5 +1,5 @@
 import { getEvmProvider } from "./payment-evm";
-import type { Eip1193Provider } from "./types";
+import type { Eip1193Provider, PaymentNetwork } from "./types";
 
 interface Challenge {
   nonce: string;
@@ -25,22 +25,114 @@ async function accounts(provider: Eip1193Provider): Promise<string[]> {
 
 async function chainId(provider: Eip1193Provider): Promise<number> {
   const raw = (await provider.request({ method: "eth_chainId" })) as string;
-  return Number.parseInt(raw, 16);
+  const selected = Number.parseInt(raw, 16);
+  if (!Number.isSafeInteger(selected) || selected <= 0) {
+    throw new Error("The wallet returned an invalid chain ID.");
+  }
+  return selected;
 }
 
-async function sign(provider: Eip1193Provider, address: string, message: string): Promise<string> {
+export function personalMessageHex(message: string): string {
+  const bytes = new TextEncoder().encode(message);
+  return (
+    "0x" +
+    Array.from(bytes)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")
+  );
+}
+
+export async function signWalletMessage(
+  provider: Eip1193Provider,
+  address: string,
+  message: string,
+): Promise<string> {
+  const encoded = personalMessageHex(message);
   try {
     return (await provider.request({
       method: "personal_sign",
-      params: [message, address],
+      params: [encoded, address],
     })) as string;
   } catch (error) {
     if ((error as { code?: number }).code === 4001) throw error;
     return (await provider.request({
       method: "personal_sign",
-      params: [address, message],
+      params: [address, encoded],
     })) as string;
   }
+}
+
+async function switchWalletChain(
+  provider: Eip1193Provider,
+  network: PaymentNetwork,
+): Promise<void> {
+  const chainIdHex = `0x${network.chain_id.toString(16)}`;
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  } catch (error) {
+    if ((error as { code?: number }).code !== 4902) throw error;
+    const rpcUrl = network.rpc_url?.trim();
+    if (!rpcUrl) {
+      throw new Error(`Cannot add ${network.display_name}: no RPC URL is configured.`, {
+        cause: error,
+      });
+    }
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: chainIdHex,
+          chainName: network.display_name,
+          nativeCurrency: network.native_currency || {
+            name: "Ether",
+            symbol: "ETH",
+            decimals: 18,
+          },
+          rpcUrls: [rpcUrl],
+          blockExplorerUrls: [network.block_explorer_url].filter(Boolean),
+        },
+      ],
+    });
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  }
+}
+
+export async function resolveWalletAuthChain(
+  provider: Eip1193Provider,
+  onSwitch?: (network: PaymentNetwork) => void,
+): Promise<number> {
+  const selected = await chainId(provider);
+  const response = await fetch("/api/payments/networks");
+  if (!response.ok) throw new Error("Could not load supported wallet chains.");
+  const body = (await response.json()) as { networks?: PaymentNetwork[] };
+  const networks = (Array.isArray(body.networks) ? body.networks : []).filter(
+    (network) =>
+      network.family === "evm" && Number.isSafeInteger(network.chain_id) && network.chain_id > 0,
+  );
+  if (!networks.length) throw new Error("No EVM wallet chains are currently enabled.");
+  if (networks.some((network) => network.chain_id === selected)) return selected;
+
+  let lastError: unknown;
+  for (const network of networks) {
+    try {
+      onSwitch?.(network);
+      await switchWalletChain(provider, network);
+      const switched = await chainId(provider);
+      if (switched === network.chain_id) return switched;
+    } catch (error) {
+      if ((error as { code?: number }).code === 4001) throw error;
+      lastError = error;
+    }
+  }
+
+  const reason = lastError instanceof Error ? `: ${lastError.message}` : ".";
+  throw new Error(`Could not switch this wallet to an enabled chain${reason}`);
 }
 
 async function challenge(
@@ -85,9 +177,12 @@ async function login(): Promise<void> {
   const provider = await providerOrThrow();
   const [address] = await accounts(provider);
   if (!address) throw new Error("The wallet returned no account.");
-  const request = await challenge("login", address, await chainId(provider));
+  const selectedChain = await resolveWalletAuthChain(provider, (network) => {
+    status(`Switch your wallet to ${network.display_name}…`, "payment-pending");
+  });
+  const request = await challenge("login", address, selectedChain);
   status("Sign the Hyrule login challenge…", "payment-pending");
-  await verify(request.nonce, await sign(provider, address, request.message));
+  await verify(request.nonce, await signWalletMessage(provider, address, request.message));
   status("Signed in. Redirecting…", "payment-ok");
   window.location.href = walletLogin?.dataset.next || "/dashboard";
 }
@@ -97,9 +192,12 @@ async function link(): Promise<void> {
   const provider = await providerOrThrow();
   const [address] = await accounts(provider);
   if (!address) throw new Error("The wallet returned no account.");
-  const request = await challenge("link", address, await chainId(provider));
+  const selectedChain = await resolveWalletAuthChain(provider, (network) => {
+    status(`Switch your wallet to ${network.display_name}…`, "payment-pending");
+  });
+  const request = await challenge("link", address, selectedChain);
   status("Sign the wallet-link challenge…", "payment-pending");
-  await verify(request.nonce, await sign(provider, address, request.message));
+  await verify(request.nonce, await signWalletMessage(provider, address, request.message));
   status("Wallet linked. Reloading…", "payment-ok");
   window.location.reload();
 }
@@ -116,9 +214,12 @@ async function rotate(container: HTMLElement): Promise<void> {
   if (!active || active.toLowerCase() !== current) {
     throw new Error("Select the currently linked wallet before starting rotation.");
   }
-  const request = await challenge("rotate", requested, await chainId(provider));
+  const selectedChain = await resolveWalletAuthChain(provider, (network) => {
+    status(`Switch your wallet to ${network.display_name}…`, "payment-pending");
+  });
+  const request = await challenge("rotate", requested, selectedChain);
   status("First signature: approve with the current wallet…", "payment-pending");
-  const currentSignature = await sign(provider, active, request.message);
+  const currentSignature = await signWalletMessage(provider, active, request.message);
 
   status(
     "Switch your wallet to the new address, then approve the account request…",
@@ -134,7 +235,7 @@ async function rotate(container: HTMLElement): Promise<void> {
     throw new Error("The selected wallet does not match the requested new address.");
   }
   status("Second signature: approve with the new wallet…", "payment-pending");
-  const nextSignature = await sign(provider, next, request.message);
+  const nextSignature = await signWalletMessage(provider, next, request.message);
   await verify(request.nonce, currentSignature, nextSignature);
   status("Primary wallet rotated. Reloading…", "payment-ok");
   window.location.reload();
@@ -143,7 +244,7 @@ async function rotate(container: HTMLElement): Promise<void> {
 function run(action: () => Promise<void>): void {
   void action().catch((error: unknown) => {
     if ((error as { code?: number }).code === 4001) {
-      status("Wallet signature cancelled.", "payment-warn");
+      status("Wallet request cancelled.", "payment-warn");
       return;
     }
     status(error instanceof Error ? error.message : String(error), "payment-error");
