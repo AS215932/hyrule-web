@@ -28,7 +28,7 @@ def test_public_pages_have_no_executable_scripts(client: TestClient) -> None:
         assert response.status_code == 200, path
         script_tags = re.findall(r"<script\b[^>]*>", response.text, flags=re.IGNORECASE)
         assert all('type="application/ld+json"' in tag for tag in script_tags), (path, script_tags)
-        assert "type=\"module\"" not in response.text
+        assert 'type="module"' not in response.text
         assert "htmx" not in response.text.lower()
         assert "hx-" not in response.text
         assert "cmdk" not in response.text.lower()
@@ -39,6 +39,14 @@ def test_global_css_is_linked_without_a_module_entry(client: TestClient) -> None
     response = client.get("/")
     assert "/static/dist/assets/styles-" in response.text
     assert "/static/dist/assets/main-" not in response.text
+
+
+def test_toolbox_is_the_only_public_page_with_a_page_runtime(client: TestClient) -> None:
+    response = client.get("/toolbox")
+    assert response.status_code == 200
+    assert 'type="module"' in response.text
+    assert "/static/dist/assets/toolbox-" in response.text
+    assert 'type="application/json"' in response.text
 
 
 def test_removed_global_javascript_assets_are_absent() -> None:

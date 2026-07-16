@@ -19,6 +19,7 @@ from typing import Annotated, Any
 import httpx
 import structlog
 from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -30,13 +31,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
-from .config import (
-    DEFAULT_OS_TEMPLATES,
-    PROXY_PRICES_FALLBACK,
-    VM_TIERS,
-    X402_RESOURCES_FALLBACK,
-    settings,
-)
+from .catalog import browser_catalog, catalog_resources, normalize_openapi
+from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
@@ -91,6 +87,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Hyrule Cloud", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+@app.middleware("http")
+async def response_policy(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
+    """Apply origin isolation plus explicit caching for dynamic/static assets."""
+    response = await call_next(request)
+    path = request.url.path
+    response.headers.setdefault("Origin-Agent-Cluster", "?1")
+    response.headers.setdefault("Permissions-Policy", "tools=(self)")
+    response.headers.setdefault("Vary", "Accept-Encoding")
+    if path.startswith("/static/dist/"):
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif path.startswith("/static/"):
+        response.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
+    elif path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    elif response.headers.get("content-type", "").startswith("text/html") or path in {
+        "/llms.txt",
+        "/sitemap.xml",
+    }:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -115,6 +138,7 @@ _VITE_ENTRIES = {
     "secrets": "frontend/src/secret-copy.ts",
     "domain": "frontend/src/domain.ts",
     "wallet_auth": "frontend/src/wallet-auth.ts",
+    "toolbox": "frontend/src/toolbox.ts",
 }
 
 
@@ -218,11 +242,14 @@ _CATALOG_TTL_SECONDS = 60
 # (512 MB vs 1 GB xs) — pages render the live catalog, config is fallback-only.
 _PRODUCTS_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRODUCTS_TTL_SECONDS = 300
-# Overhaul: the published x402 manifest (/.well-known/x402.json) — per-endpoint
-# prices for /services and /agents. Slow-moving; fallback is the curated
-# config.X402_RESOURCES_FALLBACK mirror.
-_MANIFEST_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
-_MANIFEST_TTL_SECONDS = 300
+# Enabled-only x402 OpenAPI catalog. A stale snapshot may be displayed with a
+# warning, but only a fresh snapshot can enable toolbox execution.
+_TOOL_CATALOG_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "successful_at": 0.0,
+}
+_TOOL_CATALOG_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
@@ -345,7 +372,8 @@ async def refresh_service_status_for_pages(
     excluded = (
         path.startswith("/api/")
         or path.startswith("/static/")
-        or path in {
+        or path
+        in {
             "/favicon.ico",
             "/apple-touch-icon.png",
             "/apple-touch-icon-precomposed.png",
@@ -648,6 +676,7 @@ def _render(request: Request, name: str, *, status_code: int = 200, **kwargs: An
         "vm_tiers": VM_TIERS,
         # Issue #14: public WalletConnect projectId for the base.html meta tag.
         "wc_project_id": settings.walletconnect_project_id,
+        "webmcp_origin_trial_token": settings.webmcp_origin_trial_token,
         **kwargs,
     }
     if "runtime" not in ctx:
@@ -662,7 +691,11 @@ def _render(request: Request, name: str, *, status_code: int = 200, **kwargs: An
 
 def _catalog_networks(catalog: dict[str, Any] | None) -> list[dict[str, Any]]:
     networks = catalog.get("networks") if catalog else []
-    return networks if isinstance(networks, list) else []
+    return (
+        [network for network in networks if isinstance(network, dict)]
+        if isinstance(networks, list)
+        else []
+    )
 
 
 def _catalog_native(catalog: dict[str, Any] | None) -> list[str]:
@@ -740,8 +773,7 @@ async def _refresh_networks(request: Request) -> dict[str, Any] | None:
 async def _refresh_cached(
     request: Request, cache: dict[str, Any], ttl_seconds: int, path: str
 ) -> dict[str, Any] | None:
-    """Generic TTL + stale-on-error fetch used by the overhaul caches
-    (products / manifest / pricing) — same semantics as the Block B/G ones."""
+    """Generic TTL + stale-on-error fetch for product and pricing catalogs."""
     now = time.time()
     cached: dict[str, Any] | None = cache.get("value")
     if cached is not None and now < float(cache["expires_at"]):
@@ -760,10 +792,28 @@ async def _refresh_products(request: Request) -> dict[str, Any] | None:
     )
 
 
-async def _refresh_manifest(request: Request) -> dict[str, Any] | None:
-    return await _refresh_cached(
-        request, _MANIFEST_CACHE, _MANIFEST_TTL_SECONDS, "/.well-known/x402.json"
-    )
+async def _refresh_tool_catalog(request: Request) -> dict[str, Any]:
+    """Fetch and normalize enabled OpenAPI operations with fail-closed freshness."""
+    now = time.time()
+    cached = _TOOL_CATALOG_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_TOOL_CATALOG_CACHE["expires_at"]):
+        return {**cached, "status": "live"}
+
+    document = await _fetch_api(request, "/openapi.json")
+    if document is not None:
+        normalized = normalize_openapi(document)
+        tools = normalized.get("tools")
+        if isinstance(document.get("paths"), dict) and isinstance(tools, list):
+            normalized["fetched_at"] = now
+            _TOOL_CATALOG_CACHE["value"] = normalized
+            _TOOL_CATALOG_CACHE["expires_at"] = now + _TOOL_CATALOG_TTL_SECONDS
+            _TOOL_CATALOG_CACHE["successful_at"] = now
+            return {**normalized, "status": "live"}
+        log.warning("x402_openapi_invalid")
+
+    if isinstance(cached, dict):
+        return {**cached, "status": "stale"}
+    return {"status": "unavailable", "fetched_at": None, "tools": []}
 
 
 async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
@@ -795,49 +845,12 @@ def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]
     return tiers or VM_TIERS
 
 
-def _x402_group(path: str) -> str:
-    """Bucket a manifest path into one of the four service pillars."""
-    if path.startswith("/v1/vm"):
-        return "compute"
-    if path.startswith("/v1/domains"):
-        return "domains"
-    if path.startswith("/v1/network"):
-        return "proxy"
-    return "intel"
-
-
-def _x402_resources(manifest: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Normalize the published manifest's resources for the price tables on
-    /services and /agents; falls back to the curated config mirror."""
-    rows = (manifest or {}).get("resources")
-    if not isinstance(rows, list) or not rows:
-        return X402_RESOURCES_FALLBACK
-    out: list[dict[str, Any]] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        path = row.get("path")
-        price = row.get("minPrice")
-        if not isinstance(path, str) or price is None:
-            continue
-        out.append(
-            {
-                "path": path,
-                "method": str(row.get("method", "POST")),
-                "description": str(row.get("description", "")),
-                "min_price": str(price),
-                "group": _x402_group(path),
-            }
-        )
-    return out or X402_RESOURCES_FALLBACK
-
-
 def _proxy_prices(pricing: dict[str, Any] | None) -> dict[str, str]:
-    """Per-route proxy prices from GET /v1/pricing, with a static fallback."""
+    """Per-route proxy prices from GET /v1/pricing; unavailable means hidden."""
     prices = (pricing or {}).get("proxy_prices")
     if isinstance(prices, dict) and prices:
         return {str(k): str(v) for k, v in prices.items()}
-    return PROXY_PRICES_FALLBACK
+    return {}
 
 
 async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
@@ -845,10 +858,13 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
     try:
         resp = await request.app.state.http.get(path)
         if resp.status_code == 200:
-            data: dict[str, Any] = resp.json()
-            return data
+            data: Any = resp.json()
+            if isinstance(data, dict):
+                return data
+            log.warn("api_invalid_shape", path=path, shape=type(data).__name__)
+            return None
         log.warn("api_non_200", path=path, status=resp.status_code)
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, ValueError) as exc:
         log.error(
             "api_fetch_failed",
             path=path,
@@ -935,7 +951,7 @@ async def page_index(request: Request) -> Response:
     llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
     runtime = await _refresh_runtime(request)
     catalog = await _refresh_networks(request)
-    resources = _x402_resources(await _refresh_manifest(request))
+    tool_catalog = await _refresh_tool_catalog(request)
     return _render(
         request,
         "index.html",
@@ -943,7 +959,8 @@ async def page_index(request: Request) -> Response:
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
-        x402_resources=resources,
+        x402_resources=catalog_resources(tool_catalog),
+        catalog_status=tool_catalog["status"],
     )
 
 
@@ -951,39 +968,70 @@ async def page_index(request: Request) -> Response:
 async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    resources = _x402_resources(await _refresh_manifest(request))
+    tool_catalog = await _refresh_tool_catalog(request)
+    proxy_enabled = tool_catalog["status"] == "live" and any(
+        isinstance(tool, dict) and tool.get("group") == "proxy" for tool in tool_catalog["tools"]
+    )
+    proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
     return _render(
         request,
         "services.html",
         os_templates=os_list,
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
-        x402_resources=resources,
-        proxy_prices=_proxy_prices(await _refresh_pricing(request)),
+        x402_resources=catalog_resources(tool_catalog),
+        catalog_status=tool_catalog["status"],
+        proxy_enabled=proxy_enabled,
+        proxy_prices=proxy_prices,
     )
 
 
 @app.get("/agents", response_class=HTMLResponse)
 async def page_agents(request: Request) -> Response:
-    """Overhaul: the x402 story for agents — manifest, golden path, per-endpoint
-    prices (live from the published manifest, curated fallback), MCP config,
-    ClawHub skills, and the live payment-rail list."""
+    """Direct x402 and browser-agent integration documentation."""
     catalog = await _refresh_networks(request)
-    resources = _x402_resources(await _refresh_manifest(request))
+    tool_catalog = await _refresh_tool_catalog(request)
     return _render(
         request,
         "agents.html",
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
-        x402_resources=resources,
+        x402_resources=catalog_resources(tool_catalog),
+        tools=tool_catalog["tools"],
+        catalog_status=tool_catalog["status"],
+    )
+
+
+@app.get("/toolbox", response_class=HTMLResponse)
+async def page_toolbox(request: Request) -> Response:
+    """Human and browser-agent x402 diagnostics driven by enabled OpenAPI."""
+    network_catalog = await _refresh_networks(request)
+    networks = _catalog_networks(network_catalog)
+    tool_catalog = await _refresh_tool_catalog(request)
+    networks_fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
+    execution_enabled = (
+        tool_catalog["status"] == "live"
+        and networks_fresh
+        and any(network.get("family") == "evm" for network in networks)
+        and any(
+            isinstance(tool, dict) and bool(tool.get("executable"))
+            for tool in tool_catalog["tools"]
+        )
+    )
+    return _render(
+        request,
+        "toolbox.html",
+        tools=tool_catalog["tools"],
+        tool_catalog=browser_catalog({**tool_catalog, "execution_enabled": execution_enabled}),
+        catalog_status=tool_catalog["status"],
+        execution_enabled=execution_enabled,
+        networks=networks,
     )
 
 
 @app.get("/domains", response_class=HTMLResponse)
 async def page_domains(request: Request, domain: str = "") -> Response:
     """Public search and live eligible-TLD catalog."""
-    catalog_response = await _api_request(
-        request, "/v1/domains/tlds", forward_cookie=False
-    )
+    catalog_response = await _api_request(request, "/v1/domains/tlds", forward_cookie=False)
     tlds: list[dict[str, Any]] = []
     catalog_error: str | None = None
     if catalog_response is not None and catalog_response.status_code == 200:
@@ -1036,9 +1084,7 @@ async def create_domain_quote(
     if response is not None and response.status_code == 201:
         quote_id = response.json()["quote_id"]
         return RedirectResponse(f"/domains/checkout/{quote_id}", status_code=303)
-    catalog_response = await _api_request(
-        request, "/v1/domains/tlds", forward_cookie=False
-    )
+    catalog_response = await _api_request(request, "/v1/domains/tlds", forward_cookie=False)
     catalog = (
         catalog_response.json().get("tlds", [])
         if catalog_response is not None and catalog_response.status_code == 200
@@ -1053,9 +1099,7 @@ async def create_domain_quote(
         catalog_error=None,
         tlds=catalog,
         status_code=(
-            response.status_code
-            if response is not None and response.status_code < 500
-            else 503
+            response.status_code if response is not None and response.status_code < 500 else 503
         ),
     )
 
@@ -1315,8 +1359,11 @@ async def page_status(request: Request, vm_id: str) -> Response:
             f"?token={urllib.parse.quote(token, safe='')}"
         )
     return _render(
-        request, "status.html",
-        vm_id=vm_id, vm=data, management_url=management_url,
+        request,
+        "status.html",
+        vm_id=vm_id,
+        vm=data,
+        management_url=management_url,
     )
 
 
@@ -1375,7 +1422,8 @@ async def do_signup(
         )
     if backend.status_code == 429:
         return _render(
-            request, "signup.html",
+            request,
+            "signup.html",
             error="Too many signups from your network; try later.",
             next_path=next_path,
         )
@@ -1392,7 +1440,8 @@ async def do_signup(
     # Render via _render so the Set-Cookie from /v1/auth/register can be
     # attached to the same response object (browser is now logged in).
     rendered = _render(
-        request, "signup_success.html",
+        request,
+        "signup_success.html",
         account_id=body["account_id"],
         recovery_code=body["recovery_code"],
         next_path=next_path,
@@ -1422,7 +1471,9 @@ async def do_login(
     _require_auth_ui()
     next_path = _safe_next_path(next_path)
     backend = await _api_request(
-        request, "/v1/auth/login", method="POST",
+        request,
+        "/v1/auth/login",
+        method="POST",
         json={"account_id": account_id.strip().upper(), "password": password},
     )
     if backend is None:
@@ -1484,12 +1535,16 @@ async def do_recover(
         return _render(request, "recover.html", error="Passwords do not match.", success=None)
     if len(new_password) < 12:
         return _render(
-            request, "recover.html",
-            error="Password must be at least 12 characters.", success=None,
+            request,
+            "recover.html",
+            error="Password must be at least 12 characters.",
+            success=None,
         )
 
     backend = await _api_request(
-        request, "/v1/auth/recover/code", method="POST",
+        request,
+        "/v1/auth/recover/code",
+        method="POST",
         json={
             "account_id": account_id.strip().upper(),
             "recovery_code": recovery_code.strip(),
@@ -1500,18 +1555,23 @@ async def do_recover(
         return _render(request, "recover.html", error="Backend unreachable.", success=None)
     if backend.status_code == 429:
         return _render(
-            request, "recover.html",
-            error="Too many recovery attempts; try later.", success=None,
+            request,
+            "recover.html",
+            error="Too many recovery attempts; try later.",
+            success=None,
         )
     if backend.status_code != 200:
         return _render(
-            request, "recover.html",
-            error="Invalid recovery code or account ID.", success=None,
+            request,
+            "recover.html",
+            error="Invalid recovery code or account ID.",
+            success=None,
         )
 
     body = backend.json()
     return _render(
-        request, "recover.html",
+        request,
+        "recover.html",
         error=None,
         success={
             "account_id": body["account_id"],
@@ -1531,8 +1591,13 @@ async def page_dashboard(request: Request) -> Response:
         return RedirectResponse("/login", status_code=303)
     if me_resp.status_code != 200:
         return _render(
-            request, "dashboard.html",
-            me=None, vms=[], domains=[], wallet=None, error="Could not load account info.",
+            request,
+            "dashboard.html",
+            me=None,
+            vms=[],
+            domains=[],
+            wallet=None,
+            error="Could not load account info.",
         )
     me = me_resp.json()
     vms_resp = await _api_request(request, "/v1/me/vms")
@@ -1587,7 +1652,9 @@ async def dash_claim(
 ) -> Response:
     _require_auth_ui()
     await _api_request(
-        request, f"/v1/me/vms/{vm_id.strip()}/claim", method="POST",
+        request,
+        f"/v1/me/vms/{vm_id.strip()}/claim",
+        method="POST",
         json={"token": token.strip()},
     )
     return RedirectResponse("/dashboard", status_code=303)
@@ -1601,7 +1668,9 @@ async def dash_change_password(
 ) -> Response:
     _require_auth_ui()
     await _api_request(
-        request, "/v1/me/password", method="POST",
+        request,
+        "/v1/me/password",
+        method="POST",
         json={"current_password": current_password, "new_password": new_password},
     )
     return RedirectResponse("/dashboard", status_code=303)
@@ -1712,9 +1781,7 @@ async def dashboard_domain_renew(request: Request, domain: str) -> Response:
         json={"domain": domain, "action": "renew"},
     )
     if response is not None and response.status_code == 201:
-        return RedirectResponse(
-            f"/domains/checkout/{response.json()['quote_id']}", status_code=303
-        )
+        return RedirectResponse(f"/domains/checkout/{response.json()['quote_id']}", status_code=303)
     return _domain_redirect(domain, response, "Renewal quote created.")
 
 
@@ -1988,11 +2055,15 @@ async def llms(request: Request) -> str:
     networks_resp = await _refresh_networks(request)
     networks = networks_resp.get("networks") if networks_resp else None
     native = networks_resp.get("native") if networks_resp else None
-    # The diagnostics section requires a payable x402 chain confirmed by a
-    # FRESH catalog — _refresh_networks serves stale-on-error, and a stale
-    # catalog is not evidence the paid endpoints are reachable right now.
-    fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
-    return build_llms_txt(networks, native=native, diagnostics_live=fresh)
+    tool_catalog = await _refresh_tool_catalog(request)
+    network_fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
+    catalog_fresh = tool_catalog.get("status") == "live"
+    return build_llms_txt(
+        networks,
+        native=native,
+        diagnostics_live=network_fresh and catalog_fresh,
+        tools=tool_catalog.get("tools"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2000,7 +2071,7 @@ async def llms(request: Request) -> str:
 # ---------------------------------------------------------------------------
 
 
-@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy_api(request: Request, path: str) -> Response:
     client: httpx.AsyncClient = request.app.state.http
     api_path = path[3:] if path.startswith("v1/") else path
@@ -2009,9 +2080,15 @@ async def proxy_api(request: Request, path: str) -> Response:
     for key in request.headers:
         lower = key.lower()
         if lower in (
-            "content-type", "accept",
-            "x-payment", "x-dev-bypass", "payment-signature",
-            "x-payment-required", "idempotency-key", "if-match",
+            "content-type",
+            "accept",
+            "x-payment",
+            "x-payment-signature",
+            "x-dev-bypass",
+            "payment-signature",
+            "x-payment-required",
+            "idempotency-key",
+            "if-match",
             # Block A0: Bearer auth for hyr_vm_ management tokens (and
             # future hyr_sk_ account API keys in Block D).
             "authorization",
@@ -2024,9 +2101,12 @@ async def proxy_api(request: Request, path: str) -> Response:
     body = await request.body()
 
     try:
+        backend_url = f"/v1/{api_path}"
+        if request.url.query:
+            backend_url += "?" + request.url.query
         resp = await client.request(
             method=request.method,
-            url=f"/v1/{api_path}",
+            url=backend_url,
             headers=forward_headers,
             content=body if body else None,
         )
@@ -2042,9 +2122,7 @@ async def proxy_api(request: Request, path: str) -> Response:
     # headers there and then append any Set-Cookie values via raw_headers,
     # which preserves multiplicity (login can set hyr_sess + hyr_csrf in one).
     skip = ("transfer-encoding", "content-encoding", "content-length", "set-cookie")
-    base_headers: dict[str, str] = {
-        k: v for k, v in resp.headers.items() if k.lower() not in skip
-    }
+    base_headers: dict[str, str] = {k: v for k, v in resp.headers.items() if k.lower() not in skip}
     proxied = Response(
         content=resp.content,
         status_code=resp.status_code,

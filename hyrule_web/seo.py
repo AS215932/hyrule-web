@@ -54,7 +54,7 @@ _LLMS_TXT_PREAMBLE = """\
 
 - Discover prices and schemas in `/.well-known/x402.json` and OpenAPI.
 - Call the resource normally; HTTP 402 returns exact payment requirements.
-- Sign, retry with `X-PAYMENT`, and consume the structured response.
+- Sign, retry with `Payment-Signature`, and consume the structured response.
 - VM creation returns public status and save-once management URLs.
 - Optional accounts use generated handles and recovery credentials.
 - No-KYC ordering is available; operational service and payment records still apply.
@@ -63,10 +63,11 @@ _LLMS_TXT_PREAMBLE = """\
 
 - [Service catalog](https://hyrule.host/services): all four service groups —
   compute, network intelligence, domains & DNS, network proxy — with live
-  per-endpoint pricing from the x402 manifest.
-- [For agents](https://hyrule.host/agents): the x402 golden path, the async
-  VM contract (public status poll vs token-gated management URL), MCP server
-  config, ClawHub skills, and the full price schedule.
+  per-endpoint pricing from enabled-only OpenAPI.
+- [Toolbox](https://hyrule.host/toolbox): browser-wallet and WebMCP access to
+  every currently enabled paid diagnostic.
+- [For agents](https://hyrule.host/agents): direct x402 and browser-agent paths,
+  including autonomous wallet settlement through WebMCP.
 - [Order a VM](https://hyrule.host/order): server-rendered durable quote flow.
 - [Search domains](https://hyrule.host/domains): live eligibility, registration,
   renewal pricing, managed DNS, DNSSEC, and transfer policy.
@@ -102,9 +103,9 @@ Golden path (agent), all against https://cloud.hyrule.host:
     GET  /.well-known/x402.json
     GET  /v1/products/vms
     POST /v1/vm/quote  -> {quote_id, amount_usd, expires_at}
-    POST /v1/vm/create {quote_id}  -> 402 + X-PAYMENT-REQUIRED
+    POST /v1/vm/create {quote_id}  -> 402 + Payment-Required
     # sign EIP-3009 TransferWithAuthorization for amount_usd
-    POST /v1/vm/create {quote_id} + X-PAYMENT  -> 202 {vm_id, management_token}
+    POST /v1/vm/create {quote_id} + Payment-Signature  -> 202 {vm_id, management_token}
     GET  /v1/vm/{vm_id}/status  -> poll to ready
 """
 
@@ -128,38 +129,34 @@ _LLMS_TXT_WHAT_SHIPS = """\
 """
 
 
-_LLMS_TXT_DIAGNOSTICS = """\
-## Paid network diagnostics (x402, per-request)
-
-Beyond VMs, the same API sells network-intelligence lookups an agent can
-buy per request — $0.001 to $0.10 each, same 402 → sign → retry flow:
-
-- DNS/DNSSEC/propagation: POST /v1/dns/lookup, /v1/dns/propagation
-- IP intelligence (geo/ASN/rDNS): POST /v1/ip/lookup
-- BGP/routing: POST /v1/bgp/lookup, /v1/path/ping, /v1/path/report
-- Registry: POST /v1/rdap/lookup, /v1/whois/lookup
-- Web/TLS: POST /v1/web/check, /v1/web/tls/deep
-- Mail deliverability: POST /v1/mx/check (SPF/DKIM/DMARC/blacklists)
-- Reachability: POST /v1/ports/check, /v1/nat/lookup
-- VoIP/SIP: POST /v1/voip/check, /v1/voip/number/lookup
-- Anonymous egress: POST /v1/network/request (direct/Tor/I2P/Yggdrasil)
-
-Discovery: every paid endpoint is listed with price in
-https://cloud.hyrule.host/.well-known/x402.json (`discoverable` entries
-carry machine-readable input/output schemas in their 402 responses).
-The diagnostic services (dns, ip, bgp, rdap, whois, web, mx, path, ports,
-nat, threat, voip) each describe their product boundary at
-`/v1/<service>/capabilities`; the egress endpoint is documented in the
-manifest only. OpenClaw skills for these services are being rolled out on
-ClawHub under the `hyrule-` prefix — check there for `hyrule-cloud` and
-`hyrule-network-intel` availability.
-
-Golden path (diagnostic), against https://cloud.hyrule.host:
-
-    POST /v1/dns/lookup {"name":"example.com","type":"AAAA"}  -> 402
-    # sign EIP-3009 for the quoted amount (USDC, $0.001)
-    POST /v1/dns/lookup + X-PAYMENT  -> 200 diagnostic evidence
-"""
+def _render_tools_section(tools: Iterable[dict[str, Any]]) -> str:
+    rows = [tool for tool in tools if isinstance(tool, dict)]
+    if not rows:
+        return ""
+    lines = [
+        "## Enabled x402 operations",
+        "",
+        "This list is generated from the API's enabled-only OpenAPI document.",
+        "Tagged diagnostics can also be run at https://hyrule.host/toolbox.",
+        "",
+    ]
+    for tool in rows:
+        method = str(tool.get("method", "POST"))
+        path = str(tool.get("path", ""))
+        description = str(tool.get("description") or tool.get("title") or path)
+        price = str(tool.get("price_display", "Live 402 quote"))
+        surface = "toolbox" if tool.get("executable") else "API"
+        lines.append(f"- `{method} {path}` — {description} ({price}; {surface})")
+    lines.extend(
+        [
+            "",
+            "Payment uses the exact requirements returned by HTTP 402; discovery prices",
+            "are estimates. Browser agents can quote, sign, pay, and consume results with",
+            "WebMCP. Headless agents should call https://cloud.hyrule.host directly.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _render_payment_section(
@@ -220,6 +217,7 @@ def build_llms_txt(
     networks: Iterable[dict[str, Any]] | None = None,
     native: Iterable[str] | None = None,
     diagnostics_live: bool = True,
+    tools: Iterable[dict[str, Any]] | None = None,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
@@ -243,8 +241,10 @@ def build_llms_txt(
     has_x402_chain = network_list is not None and any(
         n.get("family") == "evm" for n in network_list
     )
-    if has_x402_chain and diagnostics_live:
-        text += "\n" + _LLMS_TXT_DIAGNOSTICS
+    if has_x402_chain and diagnostics_live and tools is not None:
+        section = _render_tools_section(tools)
+        if section:
+            text += "\n" + section
     return text
 
 

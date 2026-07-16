@@ -25,9 +25,7 @@
     <meta name="twitter:description" content="{{ self.meta_description() }}">
     {% endblock %}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    {% if webmcp_origin_trial_token %}<meta http-equiv="origin-trial" content="{{ webmcp_origin_trial_token }}">{% endif %}
 
     <meta name="walletconnect-project-id" content="{{ wc_project_id }}">
     {{ vite_styles('styles') }}
@@ -63,7 +61,7 @@
         <div class="container site-header-inner">
             <a href="/" class="brand" aria-label="Hyrule Cloud home">
                 <span class="brand-mark" aria-hidden="true">
-                    <img src="/static/icon-512.png" alt="" width="48" height="48">
+                    <img src="/static/icon-96.webp" alt="" width="48" height="48" decoding="async">
                 </span>
                 <span class="brand-name">
                     <strong>Hyrule Cloud</strong>
@@ -77,7 +75,7 @@
 
             <div class="header-tools">
                 <button class="status-trigger status-{{ status_view.tone }}" type="button"
-                        popovertarget="service-status-popover" aria-label="Open service status">
+                        popovertarget="service-status-popover" aria-label="Service status: {{ status_view.label }}">
                     <span class="status-dot" aria-hidden="true"></span>
                     <span>{{ status_view.label }}</span>
                 </button>
@@ -154,7 +152,7 @@
                 <div class="footer-brand">
                     <div class="brand">
                         <span class="brand-mark" aria-hidden="true">
-                            <img src="/static/icon-512.png" alt="" width="40" height="40">
+                            <img src="/static/icon-96.webp" alt="" width="40" height="40" loading="lazy" decoding="async">
                         </span>
                         <span class="brand-name">
                             <strong>Hyrule Cloud</strong>
@@ -164,7 +162,7 @@
                     <small>Hyrule Cloud runs on <a href="https://as215932.net/">AS215932</a>, an independent IPv6-first network. Agents can discover, pay for, and provision compute, intelligence, domains, and egress directly.</small>
                 </div>
                 <div class="footer-col">
-                    <h5>Product</h5>
+                    <h2 class="footer-heading">Product</h2>
                     <a href="/">Overview</a>
                     <a href="/services">Services</a>
                     <a href="/domains">Domains</a>
@@ -172,7 +170,8 @@
                     <a href="/status">Status</a>
                 </div>
                 <div class="footer-col">
-                    <h5>Developers</h5>
+                    <h2 class="footer-heading">Developers</h2>
+                    <a href="/toolbox">Toolbox</a>
                     <a href="/agents">For agents</a>
                     <a href="/llms.txt">llms.txt</a>
                     <a href="https://cloud.hyrule.host/openapi.json">REST API</a>
@@ -184,7 +183,7 @@
                     </a>
                 </div>
                 <div class="footer-col">
-                    <h5>Company</h5>
+                    <h2 class="footer-heading">Company</h2>
                     <a href="/transparency">About</a>
                     <a href="/faq">FAQ</a>
                     <a href="/terms">Terms</a>

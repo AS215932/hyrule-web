@@ -30,7 +30,7 @@ def test_proxy_get_with_v1_prefix_is_stripped(
     assert route.called
 
 
-@pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE"])
+@pytest.mark.parametrize("method", ["GET", "POST", "PUT", "PATCH", "DELETE"])
 def test_proxy_forwards_every_supported_method(
     client: TestClient, mocked_api: respx.MockRouter, method: str
 ) -> None:
@@ -64,7 +64,7 @@ def test_proxy_drops_hop_by_hop_and_unknown_headers(
     r = client.post(
         "/api/pay",
         headers={
-            "X-Custom-Random": "leak-me",       # not in allowlist
+            "X-Custom-Random": "leak-me",  # not in allowlist
         },
         json={},
     )
@@ -90,9 +90,7 @@ def test_proxy_forwards_authorization_header(
     assert seen.get("authorization") == "Bearer hyr_vm_test123"
 
 
-def test_proxy_forwards_session_cookie(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
+def test_proxy_forwards_session_cookie(client: TestClient, mocked_api: respx.MockRouter) -> None:
     """Block A1: the browser session cookie must reach the backend so
     /me/* calls (and any future account-scoped endpoint) can resolve the
     current account. Without this, the dashboard would always 401."""
@@ -109,11 +107,13 @@ def test_proxy_preserves_set_cookie_on_response(
     """Block A1: backend Set-Cookie headers (e.g. session issued at /login)
     must round-trip to the browser as raw Set-Cookie headers, not be
     collapsed by Starlette's headers dict."""
-    mocked_api.post("/v1/auth/login").mock(return_value=httpx.Response(
-        200,
-        headers={"set-cookie": "hyr_sess=secret; HttpOnly; Path=/; SameSite=Lax"},
-        json={},
-    ))
+    mocked_api.post("/v1/auth/login").mock(
+        return_value=httpx.Response(
+            200,
+            headers={"set-cookie": "hyr_sess=secret; HttpOnly; Path=/; SameSite=Lax"},
+            json={},
+        )
+    )
     r = client.post("/api/auth/login", json={"account_id": "x", "password": "y"})
     assert r.status_code == 200
     # TestClient exposes Set-Cookie via the `cookies` jar — verify the cookie
@@ -121,19 +121,16 @@ def test_proxy_preserves_set_cookie_on_response(
     assert r.cookies.get("hyr_sess") == "secret"
 
 
-def test_proxy_forwards_request_body(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
+def test_proxy_forwards_request_body(client: TestClient, mocked_api: respx.MockRouter) -> None:
     route = mocked_api.post("/v1/echo").mock(return_value=httpx.Response(200))
-    r = client.post("/api/echo", content=b'{"hello":"world"}',
-                    headers={"Content-Type": "application/json"})
+    r = client.post(
+        "/api/echo", content=b'{"hello":"world"}', headers={"Content-Type": "application/json"}
+    )
     assert r.status_code == 200
     assert route.calls.last.request.content == b'{"hello":"world"}'
 
 
-def test_proxy_handles_empty_body(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
+def test_proxy_handles_empty_body(client: TestClient, mocked_api: respx.MockRouter) -> None:
     route = mocked_api.get("/v1/empty").mock(return_value=httpx.Response(200))
     r = client.get("/api/empty")
     assert r.status_code == 200
@@ -150,10 +147,35 @@ def test_proxy_returns_502_when_backend_unreachable(
     assert "API unreachable" in r.text
 
 
-def test_proxy_preserves_backend_status(
-    client: TestClient, mocked_api: respx.MockRouter
-) -> None:
+def test_proxy_preserves_backend_status(client: TestClient, mocked_api: respx.MockRouter) -> None:
     mocked_api.get("/v1/teapot").mock(return_value=httpx.Response(418, json={"err": "teapot"}))
     r = client.get("/api/teapot")
     assert r.status_code == 418
     assert "teapot" in r.text
+
+
+def test_proxy_preserves_query_payment_and_binary_headers(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    route = mocked_api.get("/v1/bgp/snapshot?format=jsonl").mock(
+        return_value=httpx.Response(
+            200,
+            content=b"gzip-data",
+            headers={
+                "content-type": "application/gzip",
+                "content-disposition": 'attachment; filename="snapshot.jsonl.gz"',
+                "payment-response": "receipt",
+            },
+        )
+    )
+    response = client.get(
+        "/api/bgp/snapshot?format=jsonl",
+        headers={"Payment-Signature": "signed-x402"},
+    )
+    assert response.status_code == 200
+    assert response.content == b"gzip-data"
+    assert response.headers["content-type"] == "application/gzip"
+    assert "snapshot.jsonl.gz" in response.headers["content-disposition"]
+    assert response.headers["payment-response"] == "receipt"
+    assert route.calls.last.request.headers["payment-signature"] == "signed-x402"
+    assert route.calls.last.request.url.query == b"format=jsonl"

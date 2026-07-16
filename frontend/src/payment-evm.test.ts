@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildTypedData, getEvmProvider, nonceHex32, statusRedirectUrl } from "./payment-evm";
+import {
+  buildTypedData,
+  getEvmProvider,
+  nonceHex32,
+  signX402Quote,
+  statusRedirectUrl,
+} from "./payment-evm";
 import type { Eip1193Provider, PaymentNetwork } from "./types";
+import type { X402Quote } from "./x402";
 
 const network: PaymentNetwork = {
   key: "base",
@@ -62,6 +69,57 @@ describe("nonceHex32", () => {
 
   it("is random across calls", () => {
     expect(nonceHex32()).not.toBe(nonceHex32());
+  });
+});
+
+describe("signX402Quote", () => {
+  it("signs the exact quoted base-unit amount and returns a complete x402 v2 envelope", async () => {
+    const request = vi.fn(async ({ method }: { method: string; params?: unknown[] }) => {
+      if (method === "eth_requestAccounts") return ["0xAgent"];
+      if (method === "eth_signTypedData_v4") return "0xSignature";
+      return null;
+    });
+    const provider = { request } as Eip1193Provider;
+    const quote: X402Quote = {
+      request: { url: "/api/dns/lookup", method: "POST", body: '{"name":"example.com"}' },
+      requirements: { accepts: [] },
+      accept: {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1500000",
+        asset: network.token_address,
+        payTo: "0xPayee",
+        maxTimeoutSeconds: 300,
+        extra: { name: "Quoted USDC", version: "3" },
+      },
+    };
+
+    const encoded = await signX402Quote(quote, network, provider);
+    const envelope = JSON.parse(atob(encoded)) as {
+      x402Version: number;
+      scheme: string;
+      network: string;
+      payload: {
+        authorization: { from: string; to: string; value: string };
+        signature: string;
+      };
+    };
+    expect(envelope).toMatchObject({
+      x402Version: 2,
+      scheme: "exact",
+      network: "eip155:8453",
+      payload: {
+        authorization: { from: "0xAgent", to: "0xPayee", value: "1500000" },
+        signature: "0xSignature",
+      },
+    });
+    const signCall = request.mock.calls.find(([input]) => input.method === "eth_signTypedData_v4");
+    const typedData = JSON.parse(String(signCall?.[0].params?.[1])) as {
+      domain: { name: string; version: string };
+      message: { value: string };
+    };
+    expect(typedData.domain).toMatchObject({ name: "Quoted USDC", version: "3" });
+    expect(typedData.message.value).toBe("1500000");
   });
 });
 

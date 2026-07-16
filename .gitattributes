@@ -1,0 +1,2 @@
+# Generated bundles can contain significant whitespace inside JS literals.
+hyrule_web/static/dist/** -whitespace
