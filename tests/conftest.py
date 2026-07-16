@@ -117,6 +117,31 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             "receiver_address": "",
             "facilitator_url": "https://x402.org/facilitator",
         }))
+        rx.get("/v1/domains").mock(
+            return_value=httpx.Response(200, json={"domains": []})
+        )
+        rx.get("/v1/auth/wallet").mock(
+            return_value=httpx.Response(
+                200, json={"address": None, "chain_id": None, "linked_at": None}
+            )
+        )
+        rx.get("/v1/domains/tlds").mock(return_value=httpx.Response(200, json={
+            "refreshed_at": "2026-07-15T10:00:00+00:00",
+            "tlds": [
+                {
+                    "tld": "dev",
+                    "registration": {
+                        "provider_cost_usd": "10.00", "hyrule_fee_usd": "3.00",
+                        "tax_usd": "0.00", "total_usd": "13.00", "currency": "USD",
+                    },
+                    "renewal": {
+                        "provider_cost_usd": "12.00", "hyrule_fee_usd": "3.00",
+                        "tax_usd": "0.00", "total_usd": "15.00", "currency": "USD",
+                    },
+                    "refreshed_at": "2026-07-15T10:00:00+00:00",
+                }
+            ],
+        }))
         # Block H (Wave 5/6): default fleet stats for /transparency.
         rx.get("/v1/stats/network").mock(return_value=httpx.Response(200, json={
             "bgp_peers_established": 4,
@@ -149,8 +174,8 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             "resources": [
                 {"path": "/v1/vm/create", "method": "POST",
                  "description": "Provision a bare VM with SSH access", "minPrice": "0.05"},
-                {"path": "/v1/domain/register", "method": "POST",
-                 "description": "Register a domain via Openprovider", "minPrice": "6.00"},
+                {"path": "/v1/domains/orders", "method": "POST",
+                 "description": "Place a domain registration or renewal", "minPrice": "6.00"},
                 {"path": "/v1/network/request", "method": "POST",
                  "description": "Proxied network request", "minPrice": "0.01"},
                 {"path": "/v1/dns/lookup", "method": "POST",

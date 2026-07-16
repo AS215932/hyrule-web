@@ -154,7 +154,7 @@ export async function getEvmProvider(): Promise<Eip1193Provider | null> {
 }
 
 async function payWithEvm(opts: EvmPayOptions): Promise<void> {
-  const { network, button, statusEl, orderPath, body } = opts;
+  const { network, button, statusEl, orderPath, body, headers = {}, onSuccess } = opts;
 
   if (button) button.disabled = true;
   setStatus(statusEl, "Connecting wallet…", "payment-pending");
@@ -180,7 +180,7 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
     setStatus(statusEl, "Requesting payment details…", "payment-pending");
     const firstResp = await fetch(orderPath, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     });
 
@@ -189,6 +189,10 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
         // Some test/dev paths bypass payment — still preserve the one-time
         // management token without putting it in the URL.
         const okResult = await firstResp.json();
+        if (onSuccess) {
+          onSuccess(okResult);
+          return;
+        }
         stashManagementToken(okResult);
         window.location.href = statusRedirectUrl(okResult);
         return;
@@ -257,6 +261,7 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
       headers: {
         "Content-Type": "application/json",
         "X-PAYMENT": paymentB64,
+        ...headers,
       },
       body: JSON.stringify(body),
     });
@@ -268,6 +273,10 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
 
     const result = await paidResp.json();
     setStatus(statusEl, "Payment successful! Redirecting…", "payment-ok");
+    if (onSuccess) {
+      onSuccess(result);
+      return;
+    }
     stashManagementToken(result);
     setTimeout(() => {
       window.location.href = statusRedirectUrl(result);

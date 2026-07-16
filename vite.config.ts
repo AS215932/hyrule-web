@@ -21,6 +21,10 @@ export default defineConfig({
         status: "frontend/src/status.ts",
         // Loaded only where a one-time credential benefits from copy affordance.
         secrets: "frontend/src/secret-copy.ts",
+        // Domain quote checkout, native payment polling, and signed transfer-out.
+        domain: "frontend/src/domain.ts",
+        // Passwordless login plus primary-wallet link and two-signature rotation.
+        wallet_auth: "frontend/src/wallet-auth.ts",
       },
     },
   },

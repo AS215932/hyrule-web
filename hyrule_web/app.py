@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 import sys
 import time
 import urllib.parse
@@ -57,6 +58,27 @@ log = structlog.get_logger().bind(service="hyrule-web")
 
 BASE_DIR = Path(__file__).parent
 
+DOMAIN_RECORD_TYPES = frozenset(
+    {"A", "AAAA", "CNAME", "MX", "TXT", "CAA", "SRV", "NS", "TLSA", "SVCB", "HTTPS"}
+)
+DNS_RECORD_LABEL_RE = re.compile(r"^(?:\*|[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)$")
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+)
+
+
+def _safe_next_path(value: str | None, *, fallback: str = "/dashboard") -> str:
+    """Return a same-origin absolute path suitable for an auth redirect."""
+    if not value or "\\" in value or any(ord(char) < 32 for char in value):
+        return fallback
+    parsed = urllib.parse.urlsplit(value)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith("/"):
+        return fallback
+    if parsed.path.startswith("//"):
+        return fallback
+    return urllib.parse.urlunsplit(("", "", parsed.path, parsed.query, ""))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -91,6 +113,8 @@ _VITE_ENTRIES = {
     "payment": "frontend/src/payment.ts",
     "status": "frontend/src/status.ts",
     "secrets": "frontend/src/secret-copy.ts",
+    "domain": "frontend/src/domain.ts",
+    "wallet_auth": "frontend/src/wallet-auth.ts",
 }
 
 
@@ -355,8 +379,8 @@ def _normalise_custom_domain(value: str) -> str | None:
 LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "terms": {
         "title": "Terms",
-        "description": "Terms for Hyrule Cloud VPS service.",
-        "updated": "2026-06-02",
+        "description": "Terms for Hyrule Cloud compute, domain, and DNS services.",
+        "updated": "2026-07-15",
         "sections": [
             (
                 "Service",
@@ -411,12 +435,34 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     "Refunds and credits are handled manually and may require a support request.",
                 ],
             ),
+            (
+                "Domain Registration And Renewal",
+                [
+                    _copy(
+                        "Hyrule is the legal registrant of domains bought through the service.",
+                        "The customer receives the exclusive contractual right to use the domain,",
+                        "manage its DNS, renew it while eligible, and transfer it to",
+                        "another registrar.",
+                    ),
+                    _copy(
+                        "Registration and renewal are separate prepaid transactions. Registrar",
+                        "auto-renew is disabled; you must purchase a renewal before expiry.",
+                        "Availability and provider cost are checked again after",
+                        "payment settlement.",
+                    ),
+                    _copy(
+                        "If registration cannot complete after payment, the order becomes a manual",
+                        "refund obligation. Crypto refunds are not automatic and require a valid",
+                        "refund address for Bitcoin or Monero payments.",
+                    ),
+                ],
+            ),
         ],
     },
     "privacy": {
         "title": "Privacy",
         "description": "Privacy details for Hyrule Cloud orders.",
-        "updated": "2026-06-02",
+        "updated": "2026-07-15",
         "sections": [
             (
                 "Ordering Model",
@@ -437,6 +483,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     _copy(
                         "VM configuration, SSH public key, generated VM identifiers,",
                         "hostname, timestamps, payment status, and expiry state.",
+                    ),
+                    _copy(
+                        "For domains we store the requested name, registrar status, DNS records,",
+                        "renewal and transfer events, and the account or wallet that controls it.",
+                        "Hyrule's operator contact is supplied to the registrar as registrant.",
                     ),
                     _copy(
                         "For x402 orders we store payer wallet metadata needed to",
@@ -476,7 +527,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "abuse": {
         "title": "Abuse",
         "description": "Report abuse involving Hyrule Cloud infrastructure.",
-        "updated": "2026-06-02",
+        "updated": "2026-07-15",
         "sections": [
             (
                 "Report Channels",
@@ -534,7 +585,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "legal": {
         "title": "Legal",
         "description": "Legal contact and service posture for Hyrule Cloud.",
-        "updated": "2026-06-02",
+        "updated": "2026-07-15",
         "sections": [
             (
                 "Operator And Jurisdiction",
@@ -567,9 +618,9 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                 "Domains",
                 [
                     _copy(
-                        "Every VM may receive a deploy.hyrule.host subdomain. Custom",
-                        "domains can be registered during checkout and managed through",
-                        "the domain management surface or account session.",
+                        "Every VM may receive a deploy.hyrule.host subdomain. For purchased",
+                        "domains Hyrule remains the legal registrant and grants the customer",
+                        "the contractual rights to use, manage, renew, and transfer the name.",
                     ),
                 ],
             ),
@@ -748,7 +799,7 @@ def _x402_group(path: str) -> str:
     """Bucket a manifest path into one of the four service pillars."""
     if path.startswith("/v1/vm"):
         return "compute"
-    if path.startswith(("/v1/domain", "/v1/zone")):
+    if path.startswith("/v1/domains"):
         return "domains"
     if path.startswith("/v1/network"):
         return "proxy"
@@ -818,6 +869,7 @@ async def _api_request(
     method: str = "GET",
     json: dict[str, Any] | None = None,
     forward_cookie: bool = True,
+    extra_headers: dict[str, str] | None = None,
 ) -> httpx.Response | None:
     """Issue a backend call from a server-side handler, optionally forwarding
     the browser's session cookie so account-scoped endpoints work.
@@ -830,11 +882,26 @@ async def _api_request(
         cookie = request.headers.get("cookie")
         if cookie:
             headers["cookie"] = cookie
+    if extra_headers:
+        headers.update(extra_headers)
     try:
         return await client.request(method=method, url=path, headers=headers, json=json)
     except httpx.HTTPError as exc:
         log.error("api_request_failed", path=path, method=method, error=str(exc))
         return None
+
+
+def _backend_detail(response: httpx.Response | None, fallback: str) -> str:
+    if response is None:
+        return "The Hyrule Cloud API is temporarily unreachable."
+    try:
+        body = response.json()
+    except ValueError:
+        return fallback
+    if not isinstance(body, dict):
+        return fallback
+    detail = body.get("detail") or body.get("error")
+    return str(detail)[:300] if detail else fallback
 
 
 def _copy_set_cookie(backend_resp: httpx.Response, response: Response) -> None:
@@ -908,6 +975,160 @@ async def page_agents(request: Request) -> Response:
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
         x402_resources=resources,
+    )
+
+
+@app.get("/domains", response_class=HTMLResponse)
+async def page_domains(request: Request, domain: str = "") -> Response:
+    """Public search and live eligible-TLD catalog."""
+    catalog_response = await _api_request(
+        request, "/v1/domains/tlds", forward_cookie=False
+    )
+    tlds: list[dict[str, Any]] = []
+    catalog_error: str | None = None
+    if catalog_response is not None and catalog_response.status_code == 200:
+        body = catalog_response.json()
+        tlds = body.get("tlds", []) if isinstance(body, dict) else []
+    else:
+        catalog_error = _backend_detail(
+            catalog_response, "The live TLD catalog is temporarily unavailable."
+        )
+
+    searched = domain.strip().lower().rstrip(".")
+    check: dict[str, Any] | None = None
+    check_error: str | None = None
+    if searched:
+        check_response = await _api_request(
+            request,
+            "/v1/domains/check?domain=" + urllib.parse.quote(searched, safe=""),
+            forward_cookie=False,
+        )
+        if check_response is not None and check_response.status_code == 200:
+            check = check_response.json()
+        else:
+            check_error = _backend_detail(
+                check_response, "That domain could not be checked right now."
+            )
+    return _render(
+        request,
+        "domains.html",
+        searched_domain=searched,
+        check=check,
+        check_error=check_error,
+        catalog_error=catalog_error,
+        tlds=tlds,
+    )
+
+
+@app.post("/domains/quote")
+async def create_domain_quote(
+    request: Request,
+    domain: Annotated[str, Form()],
+    action: Annotated[str, Form()] = "register",
+) -> Response:
+    action = action if action in {"register", "renew"} else "register"
+    response = await _api_request(
+        request,
+        "/v1/domains/quotes",
+        method="POST",
+        json={"domain": domain.strip(), "action": action},
+    )
+    if response is not None and response.status_code == 201:
+        quote_id = response.json()["quote_id"]
+        return RedirectResponse(f"/domains/checkout/{quote_id}", status_code=303)
+    catalog_response = await _api_request(
+        request, "/v1/domains/tlds", forward_cookie=False
+    )
+    catalog = (
+        catalog_response.json().get("tlds", [])
+        if catalog_response is not None and catalog_response.status_code == 200
+        else []
+    )
+    return _render(
+        request,
+        "domains.html",
+        searched_domain=domain.strip(),
+        check=None,
+        check_error=_backend_detail(response, "A quote could not be created."),
+        catalog_error=None,
+        tlds=catalog,
+        status_code=(
+            response.status_code
+            if response is not None and response.status_code < 500
+            else 503
+        ),
+    )
+
+
+@app.get("/domains/checkout/{quote_id}", response_class=HTMLResponse)
+async def domain_checkout(request: Request, quote_id: str) -> Response:
+    quote_response = await _api_request(
+        request,
+        f"/v1/domains/quotes/{urllib.parse.quote(quote_id, safe='')}",
+        forward_cookie=False,
+    )
+    if quote_response is None or quote_response.status_code != 200:
+        return _render(
+            request,
+            "domain_checkout.html",
+            quote=None,
+            authenticated=False,
+            networks=[],
+            native=[],
+            error=_backend_detail(quote_response, "This domain quote is unavailable or expired."),
+            status_code=quote_response.status_code if quote_response is not None else 503,
+        )
+    me_response = await _api_request(request, "/v1/me")
+    authenticated = bool(me_response is not None and me_response.status_code == 200)
+    catalog = await _refresh_networks(request)
+    return _render(
+        request,
+        "domain_checkout.html",
+        quote=quote_response.json(),
+        authenticated=authenticated,
+        networks=[
+            network
+            for network in _catalog_networks(catalog)
+            if isinstance(network, dict) and network.get("family") == "evm"
+        ],
+        native=_catalog_native(catalog),
+        error=None,
+    )
+
+
+@app.get("/domains/orders/{order_id}", response_class=HTMLResponse)
+async def domain_order_status(request: Request, order_id: str) -> Response:
+    order_path = "/domains/orders/" + urllib.parse.quote(order_id, safe="")
+    response = await _api_request(
+        request,
+        f"/v1/domains/orders/{urllib.parse.quote(order_id, safe='')}",
+    )
+    if response is None:
+        return _render(
+            request,
+            "domain_order.html",
+            order=None,
+            error=_backend_detail(response, "The domain order could not be loaded."),
+            status_code=503,
+        )
+    if response.status_code == 401:
+        return RedirectResponse(
+            "/login?" + urllib.parse.urlencode({"next": order_path}),
+            status_code=303,
+        )
+    if response.status_code != 200:
+        return _render(
+            request,
+            "domain_order.html",
+            order=None,
+            error=_backend_detail(response, "The domain order could not be loaded."),
+            status_code=response.status_code,
+        )
+    return _render(
+        request,
+        "domain_order.html",
+        order=response.json(),
+        error=None,
     )
 
 
@@ -1107,7 +1328,12 @@ async def page_status(request: Request, vm_id: str) -> Response:
 @app.get("/signup", response_class=HTMLResponse)
 async def page_signup(request: Request) -> Response:
     _require_auth_ui()
-    return _render(request, "signup.html", error=None)
+    return _render(
+        request,
+        "signup.html",
+        error=None,
+        next_path=_safe_next_path(request.query_params.get("next")),
+    )
 
 
 @app.post("/signup", response_class=HTMLResponse)
@@ -1115,28 +1341,51 @@ async def do_signup(
     request: Request,
     password: Annotated[str, Form()],
     password_confirm: Annotated[str, Form()],
+    next_path: Annotated[str, Form(alias="next")] = "/dashboard",
 ) -> Response:
     """Mirror the backend's password rules (min 12 chars) before round-tripping
     so we can return an inline error without burning the per-IP signup quota
     on /v1/auth/register."""
     _require_auth_ui()
+    next_path = _safe_next_path(next_path)
     if password != password_confirm:
-        return _render(request, "signup.html", error="Passwords do not match.")
+        return _render(
+            request,
+            "signup.html",
+            error="Passwords do not match.",
+            next_path=next_path,
+        )
     if len(password) < 12:
-        return _render(request, "signup.html", error="Password must be at least 12 characters.")
+        return _render(
+            request,
+            "signup.html",
+            error="Password must be at least 12 characters.",
+            next_path=next_path,
+        )
 
     backend = await _api_request(
         request, "/v1/auth/register", method="POST", json={"password": password}
     )
     if backend is None:
-        return _render(request, "signup.html", error="Backend unreachable. Try again.")
+        return _render(
+            request,
+            "signup.html",
+            error="Backend unreachable. Try again.",
+            next_path=next_path,
+        )
     if backend.status_code == 429:
         return _render(
             request, "signup.html",
             error="Too many signups from your network; try later.",
+            next_path=next_path,
         )
     if backend.status_code != 200:
-        return _render(request, "signup.html", error="Signup failed. Try again.")
+        return _render(
+            request,
+            "signup.html",
+            error="Signup failed. Try again.",
+            next_path=next_path,
+        )
 
     body = backend.json()
     # signup_success is the *only* place the recovery code is ever shown.
@@ -1146,6 +1395,7 @@ async def do_signup(
         request, "signup_success.html",
         account_id=body["account_id"],
         recovery_code=body["recovery_code"],
+        next_path=next_path,
     )
     _copy_set_cookie(backend, rendered)
     return rendered
@@ -1154,7 +1404,12 @@ async def do_signup(
 @app.get("/login", response_class=HTMLResponse)
 async def page_login(request: Request) -> Response:
     _require_auth_ui()
-    return _render(request, "login.html", error=None)
+    return _render(
+        request,
+        "login.html",
+        error=None,
+        next_path=_safe_next_path(request.query_params.get("next")),
+    )
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -1162,20 +1417,37 @@ async def do_login(
     request: Request,
     account_id: Annotated[str, Form()],
     password: Annotated[str, Form()],
+    next_path: Annotated[str, Form(alias="next")] = "/dashboard",
 ) -> Response:
     _require_auth_ui()
+    next_path = _safe_next_path(next_path)
     backend = await _api_request(
         request, "/v1/auth/login", method="POST",
         json={"account_id": account_id.strip().upper(), "password": password},
     )
     if backend is None:
-        return _render(request, "login.html", error="Backend unreachable.")
+        return _render(
+            request,
+            "login.html",
+            error="Backend unreachable.",
+            next_path=next_path,
+        )
     if backend.status_code == 429:
-        return _render(request, "login.html", error="Too many login attempts; try later.")
+        return _render(
+            request,
+            "login.html",
+            error="Too many login attempts; try later.",
+            next_path=next_path,
+        )
     if backend.status_code != 200:
-        return _render(request, "login.html", error="Invalid credentials.")
+        return _render(
+            request,
+            "login.html",
+            error="Invalid credentials.",
+            next_path=next_path,
+        )
 
-    redirect = RedirectResponse("/dashboard", status_code=303)
+    redirect = RedirectResponse(next_path, status_code=303)
     _copy_set_cookie(backend, redirect)
     return redirect
 
@@ -1260,12 +1532,32 @@ async def page_dashboard(request: Request) -> Response:
     if me_resp.status_code != 200:
         return _render(
             request, "dashboard.html",
-            me=None, vms=[], error="Could not load account info.",
+            me=None, vms=[], domains=[], wallet=None, error="Could not load account info.",
         )
     me = me_resp.json()
     vms_resp = await _api_request(request, "/v1/me/vms")
     vms = vms_resp.json().get("vms", []) if (vms_resp and vms_resp.status_code == 200) else []
-    return _render(request, "dashboard.html", me=me, vms=vms, error=None)
+    domains_resp = await _api_request(request, "/v1/domains")
+    domains = (
+        domains_resp.json().get("domains", [])
+        if domains_resp is not None and domains_resp.status_code == 200
+        else []
+    )
+    wallet_resp = await _api_request(request, "/v1/auth/wallet")
+    wallet = (
+        wallet_resp.json()
+        if wallet_resp is not None and wallet_resp.status_code == 200
+        else {"address": None, "chain_id": None}
+    )
+    return _render(
+        request,
+        "dashboard.html",
+        me=me,
+        vms=vms,
+        domains=domains,
+        wallet=wallet,
+        error=None,
+    )
 
 
 # Block A1: dashboard mutation handlers — all server-side, all redirect back
@@ -1313,6 +1605,291 @@ async def dash_change_password(
         json={"current_password": current_password, "new_password": new_password},
     )
     return RedirectResponse("/dashboard", status_code=303)
+
+
+def _domain_redirect(domain: str, response: httpx.Response | None, success: str) -> Response:
+    if response is not None and response.status_code < 300:
+        message = success
+    else:
+        message = _backend_detail(response, "The domain change could not be applied.")
+    return _domain_notice(domain, message)
+
+
+def _domain_notice(domain: str, message: str) -> Response:
+    target = "/dashboard/domains/" + urllib.parse.quote(domain, safe="")
+    return RedirectResponse(
+        target + "?notice=" + urllib.parse.quote(message, safe=""), status_code=303
+    )
+
+
+def _valid_form_idempotency_key(value: str) -> str | None:
+    value = value.strip()
+    return value if 8 <= len(value) <= 128 else None
+
+
+def _valid_record_name(value: str) -> str | None:
+    value = value.strip().lower().rstrip(".") or "@"
+    if value == "@":
+        return value
+    labels = value.split(".")
+    if any(not DNS_RECORD_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+    if any(label == "*" for label in labels[1:]):
+        return None
+    return value
+
+
+def _valid_nameserver(value: str) -> str | None:
+    value = value.strip().lower().rstrip(".")
+    return value if HOSTNAME_RE.fullmatch(value) else None
+
+
+@app.get("/dashboard/domains/{domain}", response_class=HTMLResponse)
+async def dashboard_domain(request: Request, domain: str) -> Response:
+    _require_auth_ui()
+    encoded = urllib.parse.quote(domain, safe="")
+    domain_path = f"/dashboard/domains/{encoded}"
+    detail_response = await _api_request(request, f"/v1/domains/{encoded}")
+    if detail_response is None:
+        return _render(
+            request,
+            "dashboard.html",
+            me=None,
+            vms=[],
+            domains=[],
+            wallet=None,
+            error=_backend_detail(detail_response, "The domain could not be loaded."),
+            status_code=503,
+        )
+    if detail_response.status_code == 401:
+        return RedirectResponse(
+            "/login?" + urllib.parse.urlencode({"next": domain_path}),
+            status_code=303,
+        )
+    if detail_response.status_code != 200:
+        return RedirectResponse("/dashboard", status_code=303)
+    zone_response = await _api_request(request, f"/v1/domains/{encoded}/dns")
+    zone = (
+        zone_response.json()
+        if zone_response is not None and zone_response.status_code == 200
+        else None
+    )
+    wallet_response = await _api_request(request, "/v1/auth/wallet")
+    wallet = (
+        wallet_response.json()
+        if wallet_response is not None and wallet_response.status_code == 200
+        else {"address": None, "chain_id": None}
+    )
+    records = zone.get("records", []) if isinstance(zone, dict) else []
+    mutation_keys = {
+        "dns_upsert": secrets.token_urlsafe(24),
+        "dns_delete": {
+            f"{record.get('name', '')}:{record.get('type', '')}": secrets.token_urlsafe(24)
+            for record in records
+            if isinstance(record, dict)
+        },
+        "nameservers": secrets.token_urlsafe(24),
+        "dnssec": secrets.token_urlsafe(24),
+    }
+    return _render(
+        request,
+        "domain_detail.html",
+        domain=detail_response.json(),
+        zone=zone,
+        wallet=wallet,
+        mutation_keys=mutation_keys,
+        notice=request.query_params.get("notice"),
+    )
+
+
+@app.post("/dashboard/domains/{domain}/renew")
+async def dashboard_domain_renew(request: Request, domain: str) -> Response:
+    _require_auth_ui()
+    response = await _api_request(
+        request,
+        "/v1/domains/quotes",
+        method="POST",
+        json={"domain": domain, "action": "renew"},
+    )
+    if response is not None and response.status_code == 201:
+        return RedirectResponse(
+            f"/domains/checkout/{response.json()['quote_id']}", status_code=303
+        )
+    return _domain_redirect(domain, response, "Renewal quote created.")
+
+
+@app.post("/dashboard/domains/{domain}/dns")
+async def dashboard_domain_dns(
+    request: Request,
+    domain: str,
+    revision: Annotated[int, Form()],
+    action: Annotated[str, Form()],
+    name: Annotated[str, Form()],
+    record_type: Annotated[str, Form()],
+    ttl: Annotated[int, Form()],
+    values: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    normalized_action = action.strip().lower()
+    if normalized_action not in {"upsert", "delete"}:
+        return _domain_notice(domain, "The DNS change action is invalid.")
+    normalized_name = _valid_record_name(name)
+    if normalized_name is None:
+        return _domain_notice(domain, "The DNS record name is invalid.")
+    normalized_type = record_type.strip().upper()
+    if normalized_type not in DOMAIN_RECORD_TYPES:
+        return _domain_notice(domain, "The DNS record type is not supported.")
+    value_list = [line.strip() for line in values.splitlines() if line.strip()]
+    if normalized_action == "upsert":
+        if not 60 <= ttl <= 86400:
+            return _domain_notice(domain, "TTL must be between 60 and 86400 seconds.")
+        if not value_list:
+            return _domain_notice(domain, "At least one DNS record value is required.")
+    rrset: dict[str, Any] = {
+        "name": normalized_name,
+        "type": normalized_type,
+        "values": value_list,
+    }
+    if normalized_action == "upsert":
+        rrset["ttl"] = ttl
+    response = await _api_request(
+        request,
+        f"/v1/domains/{urllib.parse.quote(domain, safe='')}/dns/changesets",
+        method="POST",
+        json={
+            "changes": [
+                {
+                    "action": normalized_action,
+                    "rrset": rrset,
+                }
+            ]
+        },
+        extra_headers={
+            "If-Match": str(revision),
+            "Idempotency-Key": key,
+        },
+    )
+    return _domain_redirect(domain, response, "DNS zone updated.")
+
+
+@app.post("/dashboard/domains/{domain}/nameservers")
+async def dashboard_domain_nameservers(
+    request: Request,
+    domain: str,
+    mode: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
+    nameservers: Annotated[str, Form()] = "",
+) -> Response:
+    _require_auth_ui()
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    mode = mode.strip().lower()
+    if mode not in {"managed", "external"}:
+        return _domain_notice(domain, "The nameserver mode is invalid.")
+    raw_servers = [item for item in re.split(r"[\s,]+", nameservers.strip()) if item]
+    servers = [_valid_nameserver(item) for item in raw_servers]
+    if any(server is None for server in servers):
+        return _domain_notice(domain, "Every nameserver must be a valid hostname.")
+    normalized_servers = [server for server in servers if server is not None]
+    if len(set(normalized_servers)) != len(normalized_servers):
+        return _domain_notice(domain, "Nameservers must be unique.")
+    if mode == "external" and not 2 <= len(normalized_servers) <= 13:
+        return _domain_notice(domain, "External mode requires between 2 and 13 nameservers.")
+    response = await _api_request(
+        request,
+        f"/v1/domains/{urllib.parse.quote(domain, safe='')}/nameservers",
+        method="PUT",
+        json={"mode": mode, "nameservers": normalized_servers if mode == "external" else []},
+        extra_headers={"Idempotency-Key": key},
+    )
+    return _domain_redirect(domain, response, "Nameserver change queued.")
+
+
+@app.post("/dashboard/domains/{domain}/dnssec")
+async def dashboard_domain_dnssec(
+    request: Request,
+    domain: str,
+    mode: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
+    ds_records: Annotated[str, Form()] = "",
+) -> Response:
+    _require_auth_ui()
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    mode = mode.strip().lower()
+    if mode not in {"managed", "external", "off"}:
+        return _domain_notice(domain, "The DNSSEC mode is invalid.")
+    records: list[dict[str, Any]] = []
+    if mode == "external":
+        try:
+            for line in ds_records.splitlines():
+                if not line.strip():
+                    continue
+                key_tag, algorithm, digest_type, digest = line.split(maxsplit=3)
+                key_tag_value = int(key_tag)
+                algorithm_value = int(algorithm)
+                digest_type_value = int(digest_type)
+                digest = digest.strip().upper()
+                if not (
+                    0 <= key_tag_value <= 65535
+                    and 1 <= algorithm_value <= 255
+                    and 1 <= digest_type_value <= 255
+                    and 16 <= len(digest) <= 256
+                    and re.fullmatch(r"[0-9A-F]+", digest)
+                ):
+                    raise ValueError("invalid DS record")
+                records.append(
+                    {
+                        "key_tag": key_tag_value,
+                        "algorithm": algorithm_value,
+                        "digest_type": digest_type_value,
+                        "digest": digest,
+                    }
+                )
+        except (ValueError, TypeError):
+            return _domain_notice(
+                domain,
+                "Each external DS line must contain: key-tag algorithm digest-type digest.",
+            )
+        if not records:
+            return _domain_notice(domain, "External DNSSEC requires at least one DS record.")
+        if len(records) > 8:
+            return _domain_notice(domain, "External DNSSEC accepts at most 8 DS records.")
+    response = await _api_request(
+        request,
+        f"/v1/domains/{urllib.parse.quote(domain, safe='')}/dnssec",
+        method="PUT",
+        json={"mode": mode, "ds_records": records},
+        extra_headers={"Idempotency-Key": key},
+    )
+    return _domain_redirect(domain, response, "DNSSEC change queued.")
+
+
+@app.post("/dashboard/domains/claim")
+async def dashboard_domain_claim(
+    request: Request,
+    domain: Annotated[str, Form()],
+    token: Annotated[str, Form()],
+) -> Response:
+    _require_auth_ui()
+    response = await _api_request(
+        request,
+        f"/v1/domains/{urllib.parse.quote(domain.strip(), safe='')}/claim",
+        method="POST",
+        json={"token": token.strip()},
+    )
+    if response is not None and response.status_code == 200:
+        return RedirectResponse(
+            "/dashboard/domains/" + urllib.parse.quote(domain.strip(), safe=""),
+            status_code=303,
+        )
+    return RedirectResponse("/dashboard?domain_claim=failed", status_code=303)
 
 
 # ---------------------------------------------------------------------------
@@ -1434,6 +2011,7 @@ async def proxy_api(request: Request, path: str) -> Response:
         if lower in (
             "content-type", "accept",
             "x-payment", "x-dev-bypass", "payment-signature",
+            "x-payment-required", "idempotency-key", "if-match",
             # Block A0: Bearer auth for hyr_vm_ management tokens (and
             # future hyr_sk_ account API keys in Block D).
             "authorization",

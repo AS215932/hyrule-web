@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Domain registration and DNS — Hyrule Cloud{% endblock %}
+{% block meta_description %}Search and register eligible generic domains with transparent renewal pricing, managed DNS, DNSSEC, and transfer-out on hyrule.host.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">domains</span></div>
+            <span class="panel-label">domains · dns · dnssec</span>
+            <h1>A domain you can actually leave with.</h1>
+            <p class="hero-blurb">One-year registration, separate renewal pricing, managed authoritative DNS on <code>ns1.hyrule.host</code> and <code>ns2.hyrule.host</code>, or your own nameservers. Transfer-out is a signed account action.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label">pricing rule</span>
+            <p>Live provider USD cost + the greater of 25% or $3.00, rounded up to cents.</p>
+            <p class="text-text-soft">Quotes last 15 minutes. Availability and cost are rechecked after settlement.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="mini-card max-w-[820px] p-6">
+        <form method="get" action="/domains">
+            <label for="domain-search"><strong>Search an eligible generic domain</strong></label>
+            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input id="domain-search" name="domain" value="{{ searched_domain }}" required
+                       placeholder="example.dev" autocapitalize="none" autocomplete="off"
+                       class="min-w-0 flex-1 p-3 font-mono">
+                <button class="btn btn-primary" type="submit">Check domain</button>
+            </div>
+        </form>
+    </div>
+
+    {% if check_error %}
+    <div class="payment-status payment-error mt-4">{{ check_error }}</div>
+    {% elif check %}
+    <article class="mini-card mt-4 max-w-[820px] p-6">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <span class="panel-label">live result</span>
+                <h2 class="mt-2"><code>{{ check.domain }}</code></h2>
+            </div>
+            {% if check.eligible and check.available %}
+            <span class="status-pill">available</span>
+            {% elif check.available is sameas false %}
+            <span class="status-pill">registered</span>
+            {% else %}
+            <span class="status-pill">not eligible</span>
+            {% endif %}
+        </div>
+        {% if check.eligible and check.available and check.registration %}
+        <div class="manifest-rows mt-4">
+            <div class="manifest-k">register · 1 year</div>
+            <div class="manifest-v"><strong>${{ check.registration.total_usd }}</strong> USD</div>
+            <div class="manifest-k">renew · 1 year</div>
+            <div class="manifest-v"><strong>${{ check.renewal.total_usd }}</strong> USD at today's provider cost</div>
+            <div class="manifest-k">included</div>
+            <div class="manifest-v">managed DNS · automatic DNSSEC · external nameservers · transfer-out</div>
+        </div>
+        <form method="post" action="/domains/quote" class="mt-5">
+            <input type="hidden" name="domain" value="{{ check.domain }}">
+            <input type="hidden" name="action" value="register">
+            <button class="btn btn-primary" type="submit">Create 15-minute quote</button>
+        </form>
+        {% else %}
+        <p class="mt-4 text-text-muted">{{ check.reason or 'This name cannot be registered through Hyrule.' }}</p>
+        {% endif %}
+    </article>
+    {% endif %}
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <div><span class="panel-label">eligible catalog</span><h2>Registration and renewal are shown separately.</h2></div>
+        <a href="https://cloud.hyrule.host/v1/domains/docs" class="btn btn-secondary btn-xs">API docs ↗</a>
+    </div>
+    {% if catalog_error %}<div class="payment-status payment-warn">{{ catalog_error }}</div>{% endif %}
+    {% if tlds %}
+    <div class="mini-card overflow-hidden p-0">
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[620px] border-collapse font-mono text-[0.9em]">
+                <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">TLD</th><th class="px-3 py-2.5">register</th><th class="px-3 py-2.5">renew</th><th class="px-3 py-2.5">refreshed</th></tr></thead>
+                <tbody>{% for row in tlds %}<tr class="border-t border-white/[0.06]"><td class="px-3 py-2.5"><strong>.{{ row.tld }}</strong></td><td class="px-3 py-2.5">${{ row.registration.total_usd }}</td><td class="px-3 py-2.5">${{ row.renewal.total_usd }}</td><td class="px-3 py-2.5">{{ row.refreshed_at[:16] | replace('T', ' ') }} UTC</td></tr>{% endfor %}</tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</section>
+
+<section class="container page-section">
+    <div class="grid gap-3 md:grid-cols-3">
+        <article class="mini-card p-5"><span class="panel-label">registrant model</span><h3>Hyrule holds; you control.</h3><p>Hyrule is the legal registrant. Your contract grants exclusive use, DNS management, renewal, and transfer rights.</p></article>
+        <article class="mini-card p-5"><span class="panel-label">renewal</span><h3>Manual and prepaid.</h3><p>Registrar auto-renew is off. Renewal quotes use the live renewal cost, not the original registration price.</p></article>
+        <article class="mini-card p-5"><span class="panel-label">eligibility</span><h3>Conservative launch set.</h3><p>ASCII, non-premium, generally available second-level names under eligible IANA generic TLDs only.</p></article>
+    </div>
+</section>
+{% endblock %}

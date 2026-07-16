@@ -26,6 +26,7 @@
         <div class="payment-status payment-error mb-4">{{ error }}</div>
         {% endif %}
         <form method="post" action="/signup">
+            <input type="hidden" name="next" value="{{ next_path }}">
             <div class="form-section">
                 <label for="pw"><strong>Password</strong> <small>(min 12 characters)</small></label>
                 <input id="pw" name="password" type="password" required minlength="12"
@@ -41,7 +42,7 @@
             <button type="submit" class="btn btn-primary">Create account</button>
         </form>
         <p class="mt-4 text-[0.85em] text-text-soft">
-            Already have an account? <a href="/login">Log in</a>.<br>
+            Already have an account? <a href="/login?next={{ next_path | urlencode }}">Log in</a>.<br>
             Lost your password? <a href="/recover">Use recovery code</a>.
         </p>
     </div>
