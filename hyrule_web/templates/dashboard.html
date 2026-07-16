@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Hyrule Cloud{% endblock %}
-{% block meta_description %}Manage your Hyrule Cloud VMs, claim anonymous orders, and rotate credentials.{% endblock %}
+{% block meta_description %}Manage Hyrule Cloud VMs, domains, DNS, primary wallet, and account credentials.{% endblock %}
 
 {% block content %}
 <section class="container">
@@ -87,6 +87,24 @@
     {% endif %}
 </section>
 
+<section class="container page-section">
+    <div class="section-heading"><div><span class="panel-label">registrar portfolio</span><h2>Domains</h2></div><a href="/domains" class="btn btn-primary btn-xs">Search domains</a></div>
+    {% if domains %}
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto"><table class="w-full min-w-[680px] border-collapse font-mono text-[0.9em]">
+        <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">domain</th><th class="px-3 py-2.5">status</th><th class="px-3 py-2.5">expires</th><th class="px-3 py-2.5">nameservers</th><th class="px-3 py-2.5">DNSSEC</th><th class="px-3 py-2.5"></th></tr></thead>
+        <tbody>{% for domain in domains %}<tr class="border-t border-white/[0.06]"><td class="px-3 py-2.5"><code>{{ domain.domain }}</code></td><td class="px-3 py-2.5"><span class="status-pill">{{ domain.status }}</span></td><td class="px-3 py-2.5">{{ domain.expires_at[:10] if domain.expires_at else '—' }}</td><td class="px-3 py-2.5">{{ domain.nameserver_mode }}</td><td class="px-3 py-2.5">{{ domain.dnssec_status }}</td><td class="px-3 py-2.5"><a class="btn btn-secondary btn-xs" href="/dashboard/domains/{{ domain.domain }}">manage</a></td></tr>{% endfor %}</tbody>
+    </table></div></div>
+    {% else %}<div class="mini-card p-6 text-center text-text-soft"><p>No domains yet. <a href="/domains">Search the eligible catalog →</a></p></div>{% endif %}
+    <details class="mini-card mt-4 max-w-[640px] p-5">
+        <summary><strong>Claim a legacy domain</strong></summary>
+        <form method="post" action="/dashboard/domains/claim" class="mt-4">
+            <div class="form-section"><label for="claim-domain"><strong>Domain</strong></label><input id="claim-domain" name="domain" required placeholder="example.dev" class="w-full p-2 font-mono"></div>
+            <div class="form-section"><label for="claim-domain-token"><strong>Legacy management token</strong></label><input id="claim-domain-token" name="token" required placeholder="hyr_dom_..." class="w-full p-2 font-mono"></div>
+            <button class="btn btn-secondary btn-xs" type="submit">Claim domain</button>
+        </form>
+    </details>
+</section>
+
 <section class="container page-section" id="claim">
     <h2 class="mb-3">Claim an anonymous VM</h2>
     <div class="mini-card max-w-[640px] p-5">
@@ -112,7 +130,8 @@
 
 <section class="container page-section">
     <h2 class="mb-3">Security</h2>
-    <div class="mini-card max-w-[640px] p-5">
+    <div class="grid gap-4 lg:grid-cols-2">
+    <div class="mini-card p-5">
         <h4 class="mt-0">Change password</h4>
         <form method="post" action="/dashboard/password">
             <div class="form-section">
@@ -133,5 +152,13 @@
             Changing your password revokes all other active sessions on this account.
         </p>
     </div>
+    <div class="mini-card p-5" id="wallet-account" data-wallet="{{ wallet.address or '' }}" data-chain-id="{{ wallet.chain_id or '' }}">
+        <span class="panel-label">primary wallet</span>
+        {% if wallet.address %}<h4 class="break-all"><code>{{ wallet.address }}</code></h4><p class="text-text-soft">Chain ID {{ wallet.chain_id }}. Transfer-out actions require this wallet's signature.</p><button id="wallet-rotate" type="button" class="btn btn-secondary btn-xs">Rotate with two signatures</button>{% else %}<h4>Not linked</h4><p class="text-text-soft">Link one wallet for passwordless sign-in and signed domain transfer-out.</p><button id="wallet-link" type="button" class="btn btn-secondary btn-xs">Link wallet</button>{% endif %}
+        <div id="wallet-auth-status" class="payment-status"></div>
+    </div>
+    </div>
 </section>
 {% endblock %}
+
+{% block scripts %}{{ vite_asset('wallet_auth') }}{% endblock %}

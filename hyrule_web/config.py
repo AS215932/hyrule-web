@@ -24,8 +24,8 @@ VM_TIERS: dict[str, dict[str, Any]] = {
 X402_RESOURCES_FALLBACK: list[dict[str, Any]] = [
     {"path": "/v1/vm/create", "method": "POST", "group": "compute",
      "description": "Provision a bare VM with SSH access", "min_price": "0.05"},
-    {"path": "/v1/domain/register", "method": "POST", "group": "domains",
-     "description": "Register a domain via Openprovider", "min_price": "6.00"},
+    {"path": "/v1/domains/orders", "method": "POST", "group": "domains",
+     "description": "Place an account-owned domain registration or renewal", "min_price": "6.00"},
     {"path": "/v1/network/request", "method": "POST", "group": "proxy",
      "description": "Proxied network request over Direct, Tor, I2P, or Yggdrasil",
      "min_price": "0.01"},

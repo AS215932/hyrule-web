@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Domain order status — Hyrule Cloud{% endblock %}
+{% block meta_description %}Track a Hyrule domain registration or renewal order.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><a href="/domains">domains</a><span class="sep">/</span><span class="here">order</span></div>
+            <span class="panel-label">durable order</span>
+            <h1>{% if order %}<code>{{ order.domain }}</code>{% else %}Domain order{% endif %}</h1>
+        </div>
+    </div>
+</section>
+<section class="container page-section">
+    {% if error %}<div class="payment-status payment-error">{{ error }}</div>{% endif %}
+    {% if order %}
+    <div class="mini-card max-w-[760px] p-6" data-domain-order-status="{{ order.status }}">
+        <div class="flex flex-wrap items-center justify-between gap-3"><span class="panel-label">{{ order.order_id }}</span><span class="status-pill" id="domain-order-state">{{ order.status | replace('_', ' ') }}</span></div>
+        <div class="manifest-rows mt-4">
+            <div class="manifest-k">action</div><div class="manifest-v">{{ order.action }}</div>
+            <div class="manifest-k">amount</div><div class="manifest-v">${{ order.amount_usd }} · {{ order.payment_method | upper }}</div>
+            <div class="manifest-k">operation</div><div class="manifest-v"><code>{{ order.operation_id or 'pending payment' }}</code></div>
+            <div class="manifest-k">updated</div><div class="manifest-v">{{ order.updated_at }}</div>
+        </div>
+        {% if order.payment and order.status == 'awaiting_payment' %}
+        <div class="mini-card mt-4 p-5 text-left">
+            <strong>Send exactly {{ order.payment.amount_crypto }} {{ order.payment.asset }}</strong>
+            <code id="domain-deposit-address" class="mt-3 block break-all">{{ order.payment.address }}</code>
+            <p class="mt-3 text-[0.82em] text-text-soft">Intent <code>{{ order.payment.intent_id }}</code> expires {{ order.payment.expires_at }}.</p>
+            <button type="button" class="btn btn-secondary btn-xs" data-copy-target="domain-deposit-address">Copy address</button>
+        </div>
+        {% endif %}
+        {% if order.status == 'refund_due' %}
+        <div class="payment-status payment-error mt-4">{{ order.error_code or 'order_failed' }}. The paid obligation is recorded for manual refund review.</div>
+        {% elif order.status == 'failed' %}
+        <div class="payment-status payment-error mt-4">{{ order.error_code or 'order_failed' }}. The order did not activate; contact support before retrying payment.</div>
+        {% elif order.error_code %}
+        <div class="payment-status payment-warn mt-4">{{ order.error_code }}. Reconciliation is still pending; do not place a replacement order.</div>
+        {% endif %}
+        {% if order.status == 'active' %}<a class="btn btn-primary mt-5" href="/dashboard/domains/{{ order.domain }}">Manage DNS and renewal</a>{% elif order.status in ['refund_due', 'failed'] %}<a class="btn btn-secondary mt-5" href="mailto:support@hyrule.host?subject=Domain%20order%20{{ order.order_id }}">Contact support</a>{% else %}<p class="mt-4 text-text-soft">This page refreshes while Hyrule performs the final availability check, registrar submission, authoritative DNS creation, and DNSSEC setup.</p>{% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}{% if order %}{{ vite_asset('domain') }}{% if order.payment %}{{ vite_asset('secrets') }}{% endif %}{% endif %}{% endblock %}

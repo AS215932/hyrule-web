@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Domain checkout — Hyrule Cloud{% endblock %}
+{% block meta_description %}Review and pay a Hyrule domain registration or renewal quote.{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><a href="/domains">domains</a><span class="sep">/</span><span class="here">checkout</span></div>
+            <span class="panel-label">domain checkout</span>
+            <h1>Review the registrar order.</h1>
+            <p class="hero-blurb">Payment creates a durable order. Registration is submitted only after settlement and a final live availability and price check.</p>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    {% if error %}<div class="payment-status payment-error">{{ error }}</div>{% endif %}
+    {% if quote %}
+    <div class="review-layout">
+        <div class="manifest">
+            <div class="manifest-head"><span>domain quote</span><span class="badge">{{ quote.quote_id }}</span></div>
+            <div class="manifest-rows">
+                <div class="manifest-k">domain</div><div class="manifest-v"><code>{{ quote.domain }}</code></div>
+                <div class="manifest-k">action</div><div class="manifest-v">{{ quote.action }} · {{ quote.period_years }} year</div>
+                <div class="manifest-k">provider cost</div><div class="manifest-v">${{ quote.price.provider_cost_usd }}</div>
+                <div class="manifest-k">Hyrule fee</div><div class="manifest-v">${{ quote.price.hyrule_fee_usd }}</div>
+                <div class="manifest-k">total</div><div class="manifest-v"><strong>${{ quote.price.total_usd }} USD</strong></div>
+                <div class="manifest-k">expires</div><div class="manifest-v">{{ quote.expires_at }}</div>
+                <div class="manifest-k">nameservers</div><div class="manifest-v"><code>ns1.hyrule.host</code><br><code>ns2.hyrule.host</code></div>
+            </div>
+        </div>
+
+        <div class="wallet-card" id="domain-checkout"
+             data-quote-id="{{ quote.quote_id }}"
+             data-domain="{{ quote.domain }}"
+             data-terms-version="{{ quote.terms_version }}">
+            <span class="panel-label justify-center">amount due</span>
+            <div class="wallet-amount">pay <em>${{ quote.price.total_usd }}</em></div>
+            {% if not authenticated %}
+            <div class="payment-status payment-warn">Domain orders belong to an account. Log in or create an account before paying.</div>
+            <div class="mt-3 flex gap-2"><a class="btn btn-primary" href="/login">Log in</a><a class="btn btn-secondary" href="/signup">Sign up</a></div>
+            {% else %}
+            {% set has_usdc = networks | length > 0 %}
+            {% set has_btc = "BTC" in native %}
+            {% set has_xmr = "XMR" in native %}
+            {% if has_usdc or has_btc or has_xmr %}
+            <fieldset class="form-section mb-2.5 border-0 p-0 text-left">
+                <span class="panel-label mb-1.5 block">payment method</span>
+                {% if has_usdc %}<label class="mr-3.5"><input type="radio" name="domain-payment-method" value="usdc" checked class="mr-1">USDC</label>{% endif %}
+                {% if has_btc %}<label class="mr-3.5"><input type="radio" name="domain-payment-method" value="btc" {% if not has_usdc %}checked{% endif %} class="mr-1">Bitcoin</label>{% endif %}
+                {% if has_xmr %}<label><input type="radio" name="domain-payment-method" value="xmr" {% if not has_usdc and not has_btc %}checked{% endif %} class="mr-1">Monero</label>{% endif %}
+            </fieldset>
+            <div id="domain-chain-wrap" class="form-section text-left">
+                <label for="domain-chain"><strong>USDC network</strong></label>
+                <select id="domain-chain" class="w-full p-2 font-mono">
+                    {% for network in networks %}<option value="{{ network.key }}">{{ network.display_name }} · {{ network.asset }}</option>{% endfor %}
+                </select>
+            </div>
+            <div id="domain-refund-wrap" class="form-section hidden text-left">
+                <label for="domain-refund-address"><strong>Refund address</strong></label>
+                <input id="domain-refund-address" class="w-full p-2 font-mono" placeholder="Required for BTC/XMR">
+                <small>Used only if this paid order becomes a manual refund obligation.</small>
+            </div>
+            <label class="my-3 block text-left text-[0.85em]"><input id="domain-terms" type="checkbox" class="mr-1" required> I accept the <a href="/terms">domain terms</a>, including Hyrule's registrant role and manual renewal.</label>
+            <button id="domain-pay" type="button" class="btn btn-primary btn-lg btn-block">Pay and place order</button>
+            <div id="domain-payment-status" class="payment-status"></div>
+            <div id="domain-native-payment" class="mt-3"></div>
+            {% else %}
+            <div class="payment-status payment-error">No payment rail is currently available. This quote has not been ordered or charged.</div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}{% if quote and authenticated %}{{ vite_asset('domain') }}{% endif %}{% endblock %}

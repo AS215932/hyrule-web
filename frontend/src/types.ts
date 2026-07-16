@@ -40,6 +40,8 @@ export interface EvmPayOptions {
   statusEl: HTMLElement | null;
   orderPath: string;
   body: Record<string, unknown>;
+  headers?: Record<string, string>;
+  onSuccess?: (result: Record<string, unknown>) => void;
 }
 
 export interface NativePayOptions {

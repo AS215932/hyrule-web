@@ -24,6 +24,7 @@ Allow: /
 Disallow: /api/
 Disallow: /dashboard
 Disallow: /order/manage/
+Disallow: /domains/orders/
 
 # Agent crawlers — explicitly welcome
 User-agent: ClaudeBot
@@ -67,6 +68,8 @@ _LLMS_TXT_PREAMBLE = """\
   VM contract (public status poll vs token-gated management URL), MCP server
   config, ClawHub skills, and the full price schedule.
 - [Order a VM](https://hyrule.host/order): server-rendered durable quote flow.
+- [Search domains](https://hyrule.host/domains): live eligibility, registration,
+  renewal pricing, managed DNS, DNSSEC, and transfer policy.
 - [Service status](https://hyrule.host/status): current customer-impacting
   health for API checkout, compute, intelligence, domains/DNS, and proxy.
 - [About](https://hyrule.host/transparency): operator,
@@ -88,7 +91,10 @@ origin). Key URLs:
 - Service status: https://cloud.hyrule.host/v1/status
 - Price a durable order (POST): https://cloud.hyrule.host/v1/vm/quote
 - Provision a VM (POST, x402): https://cloud.hyrule.host/v1/vm/create
-- Check/register domains: https://cloud.hyrule.host/v1/domain/check
+- Domains OpenAPI: https://cloud.hyrule.host/v1/domains/openapi.json
+- Check a domain: https://cloud.hyrule.host/v1/domains/check?domain=example.dev
+- Create a domain quote (POST): https://cloud.hyrule.host/v1/domains/quotes
+- Place a domain order (POST): https://cloud.hyrule.host/v1/domains/orders
 - Paid network request: https://cloud.hyrule.host/v1/network/request
 
 Golden path (agent), all against https://cloud.hyrule.host:
@@ -109,7 +115,7 @@ _LLMS_TXT_WHAT_SHIPS = """\
 - Full SSH root access (ed25519 or RSA public key)
 - Global IPv6 with NAT64/DNS64 to reach IPv4 destinations
 - Automatic subdomain on `deploy.hyrule.host`
-- Custom domains can be registered during checkout
+- Account-owned domains can be attached to a VM as a separate order
 - Paid direct/Tor network requests are available through the API
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
 - 1-365 day runtimes, extendable, 24-hour grace after expiry
