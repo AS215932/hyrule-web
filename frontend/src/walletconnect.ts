@@ -32,7 +32,12 @@ async function enabledEvmChainIds(): Promise<number[]> {
     if (!resp.ok) return [];
     const body = await resp.json();
     const nets: PaymentNetwork[] = body.networks || [];
-    return nets.filter((n) => n.family === "evm" && n.chain_id).map((n) => n.chain_id);
+    return nets
+      .filter(
+        (network): network is PaymentNetwork & { family: "evm" } =>
+          network.family === "evm" && Number.isSafeInteger(network.chain_id),
+      )
+      .map((network) => network.chain_id);
   } catch {
     return [];
   }

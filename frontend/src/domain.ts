@@ -178,7 +178,11 @@ export async function setupCheckout(container: HTMLElement): Promise<void> {
           ? networks.get(chainSelect.value)
           : networks.values().next().value;
         if (!network) throw new Error("No USDC settlement network is available.");
-        const pay = window.HyrulePayments?.payWithEvm;
+        if (network.family === "svm") await import("./payment-solana");
+        const pay =
+          network.family === "svm"
+            ? window.HyrulePayments?.payWithSolana
+            : window.HyrulePayments?.payWithEvm;
         if (!pay) throw new Error("The USDC payment adapter is unavailable.");
         await pay({
           network,
@@ -221,7 +225,9 @@ export async function setupCheckout(container: HTMLElement): Promise<void> {
     if (!networksResponse.ok) return;
     const catalog = await networksResponse.json();
     for (const network of (catalog.networks || []) as PaymentNetwork[]) {
-      if (network.family === "evm") networks.set(network.key, network);
+      if (network.family === "evm" || network.family === "svm") {
+        networks.set(network.key, network);
+      }
     }
   } catch {
     return;

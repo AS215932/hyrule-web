@@ -64,7 +64,7 @@ export async function signWalletMessage(
 
 async function switchWalletChain(
   provider: Eip1193Provider,
-  network: PaymentNetwork,
+  network: PaymentNetwork & { family: "evm" },
 ): Promise<void> {
   const chainIdHex = `0x${network.chain_id.toString(16)}`;
   try {
@@ -112,7 +112,7 @@ export async function resolveWalletAuthChain(
   if (!response.ok) throw new Error("Could not load supported wallet chains.");
   const body = (await response.json()) as { networks?: PaymentNetwork[] };
   const networks = (Array.isArray(body.networks) ? body.networks : []).filter(
-    (network) =>
+    (network): network is PaymentNetwork & { family: "evm" } =>
       network.family === "evm" && Number.isSafeInteger(network.chain_id) && network.chain_id > 0,
   );
   if (!networks.length) throw new Error("No EVM wallet chains are currently enabled.");

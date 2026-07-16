@@ -66,7 +66,7 @@
             <div class="toolbox-network-field">
                 <label for="toolbox-network"><strong>Settlement network</strong></label>
                 <select id="toolbox-network" name="network" required>
-                    {% for network in networks if network.family == 'evm' %}
+                    {% for network in networks if network.family in ['evm', 'svm'] %}
                     <option value="{{ network.caip2 or network.key }}">{{ network.display_name }} · {{ network.asset }}</option>
                     {% endfor %}
                 </select>

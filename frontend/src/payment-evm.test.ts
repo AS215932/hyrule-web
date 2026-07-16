@@ -97,8 +97,7 @@ describe("signX402Quote", () => {
     const encoded = await signX402Quote(quote, network, provider);
     const envelope = JSON.parse(atob(encoded)) as {
       x402Version: number;
-      scheme: string;
-      network: string;
+      accepted: { scheme: string; network: string; amount: string };
       payload: {
         authorization: { from: string; to: string; value: string };
         signature: string;
@@ -106,8 +105,11 @@ describe("signX402Quote", () => {
     };
     expect(envelope).toMatchObject({
       x402Version: 2,
-      scheme: "exact",
-      network: "eip155:8453",
+      accepted: {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1500000",
+      },
       payload: {
         authorization: { from: "0xAgent", to: "0xPayee", value: "1500000" },
         signature: "0xSignature",

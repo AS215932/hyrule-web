@@ -104,7 +104,7 @@ Golden path (agent), all against https://cloud.hyrule.host:
     GET  /v1/products/vms
     POST /v1/vm/quote  -> {quote_id, amount_usd, expires_at}
     POST /v1/vm/create {quote_id}  -> 402 + Payment-Required
-    # sign EIP-3009 TransferWithAuthorization for amount_usd
+    # sign the returned exact acceptance (EIP-3009 on EVM, transaction on Solana)
     POST /v1/vm/create {quote_id} + Payment-Signature  -> 202 {vm_id, management_token}
     GET  /v1/vm/{vm_id}/status  -> poll to ready
 """
@@ -172,7 +172,7 @@ def _render_payment_section(
     if networks is None:
         return (
             "## Payment\n\n"
-            "- x402 USDC on facilitator-verified EVM chains. Query "
+            "- x402 USDC on facilitator-verified EVM and Solana chains. Query "
             "`/api/v1/payments/networks` for the live list — this document "
             "is rendered against backend state at request time.\n"
             "- Native crypto rails are listed only when the backend advertises "
@@ -184,7 +184,7 @@ def _render_payment_section(
     if not network_list:
         text = (
             "## Payment\n\n"
-            "- No EVM chains are currently enabled. Check "
+            "- No x402 chains are currently enabled. Check "
             "`/api/v1/payments/networks` for the live status.\n"
         )
         if native_list:
@@ -234,12 +234,11 @@ def build_llms_txt(
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
     )
-    # Only advertise the paid diagnostics suite when FRESH live discovery
-    # succeeded AND at least one EVM x402 chain is enabled: the golden path
-    # requires signing EIP-3009 USDC, so an SVM/native-only catalog (or a
-    # stale cached one) would send agents to endpoints they cannot pay for.
+    # Only advertise paid diagnostics after fresh discovery and when at least
+    # one browser-supported x402 family is enabled. EVM uses EIP-3009 and SVM
+    # uses the official exact Solana transaction scheme.
     has_x402_chain = network_list is not None and any(
-        n.get("family") == "evm" for n in network_list
+        n.get("family") in {"evm", "svm"} for n in network_list
     )
     if has_x402_chain and diagnostics_live and tools is not None:
         section = _render_tools_section(tools)

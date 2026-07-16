@@ -137,11 +137,10 @@ def test_llms_txt_diagnostics_need_an_enabled_chain_and_live_discovery() -> None
     stale = build_llms_txt([base], diagnostics_live=False, tools=[tool])
     assert "Enabled x402 operations" not in stale
 
-    # The golden path needs EIP-3009 signing: an SVM-only catalog is not a
-    # payable x402 surface for these endpoints.
+    # Solana exact is a first-class x402 settlement path too.
     svm_only = build_llms_txt(
         [{"key": "solana", "display_name": "Solana", "family": "svm"}],
         diagnostics_live=True,
         tools=[tool],
     )
-    assert "Enabled x402 operations" not in svm_only
+    assert "Enabled x402 operations" in svm_only

@@ -4,7 +4,8 @@
 {% block content %}
 {% set duration = order.duration if order else 30 %}
 {% set total = order.amount_usd if order and order.amount_usd is defined else tier.price * duration %}
-{% set payment_methods = order.payment_methods if order and order.payment_methods else {"evm": [], "native": []} %}
+{% set payment_methods = order.payment_methods if order and order.payment_methods else {"x402": [], "evm": [], "native": []} %}
+{% set x402_methods = payment_methods.x402 or payment_methods.evm or [] %}
 {% set native_methods = payment_methods.native or [] %}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
 
@@ -22,7 +23,7 @@
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">checkout rail</span>
-            <p class="mt-2 leading-[1.6] text-text-muted">{% if live_chains %}Payment uses x402 with USDC on {{ live_chains | join(", ") }}. You sign an authorization; gas is handled for you.{% else %}No EVM settlement rail was returned for this quote.{% endif %}{% if native_methods %} Native rails enabled for this quote: {{ native_methods | join(" / ") }}.{% endif %}</p>
+            <p class="mt-2 leading-[1.6] text-text-muted">{% if live_chains %}Payment uses x402 with USDC on {{ live_chains | join(", ") }}. You sign an authorization or transaction; gas is handled for you.{% else %}No x402 settlement rail was returned for this quote.{% endif %}{% if native_methods %} Native rails enabled for this quote: {{ native_methods | join(" / ") }}.{% endif %}</p>
         </div>
     </div>
 </section>
@@ -85,9 +86,11 @@
                    backend advertised them for this quote/order. #}
                 <fieldset id="payment-method-tabs" class="form-section mb-2.5 border-0 p-0 text-left">
                     <span class="panel-label mb-1.5 block">payment method</span>
-                    <label class="mr-3.5"><input type="radio" name="payment-method" value="evm" checked class="mr-1">USDC (EVM)</label>
+                    {% if x402_methods %}
+                    <label class="mr-3.5"><input type="radio" name="payment-method" value="evm" checked class="mr-1">USDC (x402)</label>
+                    {% endif %}
                     {% if "BTC" in native_methods %}
-                    <label class="mr-3.5"><input type="radio" name="payment-method" value="btc" class="mr-1">Bitcoin</label>
+                    <label class="mr-3.5"><input type="radio" name="payment-method" value="btc" {% if not x402_methods %}checked{% endif %} class="mr-1">Bitcoin</label>
                     {% endif %}
                     {% if "XMR" in native_methods %}
                     <label><input type="radio" name="payment-method" value="xmr" class="mr-1">Monero</label>
@@ -137,7 +140,7 @@
                 <div id="payment-native-render" class="mt-3 hidden"></div>
 
                 <div class="wallet-status">sign once · gasless · USDC</div>
-                <p class="m-0 text-[0.76rem] text-text-soft">x402 + EIP-3009. The signature authorizes the transfer; Hyrule Cloud covers the gas.</p>
+                <p class="m-0 text-[0.76rem] text-text-soft">x402 exact settlement. EVM uses EIP-3009; Solana uses a Wallet Standard transaction with facilitator-paid fees.</p>
             </div>
 
             <a href="/order" class="btn btn-secondary">← Back to order form</a>
@@ -147,6 +150,6 @@
 {% endblock %}
 
 {% block scripts %}
-{# Issue #14: payment dispatcher bundle (imports the EVM + native adapters). #}
+{# Payment dispatcher loads EVM/native eagerly and Solana only when selected. #}
 {{ vite_asset('payment') }}
 {% endblock %}

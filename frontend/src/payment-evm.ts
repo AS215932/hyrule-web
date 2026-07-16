@@ -63,9 +63,12 @@ export async function ensureChain(
   network: PaymentNetwork,
   provider: Eip1193Provider,
 ): Promise<void> {
+  if (!Number.isSafeInteger(network.chain_id) || Number(network.chain_id) <= 0) {
+    throw new Error("The selected EVM network has no valid chain ID.");
+  }
   // EIP-1193: wallet_switchEthereumChain. If the chain isn't yet known to the
   // wallet, fall back to wallet_addEthereumChain with the explorer/rpc info.
-  const chainIdHex = "0x" + network.chain_id.toString(16);
+  const chainIdHex = "0x" + Number(network.chain_id).toString(16);
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
@@ -117,6 +120,9 @@ export function buildTypedData(
   validBefore: string,
   nonce: string,
 ): TransferWithAuthorizationTypedData {
+  if (!Number.isSafeInteger(network.chain_id) || !network.eip712_domain) {
+    throw new Error("The selected EVM network metadata is incomplete.");
+  }
   return {
     types: {
       EIP712Domain: [
@@ -137,7 +143,7 @@ export function buildTypedData(
     domain: {
       name: network.eip712_domain.name,
       version: network.eip712_domain.version,
-      chainId: network.chain_id,
+      chainId: Number(network.chain_id),
       verifyingContract: network.token_address,
     },
     primaryType: "TransferWithAuthorization",
@@ -162,6 +168,9 @@ export async function signX402Quote(
   network: PaymentNetwork,
   provided?: Eip1193Provider,
 ): Promise<string> {
+  if (network.family !== "evm") {
+    throw new Error("The EVM adapter cannot sign this payment network.");
+  }
   const accept: X402Acceptance = quote.accept;
   if (accept.network !== network.caip2 && accept.network !== network.key) {
     throw new Error("The selected wallet network does not match the live quote.");
@@ -187,11 +196,14 @@ export async function signX402Quote(
   const validBefore = String(now + timeout);
   const nonce = nonceHex32();
   const domainName =
-    typeof accept.extra?.name === "string" ? accept.extra.name : network.eip712_domain.name;
+    typeof accept.extra?.name === "string" ? accept.extra.name : network.eip712_domain?.name;
   const domainVersion =
     typeof accept.extra?.version === "string"
       ? accept.extra.version
-      : network.eip712_domain.version;
+      : network.eip712_domain?.version;
+  if (!domainName || !domainVersion) {
+    throw new Error("The live quote does not contain an EIP-712 token domain.");
+  }
   const typedData = buildTypedData(
     { ...network, eip712_domain: { name: domainName, version: domainVersion } },
     from,
@@ -207,8 +219,9 @@ export async function signX402Quote(
   })) as string;
   return encodeBase64Json({
     x402Version: 2,
-    scheme: accept.scheme || "exact",
-    network: accept.network,
+    resource: quote.requirements.resource,
+    accepted: accept,
+    extensions: quote.requirements.extensions,
     payload: {
       authorization: {
         from,

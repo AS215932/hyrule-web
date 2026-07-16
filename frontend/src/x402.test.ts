@@ -174,6 +174,28 @@ describe("agent-signed payment validation", () => {
       ),
     ).toThrow(/signature/);
   });
+
+  it("accepts an official Solana x402 v2 transaction envelope", () => {
+    const solanaAccept = {
+      scheme: "exact",
+      network: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+      amount: "1000",
+      asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      payTo: "9xQeWvG816bUx9EPfEZRzHLrqvRQmkmSBmGE4kc9x9C",
+      maxTimeoutSeconds: 300,
+    };
+    const solanaQuote: X402Quote = {
+      ...quote,
+      requirements: { x402Version: 2, accepts: [solanaAccept] },
+      accept: solanaAccept,
+    };
+    const signed = encodeBase64Json({
+      x402Version: 2,
+      accepted: solanaAccept,
+      payload: { transaction: btoa("signed-solana-transaction-payload") },
+    });
+    expect(() => validateSignedPayment(solanaQuote, signed)).not.toThrow();
+  });
 });
 
 it("formats exact base units without floating point", () => {

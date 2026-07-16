@@ -1011,7 +1011,7 @@ async def page_toolbox(request: Request) -> Response:
     execution_enabled = (
         tool_catalog["status"] == "live"
         and networks_fresh
-        and any(network.get("family") == "evm" for network in networks)
+        and any(network.get("family") in {"evm", "svm"} for network in networks)
         and any(
             isinstance(tool, dict) and bool(tool.get("executable"))
             for tool in tool_catalog["tools"]
@@ -1133,7 +1133,7 @@ async def domain_checkout(request: Request, quote_id: str) -> Response:
         networks=[
             network
             for network in _catalog_networks(catalog)
-            if isinstance(network, dict) and network.get("family") == "evm"
+            if isinstance(network, dict) and network.get("family") in {"evm", "svm"}
         ],
         native=_catalog_native(catalog),
         error=None,

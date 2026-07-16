@@ -408,9 +408,16 @@ function networkFor(value: string): PaymentNetwork {
   const network = networks.find(
     (candidate) => candidate.caip2 === value || candidate.key === value,
   );
-  if (!network || network.family !== "evm")
+  if (!network || !["evm", "svm"].includes(network.family)) {
     throw new Error("That settlement network is not enabled.");
+  }
   return network;
+}
+
+async function signBrowserQuote(quote: X402Quote, network: PaymentNetwork): Promise<string> {
+  if (network.family === "evm") return signX402Quote(quote, network);
+  const { signSolanaX402Quote } = await import("./payment-solana");
+  return signSolanaX402Quote(quote, network);
 }
 
 function quoteOutput(state: QuoteState): JsonObject {
@@ -553,7 +560,7 @@ async function payQuote(handle: string, mode: string, external?: string): Promis
   paymentStatus.className = "payment-status payment-pending";
   let signature: string;
   if (mode === "browser_wallet") {
-    signature = await signX402Quote(state.quote, state.network);
+    signature = await signBrowserQuote(state.quote, state.network);
   } else if (mode === "signed_x402") {
     if (!external) throw new Error("payment_signature is required for signed_x402 mode.");
     validateSignedPayment(state.quote, external);
@@ -799,7 +806,7 @@ async function registerWebMcp(): Promise<void> {
   const controller = new AbortController();
   const operationIds = executableTools.map((tool) => tool.operation_id);
   const networkIds = networks
-    .filter((network) => network.family === "evm")
+    .filter((network) => network.family === "evm" || network.family === "svm")
     .map((network) => network.caip2 || network.key);
   await modelContext.registerTool(
     {
