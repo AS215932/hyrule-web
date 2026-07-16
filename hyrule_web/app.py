@@ -2071,7 +2071,7 @@ async def llms(request: Request) -> str:
 # ---------------------------------------------------------------------------
 
 
-@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy_api(request: Request, path: str) -> Response:
     client: httpx.AsyncClient = request.app.state.http
     api_path = path[3:] if path.startswith("v1/") else path

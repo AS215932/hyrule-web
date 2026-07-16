@@ -86,9 +86,13 @@ export async function paymentRequirements(response: Response): Promise<X402Requi
   throw new Error("The API returned 402 without valid x402 payment requirements.");
 }
 
-export function selectAcceptance(requirements: X402Requirements, network: string): X402Acceptance {
-  const accept = requirements.accepts.find((candidate) => candidate.network === network);
-  if (!accept) throw new Error(`The live quote does not accept ${network}.`);
+export function selectAcceptance(
+  requirements: X402Requirements,
+  network: string | readonly string[],
+): X402Acceptance {
+  const identifiers = Array.isArray(network) ? network : [network];
+  const accept = requirements.accepts.find((candidate) => identifiers.includes(candidate.network));
+  if (!accept) throw new Error(`The live quote does not accept ${identifiers.join(" or ")}.`);
   return accept;
 }
 
@@ -116,7 +120,7 @@ async function responseError(response: Response): Promise<Error> {
 
 export async function quoteX402(
   request: X402RequestSpec,
-  network: string,
+  network: string | readonly string[],
 ): Promise<X402QuoteResult> {
   const response = await fetchRequest(request);
   if (response.status !== 402) {

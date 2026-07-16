@@ -6,7 +6,7 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.app import _CATALOG_CACHE
+from hyrule_web.app import _CATALOG_CACHE, _TOOL_CATALOG_CACHE
 from hyrule_web.catalog import browser_catalog, catalog_resources, normalize_openapi
 
 
@@ -163,6 +163,19 @@ def test_toolbox_disables_execution_with_stale_payment_networks(
     assert response.status_code == 200
     assert "payment-network discovery unavailable, so execution is paused" in response.text
     assert '"execution_enabled": false' in response.text
+
+
+def test_services_labels_stale_operations_and_withholds_prices(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    assert client.get("/services").status_code == 200
+    _TOOL_CATALOG_CACHE["expires_at"] = 0.0
+    mocked_api.get("/openapi.json").mock(side_effect=httpx.ConnectError("offline"))
+    response = client.get("/services")
+    assert response.status_code == 200
+    assert "Enabled-operation discovery is temporarily stale" in response.text
+    assert "/v1/dns/lookup" in response.text
+    assert "Unavailable" in response.text
 
 
 def test_public_pages_never_expose_conventional_mcp_service(client: TestClient) -> None:

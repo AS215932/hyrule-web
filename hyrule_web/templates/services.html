@@ -70,6 +70,16 @@
     </div>
 </section>
 
+{% if catalog_status == 'stale' %}
+<section class="container">
+    <p class="hero-blurb"><em>Enabled-operation discovery is temporarily stale. Last-known operations remain visible, but their prices are withheld and toolbox execution is disabled until OpenAPI refreshes.</em></p>
+</section>
+{% elif catalog_status == 'unavailable' %}
+<section class="container">
+    <p class="hero-blurb"><em>Enabled-operation discovery is temporarily unavailable. No static endpoint or price list is being substituted.</em></p>
+</section>
+{% endif %}
+
 {# ── 2.1 Compute ─────────────────────────────────────────────────────────── #}
 <section class="container page-section" id="compute">
     <div class="section-heading split">

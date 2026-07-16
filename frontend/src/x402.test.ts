@@ -70,6 +70,14 @@ describe("quote and replay", () => {
     expect(() => selectAcceptance(requirements, "eip155:137")).toThrow(/does not accept/);
   });
 
+  it("supports a configured network's CAIP-2 and legacy key identifiers", () => {
+    const legacy = {
+      ...requirements,
+      accepts: [{ ...requirements.accepts[0], network: "base" }],
+    };
+    expect(selectAcceptance(legacy, ["eip155:8453", "base"]).network).toBe("base");
+  });
+
   it("returns a request-bound quote from 402", async () => {
     vi.stubGlobal(
       "fetch",

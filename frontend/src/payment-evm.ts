@@ -248,7 +248,7 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify(body),
       },
-      network.caip2 || network.key,
+      [network.caip2, network.key].filter((value): value is string => Boolean(value)),
     );
     let result: Record<string, unknown>;
     if (quoteResult.kind === "response") {

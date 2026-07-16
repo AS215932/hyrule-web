@@ -30,7 +30,7 @@ def test_proxy_get_with_v1_prefix_is_stripped(
     assert route.called
 
 
-@pytest.mark.parametrize("method", ["GET", "POST", "PUT", "DELETE"])
+@pytest.mark.parametrize("method", ["GET", "POST", "PUT", "PATCH", "DELETE"])
 def test_proxy_forwards_every_supported_method(
     client: TestClient, mocked_api: respx.MockRouter, method: str
 ) -> None:

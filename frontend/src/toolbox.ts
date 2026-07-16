@@ -434,7 +434,10 @@ async function createQuote(
   const network = networkFor(networkId);
   paymentStatus.textContent = "Requesting the exact x402 challenge…";
   paymentStatus.className = "payment-status payment-pending";
-  const outcome = await quoteX402(requestFor(tool, input), network.caip2 || network.key);
+  const outcome = await quoteX402(
+    requestFor(tool, input),
+    [network.caip2, network.key].filter((value): value is string => Boolean(value)),
+  );
   if (outcome.kind === "response") {
     const result = await consumeResponse(outcome.response, tool);
     return { paid: false, result_handle: result.handle, status: result.status };
