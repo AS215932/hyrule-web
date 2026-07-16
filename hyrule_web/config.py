@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # falls back to the pre-Wave-2 nav (no Login / Dashboard pills).
     enable_auth_ui: bool = True
 
+    # Dark until hyrule-cloud's dual-stack observers, authoritative DNS feed,
+    # STUN service, retention cleanup, and privacy canaries all pass.
+    enable_ip_check: bool = False
+
     # Issue #14 frontend build: in prod, templates load hashed assets from the
     # committed Vite manifest under static/dist/. For local dev, set this to the
     # Vite dev server origin (e.g. http://localhost:5173) AND debug=true to load

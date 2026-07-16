@@ -139,6 +139,7 @@ _VITE_ENTRIES = {
     "domain": "frontend/src/domain.ts",
     "wallet_auth": "frontend/src/wallet-auth.ts",
     "toolbox": "frontend/src/toolbox.ts",
+    "ip_check": "frontend/src/ip-check.ts",
 }
 
 
@@ -677,6 +678,7 @@ def _render(request: Request, name: str, *, status_code: int = 200, **kwargs: An
         # Issue #14: public WalletConnect projectId for the base.html meta tag.
         "wc_project_id": settings.walletconnect_project_id,
         "webmcp_origin_trial_token": settings.webmcp_origin_trial_token,
+        "ip_check_enabled": settings.enable_ip_check,
         **kwargs,
     }
     if "runtime" not in ctx:
@@ -1025,6 +1027,45 @@ async def page_toolbox(request: Request) -> Response:
         catalog_status=tool_catalog["status"],
         execution_enabled=execution_enabled,
         networks=networks,
+    )
+
+
+async def _ip_check_backend_ready(request: Request) -> bool:
+    capabilities = await _fetch_api(request, "/v1/nat/capabilities")
+    endpoints = capabilities.get("free_endpoints") if capabilities else None
+    if not isinstance(endpoints, list):
+        return False
+    return any(
+        isinstance(endpoint, dict)
+        and endpoint.get("path") == "/v1/ip-check/sessions"
+        and endpoint.get("method") == "POST"
+        for endpoint in endpoints
+    )
+
+
+@app.get("/ip-check", response_class=HTMLResponse)
+async def page_ip_check(request: Request) -> Response:
+    """Agent-first network observations with an optional browser adapter."""
+    if not settings.enable_ip_check or not await _ip_check_backend_ready(request):
+        raise HTTPException(status_code=404)
+    tool_catalog = await _refresh_tool_catalog(request)
+    quality_tool = next(
+        (
+            tool
+            for tool in tool_catalog.get("tools", [])
+            if isinstance(tool, dict)
+            and tool.get("path") == "/v1/ip/quality"
+            and tool.get("executable")
+        ),
+        None,
+    )
+    return _render(
+        request,
+        "ip_check.html",
+        ip_check_config={
+            "quality_tool_id": (quality_tool or {}).get("operation_id"),
+            "quality_price": (quality_tool or {}).get("price_display"),
+        },
     )
 
 
@@ -2045,7 +2086,11 @@ async def page_legal(request: Request) -> Response:
 
 @app.get("/sitemap.xml")
 async def sitemap() -> Response:
-    return Response(content=render_sitemap_xml(app), media_type="application/xml")
+    excludes = () if settings.enable_ip_check else ("/ip-check",)
+    return Response(
+        content=render_sitemap_xml(app, additional_excludes=excludes),
+        media_type="application/xml",
+    )
 
 
 @app.get("/llms.txt", response_class=PlainTextResponse)
@@ -2058,11 +2103,13 @@ async def llms(request: Request) -> str:
     tool_catalog = await _refresh_tool_catalog(request)
     network_fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
     catalog_fresh = tool_catalog.get("status") == "live"
+    ip_check_live = settings.enable_ip_check and await _ip_check_backend_ready(request)
     return build_llms_txt(
         networks,
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
         tools=tool_catalog.get("tools"),
+        ip_check_live=ip_check_live,
     )
 
 
@@ -2075,6 +2122,12 @@ async def llms(request: Request) -> str:
 async def proxy_api(request: Request, path: str) -> Response:
     client: httpx.AsyncClient = request.app.state.http
     api_path = path[3:] if path.startswith("v1/") else path
+    browser_fingerprint_path = bool(
+        re.fullmatch(
+            r"ip-check/sessions/[^/]+/fingerprints/browser",
+            api_path,
+        )
+    )
 
     forward_headers: dict[str, str] = {}
     for key in request.headers:
@@ -2095,6 +2148,15 @@ async def proxy_api(request: Request, path: str) -> Response:
             # Block A1: forward session cookies so the backend can resolve
             # the current account on /me/* calls coming from the browser.
             "cookie",
+        ) or (
+            browser_fingerprint_path
+            and lower
+            in {
+                "user-agent",
+                "accept-language",
+                "sec-ch-ua",
+                "sec-ch-ua-platform",
+            }
         ):
             forward_headers[key] = request.headers[key]
 

@@ -985,10 +985,28 @@ void registerWebMcp().catch((error: unknown) => {
 });
 restoreJobs();
 const initialTool = new URLSearchParams(location.search).get("tool");
+let initialInput: JsonObject | undefined;
+try {
+  const saved = JSON.parse(sessionStorage.getItem("hyrule_ip_quality_prefill") || "null") as {
+    operation_id?: unknown;
+    input?: unknown;
+  } | null;
+  if (
+    saved?.operation_id === initialTool &&
+    saved.input &&
+    typeof saved.input === "object" &&
+    !Array.isArray(saved.input)
+  ) {
+    initialInput = saved.input as JsonObject;
+  }
+  sessionStorage.removeItem("hyrule_ip_quality_prefill");
+} catch {
+  sessionStorage.removeItem("hyrule_ip_quality_prefill");
+}
 if (
   initialTool &&
   toolsById.get(initialTool)?.executable &&
   catalog.status === "live" &&
   catalog.execution_enabled
 )
-  selectTool(initialTool);
+  selectTool(initialTool, initialInput);

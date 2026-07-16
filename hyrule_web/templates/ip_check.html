@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Agent-first IP, DNS, STUN, and fingerprint check — Hyrule Cloud{% endblock %}
+{% block meta_description %}Measure the network environment an agent or browser actually uses: dual-stack egress, DNS resolvers, STUN/WebRTC consistency, and expiring provenance fingerprints.{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Hyrule Network Environment Check","url":"https://hyrule.host/ip-check","applicationCategory":"DeveloperApplication","operatingSystem":"Agent runtime or web browser"}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container ip-check-hero">
+    <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">ip-check</span></div>
+    <span class="panel-label">network observation</span>
+    <h1>Measure the environment that actually makes the request.</h1>
+    <p class="hero-blurb">Hyrule correlates independently observed HTTPS and DNS evidence with STUN, WebRTC, and short-lived runtime fingerprints. The core is agent-first; this page is one optional browser probe adapter.</p>
+    <div class="ip-check-assurance" aria-label="Evidence assurance levels">
+        <span>server observed</span><span>client declared</span><span>signed</span><span>attested</span>
+    </div>
+</section>
+
+<section class="container page-section ip-check-runner">
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">browser adapter</span><h2>Run from this tab</h2></div>
+        <p class="heading-side">The session and every observation expire within 15 minutes. No cookie, login history, private ICE address, or durable fingerprint ID is collected.</p>
+    </div>
+
+    <div class="ip-check-columns">
+        <form id="ip-check-form" class="ip-check-form" novalidate>
+            <label for="ip-check-dns-expected"><strong>Expected DNS resolver IPs or CIDRs</strong><small>Optional. Without an expectation, DNS is reported as observed—not mislabeled a leak.</small></label>
+            <textarea id="ip-check-dns-expected" rows="3" placeholder="1.1.1.0/24, 2606:4700:4700::/48" spellcheck="false"></textarea>
+
+            <label for="ip-check-country"><strong>Expected country</strong><small>Optional two-letter code, used only to prefill the paid IP-quality handoff.</small></label>
+            <input id="ip-check-country" maxlength="2" pattern="[A-Za-z]{2}" placeholder="NL" autocomplete="country">
+
+            <label class="ip-check-consent" for="ip-check-high-entropy">
+                <input id="ip-check-high-entropy" type="checkbox">
+                <span><strong>Include high-entropy browser traits</strong><small>Explicitly enables WebGL metadata plus locally hashed canvas and audio samples. Off by default.</small></span>
+            </label>
+
+            <div id="ip-check-error" class="form-error" role="alert" hidden></div>
+            <button id="ip-check-run" class="btn btn-primary btn-lg" type="submit">Run environment check</button>
+        </form>
+
+        <aside class="ip-check-progress" aria-live="polite">
+            <span class="panel-label">probe state</span>
+            <ol>
+                <li data-probe-state="session"><span>Session manifest</span><em>waiting</em></li>
+                <li data-probe-state="ipv4"><span>HTTPS IPv4</span><em>waiting</em></li>
+                <li data-probe-state="ipv6"><span>HTTPS IPv6</span><em>waiting</em></li>
+                <li data-probe-state="dns"><span>Authoritative DNS</span><em>waiting</em></li>
+                <li data-probe-state="webrtc"><span>STUN / WebRTC</span><em>waiting</em></li>
+                <li data-probe-state="fingerprint"><span>Browser fingerprint</span><em>waiting</em></li>
+            </ol>
+            <p id="ip-check-session-note">Ready to create an expiring probe manifest.</p>
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section" id="ip-check-results" hidden>
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">correlated report</span><h2>What Hyrule observed</h2></div>
+        <p class="heading-side" id="ip-check-expiry"></p>
+    </div>
+    <div class="ip-check-result-grid">
+        <article><span>HTTPS IPv4</span><strong id="ip-result-v4">Not observed</strong><small id="ip-result-v4-status">—</small></article>
+        <article><span>HTTPS IPv6</span><strong id="ip-result-v6">Not observed</strong><small id="ip-result-v6-status">—</small></article>
+        <article><span>DNS resolver</span><strong id="ip-result-dns">Not observed</strong><small id="ip-result-dns-status">—</small></article>
+        <article><span>WebRTC public address</span><strong id="ip-result-webrtc">Not observed</strong><small id="ip-result-webrtc-status">—</small></article>
+        <article><span>Browser fingerprint</span><strong id="ip-result-fingerprint">Not collected</strong><small id="ip-result-fingerprint-status">Session scoped</small></article>
+        <article><span>Consistency</span><strong id="ip-result-consistency">Inconclusive</strong><small id="ip-result-consistency-status">Evidence is still arriving</small></article>
+    </div>
+
+    <div class="ip-check-evidence-columns">
+        <article class="ip-check-evidence-card">
+            <span class="panel-label">provenance</span>
+            <dl id="ip-check-provenance"></dl>
+        </article>
+        <article class="ip-check-evidence-card">
+            <span class="panel-label">runtime context</span>
+            <dl id="ip-check-runtime"></dl>
+        </article>
+    </div>
+
+    <details class="ip-check-raw"><summary>Machine-readable session report</summary><pre id="ip-check-report-json"></pre></details>
+
+    <div class="ip-check-paid">
+        <div><span class="panel-label">licensed enrichment</span><h3>Cross-check the observed IP</h3><p>ASN and operator, network type, proxy/VPN/Tor signals, fraud risk, routing and RPKI state, registration history, and country/timezone consistency.</p></div>
+        {% if ip_check_config.quality_tool_id %}
+        <button id="ip-check-quality" class="btn btn-primary" type="button" disabled>Open paid report · {{ ip_check_config.quality_price }}</button>
+        {% else %}
+        <span class="catalog-state catalog-state-unavailable">Licensed providers are not enabled, so no paid report is being offered.</span>
+        {% endif %}
+    </div>
+</section>
+
+<section class="container page-section ip-check-agent">
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">agent-first path</span><h2>No browser required</h2></div>
+        <p class="heading-side">The probe must execute where the agent runs. A hosted MCP gateway can only measure itself.</p>
+    </div>
+    <div class="ip-check-agent-grid">
+        <article><span>01</span><h3>Create manifest</h3><p><code>POST /v1/ip-check/sessions</code> returns dual-stack HTTPS targets, a unique DNS name, STUN targets, an identity challenge, and an authenticated report URL.</p></article>
+        <article><span>02</span><h3>Probe locally</h3><p>Use the Python client’s <code>network_environment_check()</code> or the local MCP tool of the same name. Traffic leaves the runtime under test.</p></article>
+        <article><span>03</span><h3>Read assurance</h3><p>Every result says whether it was server-observed, client-declared, signature-verified, or attested. Model names remain claims unless independently attested.</p></article>
+    </div>
+    <pre class="ip-check-code"><code>async with HyruleClient("https://cloud.hyrule.host") as hc:
+    result = await hc.network_environment_check(
+        expected_dns_resolvers=["1.1.1.0/24"],
+        protocol="sdk",
+    )</code></pre>
+</section>
+
+<section class="container page-section ip-check-privacy">
+    <div class="section-heading"><span class="panel-label">interpretation limits</span><h2>Evidence, not an evasion score.</h2></div>
+    <p>DNS resolver differences are not automatically leaks. Blocked WebRTC or failed STUN is inconclusive. A fingerprint is not identity. Hyrule does not claim that these signals can bypass another platform’s abuse controls, and does not infer a model vendor from writing style.</p>
+</section>
+
+<script id="ip-check-config" type="application/json">{{ ip_check_config | tojson }}</script>
+{% endblock %}
+
+{% block scripts %}{{ vite_asset('ip_check') }}{% endblock %}
