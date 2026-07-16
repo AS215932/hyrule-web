@@ -74,6 +74,12 @@ async function switchWalletChain(
     });
   } catch (error) {
     if ((error as { code?: number }).code !== 4902) throw error;
+    const rpcUrl = network.rpc_url?.trim();
+    if (!rpcUrl) {
+      throw new Error(`Cannot add ${network.display_name}: no RPC URL is configured.`, {
+        cause: error,
+      });
+    }
     await provider.request({
       method: "wallet_addEthereumChain",
       params: [
@@ -85,10 +91,14 @@ async function switchWalletChain(
             symbol: "ETH",
             decimals: 18,
           },
-          rpcUrls: [network.rpc_url].filter(Boolean),
+          rpcUrls: [rpcUrl],
           blockExplorerUrls: [network.block_explorer_url].filter(Boolean),
         },
       ],
+    });
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
     });
   }
 }

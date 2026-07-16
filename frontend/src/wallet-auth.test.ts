@@ -92,15 +92,27 @@ describe("wallet authentication chain selection", () => {
       native_currency: { name: "Ether", symbol: "ETH", decimals: 18 },
     };
     let selectedChain = 1;
+    let switchAttempts = 0;
     const unknownChain = Object.assign(new Error("unknown chain"), { code: 4902 });
     const request = vi.fn(
-      async ({ method }: { method: string; params?: unknown[] | Record<string, unknown> }) => {
+      async ({
+        method,
+        params,
+      }: {
+        method: string;
+        params?: unknown[] | Record<string, unknown>;
+      }) => {
         if (method === "eth_chainId") return `0x${selectedChain.toString(16)}`;
-        if (method === "wallet_switchEthereumChain") throw unknownChain;
-        if (method === "wallet_addEthereumChain") {
-          selectedChain = addableBase.chain_id;
+        if (method === "wallet_switchEthereumChain") {
+          switchAttempts += 1;
+          if (switchAttempts === 1) throw unknownChain;
+          selectedChain = Number.parseInt(
+            String((params as { chainId: string }[])[0]?.chainId),
+            16,
+          );
           return null;
         }
+        if (method === "wallet_addEthereumChain") return null;
         throw new Error(`Unexpected wallet method: ${method}`);
       },
     );
@@ -122,6 +134,33 @@ describe("wallet authentication chain selection", () => {
         },
       ],
     });
+    expect(request.mock.calls.map(([call]) => call.method)).toEqual([
+      "eth_chainId",
+      "wallet_switchEthereumChain",
+      "wallet_addEthereumChain",
+      "wallet_switchEthereumChain",
+      "eth_chainId",
+    ]);
+  });
+
+  it("fails clearly instead of adding a chain without an RPC URL", async () => {
+    const unknownChain = Object.assign(new Error("unknown chain"), { code: 4902 });
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === "eth_chainId") return "0x1";
+      if (method === "wallet_switchEthereumChain") throw unknownChain;
+      throw new Error(`Unexpected wallet method: ${method}`);
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: true, json: async () => ({ networks: [base] }) })),
+    );
+
+    await expect(resolveWalletAuthChain({ request } as Eip1193Provider)).rejects.toThrow(
+      "Could not switch this wallet to an enabled chain: Cannot add Base: no RPC URL is configured.",
+    );
+    expect(request).not.toHaveBeenCalledWith(
+      expect.objectContaining({ method: "wallet_addEthereumChain" }),
+    );
   });
 
   it("fails clearly when the backend has no enabled EVM chains", async () => {
