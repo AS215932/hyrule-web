@@ -29,7 +29,7 @@
     <div class="mini-card overflow-hidden p-0">
         <div class="overflow-x-auto"><table class="w-full min-w-[720px] border-collapse font-mono text-[0.86em]">
             <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">name</th><th class="px-3 py-2.5">type</th><th class="px-3 py-2.5">ttl</th><th class="px-3 py-2.5">values</th><th class="px-3 py-2.5"></th></tr></thead>
-            <tbody>{% for rr in zone.records %}<tr class="border-t border-white/[0.06]"><td class="px-3 py-2.5">{{ rr.name }}</td><td class="px-3 py-2.5">{{ rr.type }}</td><td class="px-3 py-2.5">{{ rr.ttl }}</td><td class="px-3 py-2.5 break-all">{{ rr.values | join(', ') }}</td><td class="px-3 py-2.5"><form method="post" action="/dashboard/domains/{{ domain.domain }}/dns" onsubmit="return confirm('Delete this RRset?')"><input type="hidden" name="revision" value="{{ zone.revision }}"><input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="{{ rr.name }}"><input type="hidden" name="record_type" value="{{ rr.type }}"><input type="hidden" name="ttl" value="{{ rr.ttl }}"><textarea name="values" class="hidden">{{ rr.values | join('\n') }}</textarea><button class="btn btn-ghost btn-xs" type="submit">delete</button></form></td></tr>{% endfor %}</tbody>
+            <tbody>{% for rr in zone.records %}<tr class="border-t border-white/[0.06]"><td class="px-3 py-2.5">{{ rr.name }}</td><td class="px-3 py-2.5">{{ rr.type }}</td><td class="px-3 py-2.5">{{ rr.ttl }}</td><td class="px-3 py-2.5 break-all">{{ rr['values'] | join(', ') }}</td><td class="px-3 py-2.5"><form method="post" action="/dashboard/domains/{{ domain.domain }}/dns" onsubmit="return confirm('Delete this RRset?')"><input type="hidden" name="idempotency_key" value="{{ mutation_keys.dns_delete[rr.name ~ ':' ~ rr.type] }}"><input type="hidden" name="revision" value="{{ zone.revision }}"><input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="{{ rr.name }}"><input type="hidden" name="record_type" value="{{ rr.type }}"><input type="hidden" name="ttl" value="{{ rr.ttl }}"><textarea name="values" class="hidden">{{ rr['values'] | join('\n') }}</textarea><button class="btn btn-ghost btn-xs" type="submit">delete</button></form></td></tr>{% endfor %}</tbody>
         </table></div>
     </div>
     {% else %}<div class="mini-card p-5 text-text-soft">No customer records yet. The apex SOA, NS, DNSKEY, and signatures are managed automatically.</div>{% endif %}
@@ -37,7 +37,7 @@
     <div class="mini-card mt-4 max-w-[760px] p-5">
         <h3 class="mt-0">Add or replace an RRset</h3>
         <form method="post" action="/dashboard/domains/{{ domain.domain }}/dns">
-            <input type="hidden" name="revision" value="{{ zone.revision }}"><input type="hidden" name="action" value="upsert">
+            <input type="hidden" name="idempotency_key" value="{{ mutation_keys.dns_upsert }}"><input type="hidden" name="revision" value="{{ zone.revision }}"><input type="hidden" name="action" value="upsert">
             <div class="grid gap-3 sm:grid-cols-[1fr_120px_120px]">
                 <div class="form-section"><label for="dns-name"><strong>Name</strong></label><input id="dns-name" name="name" value="@" required class="w-full p-2 font-mono"></div>
                 <div class="form-section"><label for="dns-type"><strong>Type</strong></label><select id="dns-type" name="record_type" class="w-full p-2 font-mono">{% for rrtype in ['A','AAAA','CNAME','MX','TXT','CAA','SRV','NS','TLSA','SVCB','HTTPS'] %}<option>{{ rrtype }}</option>{% endfor %}</select></div>
@@ -56,6 +56,7 @@
             <span class="panel-label">delegation</span><h3>Nameservers</h3>
             <p class="text-text-soft">Current: {{ domain.nameservers | join(', ') }}</p>
             <form method="post" action="/dashboard/domains/{{ domain.domain }}/nameservers">
+                <input type="hidden" name="idempotency_key" value="{{ mutation_keys.nameservers }}">
                 <div class="form-section"><label for="ns-mode"><strong>Mode</strong></label><select id="ns-mode" name="mode" class="w-full p-2 font-mono"><option value="managed" {% if domain.nameserver_mode == 'managed' %}selected{% endif %}>Managed by Hyrule</option><option value="external" {% if domain.nameserver_mode == 'external' %}selected{% endif %}>External nameservers</option></select></div>
                 <div class="form-section"><label for="nameservers"><strong>External nameservers</strong> <small>2–13, one per line</small></label><textarea id="nameservers" name="nameservers" rows="3" class="w-full p-2 font-mono">{% if domain.nameserver_mode == 'external' %}{{ domain.nameservers | join('\n') }}{% endif %}</textarea></div>
                 <button class="btn btn-secondary btn-xs" type="submit">Queue nameserver change</button>
@@ -65,6 +66,7 @@
             <span class="panel-label">chain of trust</span><h3>DNSSEC</h3>
             <p class="text-text-soft">Managed mode publishes Knot's ECDSA P-256 DNSKEY at the registrar. External mode verifies your DS against live authoritative DNSKEY before submission.</p>
             <form method="post" action="/dashboard/domains/{{ domain.domain }}/dnssec">
+                <input type="hidden" name="idempotency_key" value="{{ mutation_keys.dnssec }}">
                 <div class="form-section"><label for="dnssec-mode"><strong>Mode</strong></label><select id="dnssec-mode" name="mode" class="w-full p-2 font-mono"><option value="managed" {% if domain.dnssec_mode == 'managed' %}selected{% endif %}>Managed</option><option value="external" {% if domain.dnssec_mode == 'external' %}selected{% endif %}>External DS</option><option value="off" {% if domain.dnssec_mode == 'off' %}selected{% endif %}>Off</option></select></div>
                 <div class="form-section"><label for="ds-records"><strong>External DS records</strong></label><textarea id="ds-records" name="ds_records" rows="3" placeholder="key-tag algorithm digest-type digest" class="w-full p-2 font-mono"></textarea></div>
                 <button class="btn btn-secondary btn-xs" type="submit">Queue DNSSEC change</button>

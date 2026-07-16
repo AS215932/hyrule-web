@@ -58,6 +58,15 @@ log = structlog.get_logger().bind(service="hyrule-web")
 
 BASE_DIR = Path(__file__).parent
 
+DOMAIN_RECORD_TYPES = frozenset(
+    {"A", "AAAA", "CNAME", "MX", "TXT", "CAA", "SRV", "NS", "TLSA", "SVCB", "HTTPS"}
+)
+DNS_RECORD_LABEL_RE = re.compile(r"^(?:\*|[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)$")
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -1065,7 +1074,11 @@ async def domain_checkout(request: Request, quote_id: str) -> Response:
         "domain_checkout.html",
         quote=quote_response.json(),
         authenticated=authenticated,
-        networks=_catalog_networks(catalog),
+        networks=[
+            network
+            for network in _catalog_networks(catalog)
+            if isinstance(network, dict) and network.get("family") == "evm"
+        ],
         native=_catalog_native(catalog),
         error=None,
     )
@@ -1534,6 +1547,28 @@ def _domain_notice(domain: str, message: str) -> Response:
     )
 
 
+def _valid_form_idempotency_key(value: str) -> str | None:
+    value = value.strip()
+    return value if 8 <= len(value) <= 128 else None
+
+
+def _valid_record_name(value: str) -> str | None:
+    value = value.strip().lower().rstrip(".") or "@"
+    if value == "@":
+        return value
+    labels = value.split(".")
+    if any(not DNS_RECORD_LABEL_RE.fullmatch(label) for label in labels):
+        return None
+    if any(label == "*" for label in labels[1:]):
+        return None
+    return value
+
+
+def _valid_nameserver(value: str) -> str | None:
+    value = value.strip().lower().rstrip(".")
+    return value if HOSTNAME_RE.fullmatch(value) else None
+
+
 @app.get("/dashboard/domains/{domain}", response_class=HTMLResponse)
 async def dashboard_domain(request: Request, domain: str) -> Response:
     _require_auth_ui()
@@ -1555,12 +1590,24 @@ async def dashboard_domain(request: Request, domain: str) -> Response:
         if wallet_response is not None and wallet_response.status_code == 200
         else {"address": None, "chain_id": None}
     )
+    records = zone.get("records", []) if isinstance(zone, dict) else []
+    mutation_keys = {
+        "dns_upsert": secrets.token_urlsafe(24),
+        "dns_delete": {
+            f"{record.get('name', '')}:{record.get('type', '')}": secrets.token_urlsafe(24)
+            for record in records
+            if isinstance(record, dict)
+        },
+        "nameservers": secrets.token_urlsafe(24),
+        "dnssec": secrets.token_urlsafe(24),
+    }
     return _render(
         request,
         "domain_detail.html",
         domain=detail_response.json(),
         zone=zone,
         wallet=wallet,
+        mutation_keys=mutation_keys,
         notice=request.query_params.get("notice"),
     )
 
@@ -1591,8 +1638,23 @@ async def dashboard_domain_dns(
     record_type: Annotated[str, Form()],
     ttl: Annotated[int, Form()],
     values: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
 ) -> Response:
     _require_auth_ui()
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    normalized_action = action.strip().lower()
+    if normalized_action not in {"upsert", "delete"}:
+        return _domain_notice(domain, "The DNS change action is invalid.")
+    normalized_name = _valid_record_name(name)
+    if normalized_name is None:
+        return _domain_notice(domain, "The DNS record name is invalid.")
+    normalized_type = record_type.strip().upper()
+    if normalized_type not in DOMAIN_RECORD_TYPES:
+        return _domain_notice(domain, "The DNS record type is not supported.")
+    if not 60 <= ttl <= 86400:
+        return _domain_notice(domain, "TTL must be between 60 and 86400 seconds.")
     value_list = [line.strip() for line in values.splitlines() if line.strip()]
     if not value_list:
         return _domain_notice(domain, "At least one DNS record value is required.")
@@ -1603,10 +1665,10 @@ async def dashboard_domain_dns(
         json={
             "changes": [
                 {
-                    "action": action if action in {"upsert", "delete"} else "upsert",
+                    "action": normalized_action,
                     "rrset": {
-                        "name": name,
-                        "type": record_type.upper(),
+                        "name": normalized_name,
+                        "type": normalized_type,
                         "ttl": ttl,
                         "values": value_list,
                     },
@@ -1615,7 +1677,7 @@ async def dashboard_domain_dns(
         },
         extra_headers={
             "If-Match": str(revision),
-            "Idempotency-Key": secrets.token_urlsafe(24),
+            "Idempotency-Key": key,
         },
     )
     return _domain_redirect(domain, response, "DNS zone updated.")
@@ -1626,16 +1688,31 @@ async def dashboard_domain_nameservers(
     request: Request,
     domain: str,
     mode: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
     nameservers: Annotated[str, Form()] = "",
 ) -> Response:
     _require_auth_ui()
-    servers = [item for item in re.split(r"[\s,]+", nameservers.strip()) if item]
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    mode = mode.strip().lower()
+    if mode not in {"managed", "external"}:
+        return _domain_notice(domain, "The nameserver mode is invalid.")
+    raw_servers = [item for item in re.split(r"[\s,]+", nameservers.strip()) if item]
+    servers = [_valid_nameserver(item) for item in raw_servers]
+    if any(server is None for server in servers):
+        return _domain_notice(domain, "Every nameserver must be a valid hostname.")
+    normalized_servers = [server for server in servers if server is not None]
+    if len(set(normalized_servers)) != len(normalized_servers):
+        return _domain_notice(domain, "Nameservers must be unique.")
+    if mode == "external" and not 2 <= len(normalized_servers) <= 13:
+        return _domain_notice(domain, "External mode requires between 2 and 13 nameservers.")
     response = await _api_request(
         request,
         f"/v1/domains/{urllib.parse.quote(domain, safe='')}/nameservers",
         method="PUT",
-        json={"mode": mode, "nameservers": servers if mode == "external" else []},
-        extra_headers={"Idempotency-Key": secrets.token_urlsafe(24)},
+        json={"mode": mode, "nameservers": normalized_servers if mode == "external" else []},
+        extra_headers={"Idempotency-Key": key},
     )
     return _domain_redirect(domain, response, "Nameserver change queued.")
 
@@ -1645,9 +1722,16 @@ async def dashboard_domain_dnssec(
     request: Request,
     domain: str,
     mode: Annotated[str, Form()],
+    idempotency_key: Annotated[str, Form()],
     ds_records: Annotated[str, Form()] = "",
 ) -> Response:
     _require_auth_ui()
+    key = _valid_form_idempotency_key(idempotency_key)
+    if key is None:
+        return _domain_notice(domain, "This form expired. Reload the page and try again.")
+    mode = mode.strip().lower()
+    if mode not in {"managed", "external", "off"}:
+        return _domain_notice(domain, "The DNSSEC mode is invalid.")
     records: list[dict[str, Any]] = []
     if mode == "external":
         try:
@@ -1655,11 +1739,23 @@ async def dashboard_domain_dnssec(
                 if not line.strip():
                     continue
                 key_tag, algorithm, digest_type, digest = line.split(maxsplit=3)
+                key_tag_value = int(key_tag)
+                algorithm_value = int(algorithm)
+                digest_type_value = int(digest_type)
+                digest = digest.strip().upper()
+                if not (
+                    0 <= key_tag_value <= 65535
+                    and 1 <= algorithm_value <= 255
+                    and 1 <= digest_type_value <= 255
+                    and 16 <= len(digest) <= 256
+                    and re.fullmatch(r"[0-9A-F]+", digest)
+                ):
+                    raise ValueError("invalid DS record")
                 records.append(
                     {
-                        "key_tag": int(key_tag),
-                        "algorithm": int(algorithm),
-                        "digest_type": int(digest_type),
+                        "key_tag": key_tag_value,
+                        "algorithm": algorithm_value,
+                        "digest_type": digest_type_value,
                         "digest": digest,
                     }
                 )
@@ -1668,12 +1764,16 @@ async def dashboard_domain_dnssec(
                 domain,
                 "Each external DS line must contain: key-tag algorithm digest-type digest.",
             )
+        if not records:
+            return _domain_notice(domain, "External DNSSEC requires at least one DS record.")
+        if len(records) > 8:
+            return _domain_notice(domain, "External DNSSEC accepts at most 8 DS records.")
     response = await _api_request(
         request,
         f"/v1/domains/{urllib.parse.quote(domain, safe='')}/dnssec",
         method="PUT",
         json={"mode": mode, "ds_records": records},
-        extra_headers={"Idempotency-Key": secrets.token_urlsafe(24)},
+        extra_headers={"Idempotency-Key": key},
     )
     return _domain_redirect(domain, response, "DNSSEC change queued.")
 

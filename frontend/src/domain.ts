@@ -130,8 +130,9 @@ async function setupCheckout(container: HTMLElement): Promise<void> {
   const networksResponse = await fetch("/api/payments/networks");
   const catalog = networksResponse.ok ? await networksResponse.json() : { networks: [] };
   const networks = new Map<string, PaymentNetwork>();
-  for (const network of (catalog.networks || []) as PaymentNetwork[])
-    networks.set(network.key, network);
+  for (const network of (catalog.networks || []) as PaymentNetwork[]) {
+    if (network.family === "evm") networks.set(network.key, network);
+  }
 
   function method(): string {
     return (
@@ -210,10 +211,18 @@ async function signMessage(
   address: string,
   message: string,
 ): Promise<string> {
-  return (await provider.request({
-    method: "personal_sign",
-    params: [message, address],
-  })) as string;
+  try {
+    return (await provider.request({
+      method: "personal_sign",
+      params: [message, address],
+    })) as string;
+  } catch (error) {
+    if ((error as { code?: number }).code === 4001) throw error;
+    return (await provider.request({
+      method: "personal_sign",
+      params: [address, message],
+    })) as string;
+  }
 }
 
 async function setupTransfer(container: HTMLElement): Promise<void> {
@@ -231,13 +240,16 @@ async function setupTransfer(container: HTMLElement): Promise<void> {
       if (!address || address.toLowerCase() !== linked) {
         throw new Error("Select the primary wallet linked to this account.");
       }
-      const chainRaw = (await provider.request({ method: "eth_chainId" })) as string;
+      const linkedChainId = Number.parseInt(container.dataset.chainId || "", 10);
+      if (!Number.isSafeInteger(linkedChainId) || linkedChainId <= 0) {
+        throw new Error("The linked wallet chain is unavailable. Relink the primary wallet.");
+      }
       const challengeResponse = await fetch(
         `/api/domains/${encodeURIComponent(domain)}/transfer-out/challenge`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address, chain_id: Number.parseInt(chainRaw, 16) }),
+          body: JSON.stringify({ address, chain_id: linkedChainId }),
         },
       );
       if (!challengeResponse.ok) {
