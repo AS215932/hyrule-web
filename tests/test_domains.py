@@ -173,6 +173,24 @@ def test_domain_order_status_is_account_scoped(
     assert "do_123456789" in response.text
 
 
+def test_domain_order_status_preserves_path_across_login(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/domains/orders/do_expired_session").mock(
+        return_value=httpx.Response(401)
+    )
+
+    response = client.get(
+        "/domains/orders/do_expired_session",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == (
+        "/login?next=%2Fdomains%2Forders%2Fdo_expired_session"
+    )
+
+
 def test_native_domain_payment_instructions_survive_reload(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
@@ -280,6 +298,39 @@ def test_domain_dns_editor_rejects_invalid_fields_without_backend_call(
     assert response.status_code == 303
     assert "DNS%20change%20action%20is%20invalid" in response.headers["location"]
     assert not route.called
+
+
+def test_domain_dns_delete_ignores_upsert_ttl_limits(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    route = mocked_api.post("/v1/domains/example.dev/dns/changesets").mock(
+        return_value=httpx.Response(200, json={"revision": 4})
+    )
+
+    response = client.post(
+        "/dashboard/domains/example.dev/dns",
+        data={
+            "revision": "3",
+            "action": "delete",
+            "name": "legacy",
+            "record_type": "A",
+            "ttl": "30",
+            "values": "192.0.2.44",
+            "idempotency_key": "dns-delete-form-key",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    change = json.loads(route.calls.last.request.content)["changes"][0]
+    assert change == {
+        "action": "delete",
+        "rrset": {
+            "name": "legacy",
+            "type": "A",
+            "values": ["192.0.2.44"],
+        },
+    }
 
 
 def test_domain_nameserver_mutation_validates_and_reuses_form_key(

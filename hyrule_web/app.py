@@ -1098,12 +1098,16 @@ async def domain_checkout(request: Request, quote_id: str) -> Response:
 
 @app.get("/domains/orders/{order_id}", response_class=HTMLResponse)
 async def domain_order_status(request: Request, order_id: str) -> Response:
+    order_path = "/domains/orders/" + urllib.parse.quote(order_id, safe="")
     response = await _api_request(
         request,
         f"/v1/domains/orders/{urllib.parse.quote(order_id, safe='')}",
     )
     if response is None or response.status_code == 401:
-        return RedirectResponse("/login", status_code=303)
+        return RedirectResponse(
+            "/login?" + urllib.parse.urlencode({"next": order_path}),
+            status_code=303,
+        )
     if response.status_code != 200:
         return _render(
             request,
@@ -1716,11 +1720,19 @@ async def dashboard_domain_dns(
     normalized_type = record_type.strip().upper()
     if normalized_type not in DOMAIN_RECORD_TYPES:
         return _domain_notice(domain, "The DNS record type is not supported.")
-    if not 60 <= ttl <= 86400:
-        return _domain_notice(domain, "TTL must be between 60 and 86400 seconds.")
     value_list = [line.strip() for line in values.splitlines() if line.strip()]
-    if not value_list:
-        return _domain_notice(domain, "At least one DNS record value is required.")
+    if normalized_action == "upsert":
+        if not 60 <= ttl <= 86400:
+            return _domain_notice(domain, "TTL must be between 60 and 86400 seconds.")
+        if not value_list:
+            return _domain_notice(domain, "At least one DNS record value is required.")
+    rrset: dict[str, Any] = {
+        "name": normalized_name,
+        "type": normalized_type,
+        "values": value_list,
+    }
+    if normalized_action == "upsert":
+        rrset["ttl"] = ttl
     response = await _api_request(
         request,
         f"/v1/domains/{urllib.parse.quote(domain, safe='')}/dns/changesets",
@@ -1729,12 +1741,7 @@ async def dashboard_domain_dns(
             "changes": [
                 {
                     "action": normalized_action,
-                    "rrset": {
-                        "name": normalized_name,
-                        "type": normalized_type,
-                        "ttl": ttl,
-                        "values": value_list,
-                    },
+                    "rrset": rrset,
                 }
             ]
         },
