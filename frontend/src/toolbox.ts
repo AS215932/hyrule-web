@@ -45,6 +45,8 @@ interface ToolDefinition {
   path: string;
   title: string;
   description: string;
+  catalog_blurb: string;
+  tool_code: string;
   search_terms: string[];
   category: string;
   executable: boolean;
@@ -124,6 +126,8 @@ function requiredElement<T extends Element>(selector: string): T {
 const searchInput = requiredElement<HTMLInputElement>("#toolbox-search");
 const grid = requiredElement<HTMLElement>("#toolbox-grid");
 const categoriesEl = requiredElement<HTMLElement>("#toolbox-categories");
+const resultCountEl = requiredElement<HTMLElement>("#toolbox-result-count");
+const catalogEmptyEl = requiredElement<HTMLElement>("#toolbox-empty");
 const workspace = requiredElement<HTMLElement>("#toolbox-workspace");
 const form = requiredElement<HTMLFormElement>("#toolbox-form");
 const fieldsEl = requiredElement<HTMLElement>("#toolbox-fields");
@@ -913,14 +917,21 @@ function searchMatches(haystack: string, query: string): boolean {
 
 function filterTools(query: string, category = selectedCategory): void {
   selectedCategory = category;
+  let visibleCount = 0;
   for (const card of grid.querySelectorAll<HTMLElement>("[data-tool-card]")) {
     const matchesText = searchMatches(card.dataset.search || "", query);
     const matchesCategory = category === "all" || card.dataset.category === category;
     card.hidden = !(matchesText && matchesCategory);
+    if (!card.hidden) visibleCount += 1;
+  }
+  for (const group of grid.querySelectorAll<HTMLElement>("[data-tool-group]")) {
+    group.hidden = !group.querySelector<HTMLElement>("[data-tool-card]:not([hidden])");
   }
   for (const button of categoriesEl.querySelectorAll<HTMLButtonElement>("button")) {
     button.setAttribute("aria-pressed", String(button.dataset.category === category));
   }
+  resultCountEl.textContent = `${visibleCount} ${visibleCount === 1 ? "tool" : "tools"} shown`;
+  catalogEmptyEl.hidden = visibleCount > 0 || catalog.tools.length === 0;
 }
 
 function renderCategories(): void {
@@ -931,7 +942,19 @@ function renderCategories(): void {
     button.className = "toolbox-category";
     button.dataset.category = category;
     button.setAttribute("aria-pressed", String(category === selectedCategory));
-    button.textContent = category === "all" ? "All tools" : category;
+    const label = category === "all" ? "All tools" : category;
+    const count =
+      category === "all"
+        ? catalog.tools.length
+        : catalog.tools.filter((tool) => tool.category === category).length;
+    const nameEl = document.createElement("span");
+    nameEl.className = "toolbox-category-name";
+    nameEl.textContent = label;
+    const countEl = document.createElement("span");
+    countEl.className = "toolbox-category-count";
+    countEl.textContent = String(count);
+    button.setAttribute("aria-label", `${label}, ${count} ${count === 1 ? "tool" : "tools"}`);
+    button.append(nameEl, countEl);
     button.addEventListener("click", () => filterTools(searchInput.value, category));
     categoriesEl.append(button);
   }
@@ -980,6 +1003,7 @@ function showPaymentError(error: unknown): void {
 }
 
 renderCategories();
+filterTools(searchInput.value);
 void registerWebMcp().catch((error: unknown) => {
   console.warn("WebMCP tool registration failed:", error);
 });

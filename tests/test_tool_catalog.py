@@ -63,10 +63,34 @@ def test_normalize_openapi_resolves_schema_and_classifies_surfaces() -> None:
     assert dns["input_schema"]["properties"]["name"]["type"] == "string"
     assert dns["price_display"] == "$0.001"
     assert dns["description"] == "Inputs: name."
+    assert dns["tool_code"] == "DNS"
+    assert dns["catalog_blurb"].startswith("Resolve DNS records")
     assert "example.com" in dns["search_terms"]
     vm = tools["create_vm"]
     assert vm["executable"] is False
     assert vm["handoff_url"] == "/order"
+    assert vm["tool_code"] == "VM"
+    assert "dedicated order flow" in vm["catalog_blurb"]
+
+
+def test_unknown_enabled_operation_gets_safe_catalog_copy() -> None:
+    result = normalize_openapi(
+        {
+            "paths": {
+                "/v1/future/check": {
+                    "post": {
+                        "tags": ["Future checks"],
+                        "operationId": "future_check",
+                        "summary": "Future check",
+                        "responses": {},
+                    }
+                }
+            }
+        }
+    )
+    tool = result["tools"][0]
+    assert tool["catalog_blurb"] == "Run Future check with a live x402 quote."
+    assert tool["tool_code"] == "FUTURE CHECK"
 
 
 def test_catalog_resources_suppresses_stale_prices() -> None:
@@ -107,6 +131,12 @@ def test_toolbox_renders_enabled_openapi_and_webmcp_entry(client: TestClient) ->
     response = client.get("/toolbox")
     assert response.status_code == 200
     assert "Paid DNS lookup" in response.text
+    assert "Resolve DNS records with resolver" in response.text
+    assert 'id="toolbox-result-count"' in response.text
+    assert "Runnable diagnostics" in response.text
+    assert "Product handoffs" in response.text
+    assert 'class="tool-drawer"' in response.text
+    assert 'class="toolbox-grid"' not in response.text
     assert "dns_lookup" in response.text
     assert "toolbox-" in response.text
     assert 'type="module"' in response.text
@@ -179,7 +209,7 @@ def test_services_labels_stale_operations_and_withholds_prices(
 
 
 def test_public_pages_never_expose_conventional_mcp_service(client: TestClient) -> None:
-    for path in ("/", "/agents", "/toolbox", "/transparency", "/llms.txt"):
+    for path in ("/", "/agents", "/toolbox", "/about", "/llms.txt"):
         text = client.get(path).text.lower()
         assert "hyrule-mcp" not in text
         assert "mcp server" not in text

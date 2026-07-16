@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}About &amp; policy — Hyrule Cloud{% endblock %}
+{% block meta_description %}Hyrule Cloud's mission, operating principles, and abuse-handling policy: an agentic ISP putting the autonomous in Autonomous System.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "About & policy", "item": "https://hyrule.host/about"}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">about</span></div>
+            <span class="panel-label">The Agentic ISP</span>
+            <h1>Putting the autonomous in <em>Autonomous System.</em></h1>
+            <p class="hero-blurb">Hyrule Cloud builds infrastructure that autonomous software can discover, price, pay for, provision, and operate directly—without waiting in a human ticket queue.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label mb-2">our mission</span>
+            <p class="mt-2 text-text-muted">Make useful internet infrastructure a dependable machine-readable primitive, while keeping control with the customer and accountability with the operator.</p>
+            <a href="/agents" class="btn btn-secondary btn-block mt-4">How agents use Hyrule</a>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Why Hyrule exists</span>
+            <h2>An ISP designed for software as a customer.</h2>
+        </div>
+        <div class="heading-side">An agent should be able to understand a service before buying it and receive a structured, verifiable outcome after settlement.</div>
+    </div>
+    <div class="feature-grid">
+        <article class="feature-card">
+            <span class="num">01</span>
+            <h3>Discoverable</h3>
+            <p>Schemas, capabilities, prices, and payment requirements are published as machine-readable contracts.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">02</span>
+            <h3>Directly payable</h3>
+            <p>x402 makes payment part of the request instead of a separate procurement and billing workflow.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">03</span>
+            <h3>Actually provisionable</h3>
+            <p>Compute, domains, diagnostics, and egress are delivered through stable APIs on an independently operated autonomous system.</p>
+        </article>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">Operating principles</span>
+        <h2>The rules behind the machinery.</h2>
+    </div>
+    <div class="feature-grid">
+        <article class="feature-card">
+            <span class="num">01</span>
+            <h3>Autonomy by default</h3>
+            <p>Routine discovery, payment, provisioning, and management should complete without manual approval.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">02</span>
+            <h3>Minimum necessary data</h3>
+            <p>We collect operational service and payment records, not identity profiles. The exact inventory is in our <a href="/privacy">Privacy policy</a>.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">03</span>
+            <h3>Honest capabilities</h3>
+            <p>Interfaces should expose what is live now, return structured state, and fail closed when a dependency cannot be verified.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">04</span>
+            <h3>Control with accountability</h3>
+            <p>Customers control their workloads. We operate the network responsibly and act on substantiated abuse or valid legal orders.</p>
+        </article>
+    </div>
+</section>
+
+<section class="container page-section" id="abuse-handling">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">Abuse handling</span>
+            <h2>Evidence first. Proportionate action. A path to appeal.</h2>
+        </div>
+        <div class="heading-side">For the authoritative notice requirements and contact details, read the <a href="/abuse">Abuse policy</a>.</div>
+    </div>
+    <div class="feature-grid">
+        <article class="feature-card">
+            <span class="num">01</span>
+            <h3>Report</h3>
+            <p>Send the affected hostname, address or URL, precise evidence, a timestamp with timezone, and the urgency of the case.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">02</span>
+            <h3>Validate</h3>
+            <p>We check that the report identifies our service, is technically credible, and contains enough context to act safely.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">03</span>
+            <h3>Contain</h3>
+            <p>Urgent high-risk activity may be suspended immediately, including malware command and control, phishing, credential theft, DDoS, spam, CSAM, terrorism, or a valid legal order.</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">04</span>
+            <h3>Notify and review</h3>
+            <p>Where safe and practical, we notify the customer, request remediation, document the action, and preserve an escalation or appeal path.</p>
+        </article>
+    </div>
+    <div class="cta mt-6">
+        <span class="panel-label">Report abuse</span>
+        <h2>Give us enough evidence to investigate quickly.</h2>
+        <div class="cta-actions">
+            <a href="mailto:support@hyrule.host?subject=Abuse%20report" class="btn btn-primary btn-lg">Email an abuse report</a>
+            <a href="/abuse" class="btn btn-secondary btn-lg">Read the full policy</a>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <span class="panel-label">Authoritative policies</span>
+        <h2>The overview is here. The binding detail lives in these documents.</h2>
+    </div>
+    <div class="feature-grid">
+        <article class="feature-card"><span class="num">01</span><h3><a href="/terms">Terms</a></h3><p>Service eligibility, customer responsibilities, enforcement, payments, and lifecycle rules.</p></article>
+        <article class="feature-card"><span class="num">02</span><h3><a href="/privacy">Privacy</a></h3><p>Which operational records exist, why they exist, and how long they are retained.</p></article>
+        <article class="feature-card"><span class="num">03</span><h3><a href="/abuse">Abuse</a></h3><p>Notice requirements, review standards, response steps, and appeal handling.</p></article>
+        <article class="feature-card"><span class="num">04</span><h3><a href="/legal">Legal</a></h3><p>Operator information, contact points, and legal-request handling.</p></article>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">Infrastructure facts</span>
+        <h2>Routing, peering, and network inventory belong with the network.</h2>
+        <p>AS215932 is the current source of truth for the infrastructure beneath Hyrule Cloud.</p>
+        <div class="cta-actions">
+            <a href="https://as215932.net/" class="btn btn-primary btn-lg">Visit as215932.net</a>
+            <a href="/status" class="btn btn-secondary btn-lg">Service status</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

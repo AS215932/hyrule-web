@@ -28,6 +28,72 @@ _TITLE_WORDS = {
     "vm": "VM",
     "whois": "WHOIS",
 }
+_CATALOG_PRESENTATION: dict[str, tuple[str, str]] = {
+    "/v1/bgp/lookup": (
+        "BGP",
+        "Inspect origins, paths, RPKI validity, and route visibility for a prefix, IP, or ASN.",
+    ),
+    "/v1/dns/lookup": (
+        "DNS",
+        "Resolve DNS records with resolver, DNSSEC, trace, and timeout controls.",
+    ),
+    "/v1/dns/propagation": (
+        "PROP",
+        "Compare DNS answers across recursive and authoritative resolvers.",
+    ),
+    "/v1/ip/lookup": (
+        "IP",
+        "Collect ownership, reverse DNS, registry, reputation, and BGP context for an address.",
+    ),
+    "/v1/mx/jobs": (
+        "MX JOB",
+        "Run a bundled mail-delivery or domain-health diagnostic and retrieve a durable report.",
+    ),
+    "/v1/mx/check": (
+        "MX",
+        "Test one mail or DNS concern such as MX, SPF, DKIM, SMTP, TLS, or blocklists.",
+    ),
+    "/v1/mx/bounce/parse": (
+        "BOUNCE",
+        "Classify a mail bounce into probable causes and recommended actions.",
+    ),
+    "/v1/nat/port-forward/check": (
+        "NAT",
+        "Check whether a forwarded TCP or UDP port is reachable from an outside vantage point.",
+    ),
+    "/v1/ports/check": (
+        "PORT",
+        "Probe a TCP or UDP service from an outside vantage point, with optional banner capture.",
+    ),
+    "/v1/rdap/lookup": (
+        "RDAP",
+        "Fetch structured registration data for a domain, IP, prefix, ASN, or entity.",
+    ),
+    "/v1/whois/lookup": (
+        "WHOIS",
+        "Query registry WHOIS data with a parsed, redacted response.",
+    ),
+    "/v1/voip/check": (
+        "SIP",
+        "Test SIP DNS, OPTIONS, TLS, STUN/TURN, number intelligence, and reputation.",
+    ),
+    "/v1/web/tls/deep": (
+        "TLS",
+        "Audit protocol versions, ciphers, certificates, OCSP, HSTS, CAA, and security headers.",
+    ),
+    "/v1/web/check": (
+        "WEB",
+        "Check DNS, HTTP, HTTPS, TLS, certificates, headers, CDN/WAF, and availability.",
+    ),
+    "/v1/vm/create": (
+        "VM",
+        "Configure and deploy prepaid compute through the dedicated order flow.",
+    ),
+    "/v1/network/request": (
+        "PROXY",
+        "Send an outbound HTTP request over direct, Tor, I2P, or Yggdrasil egress.",
+    ),
+}
 _BROWSER_TOOL_FIELDS = frozenset(
     {
         "operation_id",
@@ -35,6 +101,8 @@ _BROWSER_TOOL_FIELDS = frozenset(
         "path",
         "title",
         "description",
+        "catalog_blurb",
+        "tool_code",
         "search_terms",
         "category",
         "executable",
@@ -88,6 +156,24 @@ def _operation_group(path: str, tags: list[str]) -> str:
 
 def _display_title(value: str) -> str:
     return " ".join(_TITLE_WORDS.get(word.lower(), word) for word in value.split())
+
+
+def _catalog_presentation(path: str, title: str, category: str) -> tuple[str, str]:
+    """Return a terse drawer label and human catalog copy for a paid route.
+
+    The detailed generated contract remains available in the Configure
+    workspace. This layer is deliberately small and path-keyed so unknown
+    enabled operations still appear without inventing capabilities.
+    """
+    known = _CATALOG_PRESENTATION.get(path)
+    if known:
+        code, blurb = known
+        return blurb, code
+
+    label = category or title or path.rsplit("/", 1)[-1]
+    words = re.findall(r"[A-Za-z0-9]+", label)
+    code = " ".join(words[:2]).upper()[:12] or "TOOL"
+    return f"Run {title} with a live x402 quote.", code
 
 
 def _field_names(schema: Any, limit: int = 6) -> list[str]:
@@ -261,8 +347,10 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
                 if explicit_description and _display_title(str(explicit_description)) != summary
                 else _generated_description(input_schema, parameters, output_schema)
             )
+            category = tags[0] if tags else _operation_group(path, tags).title()
+            catalog_blurb, tool_code = _catalog_presentation(path, summary, category)
             search_terms = _search_terms(
-                [summary, description, path, *tags],
+                [summary, catalog_blurb, description, path, *tags],
                 input_schema,
                 output_schema,
                 body_example,
@@ -275,9 +363,11 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
                     "path": path,
                     "title": summary,
                     "description": description,
+                    "catalog_blurb": catalog_blurb,
+                    "tool_code": tool_code,
                     "search_terms": search_terms,
                     "tags": tags,
-                    "category": tags[0] if tags else _operation_group(path, tags).title(),
+                    "category": category,
                     "group": _operation_group(path, tags),
                     "executable": executable,
                     "handoff_url": None if executable else _handoff_url(path),

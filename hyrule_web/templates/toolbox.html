@@ -11,18 +11,16 @@
 {% block content %}
 <section class="container toolbox-hero">
     <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">toolbox</span></div>
-    <span class="panel-label">x402 network toolbox</span>
-    <h1>Look up anything the network can prove.</h1>
-    <p class="hero-blurb">Search the enabled catalog, build a schema-valid request, get the exact 402 quote, and settle with a browser or agent wallet. Humans and WebMCP agents share the same visible state.</p>
-    <label class="toolbox-search-label" for="toolbox-search">Search by tool, target, or question</label>
-    <div class="toolbox-search-row">
-        <input id="toolbox-search" type="search" placeholder="DNS, example.com, BGP, TLS, mail…" autocomplete="off">
-        <button id="toolbox-search-button" class="btn btn-primary" type="button">Find tools</button>
+    <div class="toolbox-hero-copy">
+        <div>
+            <span class="panel-label">x402 network toolbox</span>
+            <h1>Pick a drawer. Run a check.</h1>
+        </div>
+        <p class="hero-blurb">Open an enabled diagnostic, configure its request, and confirm the exact 402 quote before anything is signed. The same workbench is available to humans and browser agents.</p>
     </div>
-    <div id="toolbox-categories" class="toolbox-categories" aria-label="Tool categories"></div>
 </section>
 
-<section class="container page-section">
+<section class="container page-section toolbox-bench">
     {% if catalog_status == 'live' %}
     <div class="catalog-state catalog-state-live" role="status"><span class="status-dot status-operational"></span> Live enabled catalog · {% if execution_enabled %}exact price confirmed before signing{% else %}payment-network discovery unavailable, so execution is paused{% endif %}</div>
     {% elif catalog_status == 'stale' %}
@@ -31,27 +29,71 @@
     <div class="catalog-state catalog-state-unavailable" role="alert">Live tool discovery is unavailable. No static endpoint list or price is being substituted.</div>
     {% endif %}
 
-    <div id="toolbox-grid" class="toolbox-grid" aria-label="Enabled x402 operations">
-        {% for tool in tools %}
-        <article class="tool-card{% if not tool.executable %} tool-card-handoff{% endif %}"
-                 data-tool-card data-operation-id="{{ tool.operation_id }}"
-                 data-search="{{ tool.search_terms|join(' ')|lower }}"
-                 data-category="{{ tool.category }}">
-            <div class="tool-card-head"><span>{{ tool.category }}</span><code>{{ tool.method }}</code></div>
-            <h2>{{ tool.title }}</h2>
-            <p>{{ tool.description }}</p>
-            <div class="tool-card-foot">
-                <span>{% if catalog_status == 'live' %}{{ tool.price_display }}{% else %}price unavailable{% endif %}</span>
-                {% if tool.executable %}
-                <button class="btn btn-secondary btn-sm" type="button" data-select-tool="{{ tool.operation_id }}" {% if not execution_enabled %}disabled{% endif %}>Configure</button>
-                {% else %}
-                <a class="btn btn-ghost btn-sm" href="{{ tool.handoff_url }}">Open product</a>
-                {% endif %}
+    <div class="toolbox-search-row">
+        <label for="toolbox-search"><span>Find a tool</span><input id="toolbox-search" type="search" placeholder="DNS, BGP, TLS, mail, example.com…" autocomplete="off"></label>
+        <button id="toolbox-search-button" class="btn btn-primary" type="button">Search drawers</button>
+    </div>
+
+    <div class="toolbox-shell">
+        <aside class="toolbox-category-rail" aria-label="Tool categories">
+            <div class="toolbox-rail-head"><span class="panel-label">Drawers</span><small>Filter the chest</small></div>
+            <div id="toolbox-categories" class="toolbox-categories"></div>
+        </aside>
+
+        <div class="toolbox-catalog-panel">
+            <div class="toolbox-catalog-head">
+                <div><span class="panel-label">Available tools</span><h2>The chest</h2></div>
+                <p id="toolbox-result-count" aria-live="polite">{{ tools|length }} tool{{ '' if tools|length == 1 else 's' }}</p>
             </div>
-        </article>
-        {% else %}
-        <p>No enabled operations can be confirmed right now.</p>
-        {% endfor %}
+
+            <div id="toolbox-grid" class="toolbox-catalog" aria-label="Enabled x402 operations">
+                <section class="toolbox-drawer-group" data-tool-group>
+                    <div class="toolbox-group-label"><h3>Runnable diagnostics</h3><span>Configure → quote → settle → result</span></div>
+                    <div class="toolbox-drawer-stack">
+                    {% for tool in tools if tool.executable %}
+                        <article class="tool-drawer" data-tool-card data-operation-id="{{ tool.operation_id }}"
+                                 data-search="{{ tool.search_terms|join(' ')|lower }}"
+                                 data-category="{{ tool.category }}">
+                            <div class="tool-stamp"><strong>{{ tool.tool_code }}</strong><small>{{ tool.category }}</small></div>
+                            <div class="tool-drawer-copy">
+                                <h4>{{ tool.title }}</h4>
+                                <p>{{ tool.catalog_blurb }}</p>
+                                <code>{{ tool.method }} {{ tool.path }}</code>
+                            </div>
+                            <div class="tool-drawer-action">
+                                <span>{% if catalog_status == 'live' %}{{ tool.price_display }}{% else %}price unavailable{% endif %}</span>
+                                <button class="btn btn-secondary btn-sm" type="button" data-select-tool="{{ tool.operation_id }}" {% if not execution_enabled %}disabled{% endif %}>Configure</button>
+                            </div>
+                        </article>
+                    {% endfor %}
+                    </div>
+                </section>
+
+                <section class="toolbox-drawer-group toolbox-handoffs" data-tool-group>
+                    <div class="toolbox-group-label"><h3>Product handoffs</h3><span>Dedicated purchase flows</span></div>
+                    <div class="toolbox-drawer-stack">
+                    {% for tool in tools if not tool.executable %}
+                        <article class="tool-drawer tool-drawer-handoff" data-tool-card data-operation-id="{{ tool.operation_id }}"
+                                 data-search="{{ tool.search_terms|join(' ')|lower }}"
+                                 data-category="{{ tool.category }}">
+                            <div class="tool-stamp"><strong>{{ tool.tool_code }}</strong><small>{{ tool.category }}</small></div>
+                            <div class="tool-drawer-copy">
+                                <h4>{{ tool.title }}</h4>
+                                <p>{{ tool.catalog_blurb }}</p>
+                                <code>{{ tool.method }} {{ tool.path }}</code>
+                            </div>
+                            <div class="tool-drawer-action">
+                                <span>{% if catalog_status == 'live' %}{{ tool.price_display }}{% else %}price unavailable{% endif %}</span>
+                                <a class="btn btn-ghost btn-sm" href="{{ tool.handoff_url }}">Open product</a>
+                            </div>
+                        </article>
+                    {% endfor %}
+                    </div>
+                </section>
+                {% if not tools %}<p class="toolbox-catalog-empty">No enabled operations can be confirmed right now.</p>{% endif %}
+                <p id="toolbox-empty" class="toolbox-catalog-empty" hidden>No tools match this drawer and search.</p>
+            </div>
+        </div>
     </div>
 </section>
 

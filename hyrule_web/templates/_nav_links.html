@@ -4,7 +4,6 @@
 <a href="/domains"{% if request.url.path.startswith('/domains') %} aria-current="page"{% endif %}>Domains</a>
 <a href="/toolbox"{% if request.url.path == '/toolbox' %} aria-current="page"{% endif %}>Toolbox</a>
 <a href="/agents"{% if request.url.path == '/agents' %} aria-current="page"{% endif %}>Agents</a>
-<a href="/transparency"{% if request.url.path == '/transparency' %} aria-current="page"{% endif %}>About</a>
 <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}>Deploy</a>
 <a href="/status"{% if request.url.path == '/status' %} aria-current="page"{% endif %}>Status</a>
 {% if request.cookies.get('hyr_sess') %}

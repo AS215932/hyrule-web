@@ -73,8 +73,8 @@ _LLMS_TXT_PREAMBLE = """\
   renewal pricing, managed DNS, DNSSEC, and transfer policy.
 - [Service status](https://hyrule.host/status): current customer-impacting
   health for API checkout, compute, intelligence, domains/DNS, and proxy.
-- [About](https://hyrule.host/transparency): operator,
-  jurisdiction, host inventory, BGP peering, monitoring stack.
+- [About & policy](https://hyrule.host/about): mission, operating principles,
+  abuse-handling posture, and links to the authoritative service policies.
 - [FAQ](https://hyrule.host/faq): integration, recovery, IPv6, and operations.
 - [Terms](https://hyrule.host/terms), [Privacy](https://hyrule.host/privacy),
   [Abuse](https://hyrule.host/abuse), [Legal](https://hyrule.host/legal):
@@ -123,9 +123,8 @@ _LLMS_TXT_WHAT_SHIPS = """\
 
 ## Network
 
-- [AS215932](https://as215932.net): IPv6-first autonomous system,
-  prefix `2a0c:b641:b50::/44`, RIPE-registered. Transit upstreams listed
-  on the transparency page.
+- [AS215932](https://as215932.net): the current source for Hyrule Cloud's
+  routing, peering, addressing, and infrastructure details.
 """
 
 
@@ -258,6 +257,8 @@ _SITEMAP_EXCLUDE = {
     "/order/status",
     # Auth surfaces are reachable but uninteresting to crawlers.
     "/logout",
+    # Legacy alias; /about is the canonical policy page.
+    "/transparency",
 }
 
 
