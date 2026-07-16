@@ -17,24 +17,36 @@ export interface Eip1193Provider {
   request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
 }
 
-/** One entry from GET /v1/payments/networks (the backend is the source of truth). */
-export interface PaymentNetwork {
+interface PaymentNetworkBase {
   key: string;
-  family: string; // "evm" | "svm"
   display_name: string;
   asset: string;
   caip2?: string;
-  chain_id: number;
   token_address: string;
   token_decimals: number;
-  eip712_domain: { name: string; version: string };
   native_currency?: { name: string; symbol: string; decimals: number };
   rpc_url?: string;
   block_explorer_url?: string;
+  pay_to?: string;
   testnet?: boolean;
 }
 
-export interface EvmPayOptions {
+/** One entry from GET /v1/payments/networks (the backend is the source of truth). */
+export type PaymentNetwork =
+  | (PaymentNetworkBase & {
+      family: "evm";
+      chain_id: number;
+      eip712_domain?: { name: string; version: string };
+      wallet_chain?: string;
+    })
+  | (PaymentNetworkBase & {
+      family: "svm";
+      chain_id: null;
+      wallet_chain: string;
+      eip712_domain?: never;
+    });
+
+export interface X402PayOptions {
   network: PaymentNetwork;
   button: HTMLButtonElement | null;
   statusEl: HTMLElement | null;
@@ -44,6 +56,8 @@ export interface EvmPayOptions {
   onSuccess?: (result: Record<string, unknown>) => void;
 }
 
+export type EvmPayOptions = X402PayOptions;
+
 export interface NativePayOptions {
   orderForm: HTMLFormElement;
   render: HTMLElement | null;
@@ -51,8 +65,8 @@ export interface NativePayOptions {
 }
 
 export interface HyrulePaymentsNS {
-  payWithEvm?: (opts: EvmPayOptions) => Promise<void> | void;
-  payWithSolana?: (opts: EvmPayOptions) => Promise<void> | void;
+  payWithEvm?: (opts: X402PayOptions) => Promise<void> | void;
+  payWithSolana?: (opts: X402PayOptions) => Promise<void> | void;
 }
 
 export interface HyrulePaymentNativeNS {

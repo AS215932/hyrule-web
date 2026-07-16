@@ -251,7 +251,7 @@ def test_build_llms_txt_with_no_networks_directs_to_api() -> None:
 
 def test_build_llms_txt_with_empty_networks_says_none_enabled() -> None:
     text = build_llms_txt(networks=[])
-    assert "No EVM chains are currently enabled" in text
+    assert "No x402 chains are currently enabled" in text
 
 
 def test_build_llms_txt_with_live_chains_lists_each() -> None:

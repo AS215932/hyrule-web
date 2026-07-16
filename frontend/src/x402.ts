@@ -156,26 +156,61 @@ export function validateSignedPayment(quote: X402Quote, signature: string): void
     x402Version?: unknown;
     scheme?: unknown;
     network?: unknown;
+    accepted?: X402Acceptance;
     payload?: {
       authorization?: { from?: unknown; to?: unknown; value?: unknown };
       signature?: unknown;
+      transaction?: unknown;
     };
   };
+  const accepted: X402Acceptance =
+    envelope.accepted ||
+    ({
+      scheme: typeof envelope.scheme === "string" ? envelope.scheme : undefined,
+      network: typeof envelope.network === "string" ? envelope.network : "",
+      amount: quote.accept.amount,
+      asset: quote.accept.asset,
+      payTo: quote.accept.payTo || quote.accept.pay_to,
+    } satisfies X402Acceptance);
   const authorization = envelope.payload?.authorization;
   const payTo = quote.accept.payTo || quote.accept.pay_to;
   if (envelope.x402Version !== 2) throw new Error("Only x402 v2 payment payloads are accepted.");
-  if (envelope.scheme !== (quote.accept.scheme || "exact")) {
+  if ((accepted.scheme || "exact") !== (quote.accept.scheme || "exact")) {
     throw new Error("Payment scheme does not match the quote.");
   }
-  if (envelope.network !== quote.accept.network)
+  if (accepted.network !== quote.accept.network)
     throw new Error("Payment network does not match the quote.");
+  if (accepted.amount !== quote.accept.amount) {
+    throw new Error("Payment amount does not match the quote.");
+  }
+  if (accepted.asset && accepted.asset !== quote.accept.asset) {
+    throw new Error("Payment asset does not match the quote.");
+  }
+  const acceptedPayTo = accepted.payTo || accepted.pay_to;
+  const addressMatches = quote.accept.network.startsWith("solana:")
+    ? acceptedPayTo === payTo
+    : String(acceptedPayTo).toLowerCase() === String(payTo).toLowerCase();
+  if (!addressMatches) throw new Error("Payment payee does not match the quote.");
+
+  if (quote.accept.network.startsWith("solana:")) {
+    const transaction = envelope.payload?.transaction;
+    if (typeof transaction !== "string" || transaction.length < 32) {
+      throw new Error("Solana payment payload does not contain a signed transaction.");
+    }
+    try {
+      atob(transaction.replace(/-/g, "+").replace(/_/g, "/"));
+    } catch {
+      throw new Error("Solana payment transaction is not valid base64.");
+    }
+    return;
+  }
   if (typeof authorization?.from !== "string" || authorization.from.length === 0) {
     throw new Error("Payment authorization does not contain a payer.");
   }
   if (!authorization || String(authorization.to).toLowerCase() !== String(payTo).toLowerCase()) {
     throw new Error("Payment payee does not match the quote.");
   }
-  if (String(authorization.value) !== quote.accept.amount) {
+  if (String(authorization.value) !== accepted.amount) {
     throw new Error("Payment amount does not match the quote.");
   }
   if (typeof envelope.payload?.signature !== "string" || !envelope.payload.signature) {

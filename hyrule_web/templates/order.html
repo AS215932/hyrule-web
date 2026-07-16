@@ -178,7 +178,7 @@
             <div class="summary-panel">
                 <span class="panel-label">payment rail</span>
                 <p class="mt-2 leading-[1.6] text-[0.84rem] text-text-muted">
-                    USDC on {{ (live_chains | join(", ")) if live_chains else "the enabled x402 chains" }} via x402. You sign a gasless EIP-3009 authorization on the next screen{% if native_methods %}; {{ native_methods | join(" / ") }} intents are also available at review{% endif %}.
+                    USDC on {{ (live_chains | join(", ")) if live_chains else "the enabled x402 chains" }} via x402. Your wallet signs the chain's exact authorization or transaction on the next screen{% if native_methods %}; {{ native_methods | join(" / ") }} intents are also available at review{% endif %}.
                 </p>
             </div>
         </aside>

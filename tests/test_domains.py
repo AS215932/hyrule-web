@@ -108,7 +108,7 @@ def test_domain_checkout_requires_account_before_payment(
     assert "/signup?next=/domains/checkout/dq_example123456789" in response.text
 
 
-def test_domain_checkout_excludes_non_evm_payment_networks(
+def test_domain_checkout_includes_supported_x402_families(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
     mocked_api.get("/v1/domains/quotes/dq_example123456789").mock(
@@ -132,6 +132,12 @@ def test_domain_checkout_excludes_non_evm_payment_networks(
                         "family": "svm",
                         "asset": "USDC",
                     },
+                    {
+                        "key": "cosmos",
+                        "display_name": "Cosmos",
+                        "family": "cosmos",
+                        "asset": "USDC",
+                    },
                 ],
                 "native": [],
             },
@@ -142,7 +148,8 @@ def test_domain_checkout_excludes_non_evm_payment_networks(
 
     assert response.status_code == 200
     assert '<option value="base">Base · USDC</option>' in response.text
-    assert "Solana" not in response.text
+    assert '<option value="solana">Solana · USDC</option>' in response.text
+    assert "Cosmos" not in response.text
 
 
 def test_domain_order_status_is_account_scoped(

@@ -141,7 +141,7 @@ import type { PaymentNetwork } from "./types";
       return;
     }
 
-    // EVM (Wave 3) path — USDC via x402.
+    // USDC/x402 path — dispatch by the backend-advertised chain family.
     const network = selectedNetwork();
     if (!network) {
       setStatus("No payment chain selected.", "payment-error");
@@ -163,8 +163,9 @@ import type { PaymentNetwork } from "./types";
       return;
     }
     if (network.family === "svm") {
+      await import("./payment-solana");
       if (typeof ns.payWithSolana !== "function") {
-        setStatus("Solana support ships in Wave 5; pick an EVM chain.", "payment-warn");
+        setStatus("Solana payment adapter is unavailable.", "payment-error");
         return;
       }
       await ns.payWithSolana({
@@ -176,7 +177,7 @@ import type { PaymentNetwork } from "./types";
       });
       return;
     }
-    setStatus("Unsupported chain family: " + network.family, "payment-error");
+    setStatus("Unsupported payment network.", "payment-error");
   });
 
   void loadNetworks();
