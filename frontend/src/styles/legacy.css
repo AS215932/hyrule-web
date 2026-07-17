@@ -1476,6 +1476,15 @@
     cursor: pointer;
   }
 
+  button.opt-card {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    color: inherit;
+    text-align: left;
+    background: transparent;
+  }
+
   .opt-card input {
     position: absolute;
     opacity: 0;

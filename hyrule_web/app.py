@@ -862,8 +862,9 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
                 or (maximum - minimum) // increment > 256
             ):
                 raise ValueError(f"invalid {key} customization range")
-        if any(Decimal(price) < 0 for price in contract["addon_prices"].values()):
-            raise ValueError("negative VM add-on price")
+        prices = [Decimal(price) for price in contract["addon_prices"].values()]
+        if any(not price.is_finite() or price < 0 for price in prices):
+            raise ValueError("invalid VM add-on price")
         return contract
     except (InvalidOperation, KeyError, TypeError, ValueError):
         log.warning("products_customization_malformed")
@@ -1201,12 +1202,18 @@ async def domain_order_status(request: Request, order_id: str) -> Response:
     )
 
 
-@app.get("/order", response_class=HTMLResponse)
-async def page_order(request: Request) -> Response:
+async def _render_order_form(
+    request: Request,
+    *,
+    products: dict[str, Any] | None = None,
+    form_values: dict[str, Any] | None = None,
+    order_error: str | None = None,
+    status_code: int = 200,
+) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     catalog = await _refresh_networks(request)
-    products = await _refresh_products(request)
+    products = products if products is not None else await _refresh_products(request)
     return _render(
         request,
         "order.html",
@@ -1215,8 +1222,51 @@ async def page_order(request: Request) -> Response:
         native=_catalog_native(catalog),
         vm_tiers=_live_vm_tiers(products),
         vm_customization=_live_vm_customization(products),
-        order_error=None,
-        form_values={},
+        order_error=order_error,
+        form_values=form_values or {},
+        status_code=status_code,
+    )
+
+
+@app.get("/order", response_class=HTMLResponse)
+async def page_order(request: Request) -> Response:
+    return await _render_order_form(request)
+
+
+@app.post("/order/profile", response_class=HTMLResponse)
+async def page_order_profile(
+    request: Request,
+    profile: Annotated[str, Form()],
+    os: Annotated[str, Form()] = "",
+    duration: Annotated[int, Form()] = 30,
+    ssh_pubkey: Annotated[str, Form()] = "",
+    hostname: Annotated[str, Form()] = "",
+    domain_mode: Annotated[str, Form()] = "auto",
+    domain: Annotated[str, Form()] = "",
+) -> Response:
+    """Switch profile defaults without discarding the rest of the order form."""
+    products = await _refresh_products(request)
+    vm_tiers = _live_vm_tiers(products)
+    valid_profile = profile in vm_tiers
+    selected_profile = (
+        profile
+        if valid_profile
+        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+    )
+    return await _render_order_form(
+        request,
+        products=products,
+        form_values={
+            "os": os,
+            "size": selected_profile,
+            "duration": duration,
+            "ssh_pubkey": ssh_pubkey,
+            "hostname": hostname,
+            "domain_mode": domain_mode,
+            "domain": domain,
+        },
+        order_error=None if valid_profile else "Choose a valid server size.",
+        status_code=200 if valid_profile else 422,
     )
 
 
@@ -1322,17 +1372,9 @@ async def page_review(
         else:
             error = "The ordering API is temporarily unavailable. Your form has not been submitted."
 
-    os_data = await _fetch_api(request, "/v1/os/list")
-    os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    catalog = await _refresh_networks(request)
-    return _render(
+    return await _render_order_form(
         request,
-        "order.html",
-        os_templates=os_list,
-        networks=_catalog_networks(catalog),
-        native=_catalog_native(catalog),
-        vm_tiers=vm_tiers,
-        vm_customization=customization,
+        products=products,
         order_error=error,
         form_values=form_values,
         status_code=422,
