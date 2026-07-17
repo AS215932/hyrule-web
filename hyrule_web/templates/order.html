@@ -48,6 +48,9 @@
     </div>
 
     <form id="vm-order-form" action="/order/review" method="post" class="order-layout">
+        {# The first submitter owns implicit Enter submission. Profile buttons
+           override the action only when explicitly clicked. #}
+        <button type="submit" class="implicit-review-submit" aria-hidden="true" tabindex="-1">Review order</button>
         <div>
             {% if os_templates %}
             <fieldset class="form-section">

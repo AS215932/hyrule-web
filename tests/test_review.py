@@ -51,6 +51,9 @@ def test_order_renders_technical_profiles_and_exact_resource_controls(
     assert 'name="size" value="lg"' in response.text
     assert 'formaction="/order/profile"' in response.text
     assert "maximum 4C / 8G / 40G" in response.text
+    assert response.text.index('class="implicit-review-submit"') < response.text.index(
+        'formaction="/order/profile"'
+    )
 
 
 def test_profile_switch_preserves_entered_order_fields_and_loads_profile_defaults(

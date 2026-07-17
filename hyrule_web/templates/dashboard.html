@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_format.html" import memory %}
 {% block title %}Dashboard — Hyrule Cloud{% endblock %}
 {% block meta_description %}Manage Hyrule Cloud VMs, domains, DNS, primary wallet, and account credentials.{% endblock %}
 
@@ -58,7 +59,7 @@
                         <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.vm_id }}</code></td>
                         <td class="px-3 py-2.5"><span class="status-pill">{{ vm.status }}</span></td>
                         <td class="px-3 py-2.5">{{ vm.os or '—' }}</td>
-                        <td class="px-3 py-2.5">{% if vm.resources %}<strong>{{ vm.profile or vm.size }}</strong><br><small>{{ vm.resources.vcpu }}C / {{ vm.resources.ram_mb // 1024 }}G / {{ vm.resources.disk_gb }}G</small>{% else %}{{ vm.profile or vm.size or '—' }}{% endif %}</td>
+                        <td class="px-3 py-2.5">{% if vm.resources %}<strong>{{ vm.profile or vm.size }}</strong><br><small>{{ vm.resources.vcpu }}C / {{ memory(vm.resources.ram_mb, true) }} / {{ vm.resources.disk_gb }}G</small>{% else %}{{ vm.profile or vm.size or '—' }}{% endif %}</td>
                         <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.ipv6 or '—' }}</code></td>
                         <td class="px-3 py-2.5">{{ (vm.expires_at[:10] if vm.expires_at else '—') }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5">
