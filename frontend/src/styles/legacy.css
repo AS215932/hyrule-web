@@ -1505,7 +1505,22 @@
     box-shadow: 0 0 0 1px rgb(255 255 255 / 35%) inset;
   }
 
+  .opt-card[aria-current="true"] .body {
+    border-color: var(--accent);
+    background: rgb(255 255 255 / 7%);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 35%) inset;
+  }
+
   .opt-card input:checked + .body::after {
+    content: "▸";
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    color: var(--accent);
+    font-size: 0.74rem;
+  }
+
+  .opt-card[aria-current="true"] .body::after {
     content: "▸";
     position: absolute;
     top: 8px;

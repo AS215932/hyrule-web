@@ -20,7 +20,7 @@ var e=2e3;function t(e){let t=document.createElement(`div`);return t.textContent
         <div class="progress-bar"><div class="progress-fill"></div></div>
       </div>
     </div>
-  `}function i(e){let n=e.fqdn??`—`,r=e.ipv6??`—`,i=n===`—`?`—`:`ssh root@${n}`;return`
+  `}function i(e){let n=e.fqdn??`—`,r=e.ipv6??`—`,i=n===`—`?`—`:`ssh root@${n}`,a=e.resources?`${e.resources.vcpu}C / ${e.resources.ram_mb/1024}G RAM / ${e.resources.disk_gb}G SSD`:`—`;return`
     <div class="status-card ok">
       <div class="status-row">
         <span class="status-dot"></span>
@@ -30,6 +30,7 @@ var e=2e3;function t(e){let t=document.createElement(`div`);return t.textContent
         <div class="kv"><span class="k">hostname</span><span class="v"><code>${t(n)}</code></span><button class="copy" data-copy="${t(n)}">copy</button></div>
         <div class="kv"><span class="k">ipv6</span><span class="v"><code>${t(r)}</code></span><button class="copy" data-copy="${t(r)}">copy</button></div>
         <div class="kv"><span class="k">connect</span><span class="v"><code>${t(i)}</code></span><button class="copy" data-copy="${t(i)}">copy</button></div>
+        <div class="kv"><span class="k">resources</span><span class="v"><code>${t(a)}</code></span></div>
       </div>
     </div>
   `}function a(e){return`

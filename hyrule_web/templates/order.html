@@ -3,9 +3,13 @@
 
 {% block content %}
 {% set form_values = form_values or {} %}
-{% set selected_size = form_values.get('size', request.query_params.get('size', 'sm')) %}
-{% set tier = vm_tiers[selected_size] if selected_size in vm_tiers else vm_tiers['sm'] %}
+{% set requested_size = form_values.get('size', request.query_params.get('size', 'sm')) %}
+{% set selected_size = requested_size if requested_size in vm_tiers else ('sm' if 'sm' in vm_tiers else (vm_tiers | first)) %}
+{% set tier = vm_tiers[selected_size] %}
 {% set selected_duration = form_values.get('duration', 30) | int %}
+{% set selected_vcpu = form_values.get('vcpu', tier.vcpu) | int %}
+{% set selected_ram_mb = form_values.get('ram_mb', tier.ram_mb) | int %}
+{% set selected_disk_gb = form_values.get('disk_gb', tier.disk_gb) | int %}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
 {% set native_methods = native or [] %}
 
@@ -42,7 +46,7 @@
         <span class="stp"><span class="num">4</span> running</span>
     </div>
 
-    <form action="/order/review" method="post" class="order-layout">
+    <form id="vm-order-form" action="/order/review" method="post" class="order-layout">
         <div>
             {% if os_templates %}
             <fieldset class="form-section">
@@ -72,10 +76,10 @@
                     <span class="form-section-hint">scale up by destroying + redeploying</span>
                 </div></legend>
                 <div class="form-section-body">
+                    <input type="hidden" name="size" value="{{ selected_size }}">
                     <div class="radio-grid grid-4">
                         {% for key, t in vm_tiers.items() %}
-                        <label class="opt-card">
-                            <input type="radio" name="size" value="{{ key }}" {% if key == selected_size %}checked{% endif %}>
+                        <a class="opt-card" href="/order?size={{ key }}" {% if key == selected_size %}aria-current="true"{% endif %}>
                             <span class="body">
                                 <span class="opt-title">{{ t.name }}</span>
                                 <span class="opt-specs">
@@ -85,8 +89,44 @@
                                 </span>
                                 <span class="opt-price">${{ "%.2f"|format(t.price) }}/day</span>
                             </span>
-                        </label>
+                        </a>
                         {% endfor %}
+                    </div>
+                    <div class="mini-card mt-4 p-4">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <strong>Exact order resources</strong>
+                            <span class="text-text-soft">order-time only · maximum 4C / 8G / 40G</span>
+                        </div>
+                        <div class="grid gap-3 md:grid-cols-3">
+                            <div class="field">
+                                <label class="field-label" for="vcpu">vCPU</label>
+                                <select id="vcpu" name="vcpu">
+                                    {% for value in range(vm_customization.minimum.vcpu, vm_customization.maximum.vcpu + 1, vm_customization.increments.vcpu) %}
+                                    <option value="{{ value }}" {% if value == selected_vcpu %}selected{% endif %}>{{ value }} vCPU</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="field-hint">+${{ vm_customization.addon_prices.vcpu_usd_day }}/day each</span>
+                            </div>
+                            <div class="field">
+                                <label class="field-label" for="ram_mb">RAM</label>
+                                <select id="ram_mb" name="ram_mb">
+                                    {% for value in range(vm_customization.minimum.ram_mb, vm_customization.maximum.ram_mb + 1, vm_customization.increments.ram_mb) %}
+                                    <option value="{{ value }}" {% if value == selected_ram_mb %}selected{% endif %}>{{ value // 1024 }} GB RAM</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="field-hint">+${{ vm_customization.addon_prices.ram_gb_usd_day }}/GB/day</span>
+                            </div>
+                            <div class="field">
+                                <label class="field-label" for="disk_gb">SSD</label>
+                                <select id="disk_gb" name="disk_gb">
+                                    {% for value in range(vm_customization.minimum.disk_gb, vm_customization.maximum.disk_gb + 1, vm_customization.increments.disk_gb) %}
+                                    <option value="{{ value }}" {% if value == selected_disk_gb %}selected{% endif %}>{{ value }} GB SSD</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="field-hint">+${{ vm_customization.addon_prices.disk_10gb_usd_day }}/10GB/day</span>
+                            </div>
+                        </div>
+                        <p class="field-hint mt-3">Profile links load their exact defaults. You can then add CPU, RAM, or disk here; the quote service automatically rebases the result to the cheapest compatible profile. CPU/RAM are set on the halted clone, while disks can grow but cannot shrink.</p>
                     </div>
                 </div>
             </fieldset>
@@ -162,18 +202,18 @@
 
         <aside class="live-summary">
             <div class="summary-panel">
-                <span class="panel-label">current selection</span>
+                <span class="panel-label">profile baseline</span>
                 <div class="summary-amount">
                     <span class="num">${{ "%.2f"|format(tier.price * selected_duration) }}</span>
                     <span class="unit">USDC</span>
                 </div>
-                <div class="summary-detail">{{ selected_duration }} days × ${{ "%.2f"|format(tier.price) }}/day</div>
+                <div class="summary-detail">{{ selected_duration }} days × ${{ "%.2f"|format(tier.price) }}/day before additions</div>
                 <div class="summary-sep"></div>
-                <div class="summary-row"><span class="k">Tier</span><span class="v">{{ tier.name }}</span></div>
-                <div class="summary-row"><span class="k">vCPU</span><span class="v">{{ tier.vcpu }}</span></div>
-                <div class="summary-row"><span class="k">RAM</span><span class="v">{% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %}</span></div>
-                <div class="summary-row"><span class="k">Disk</span><span class="v">{{ tier.disk_gb }} GB</span></div>
-                <div class="summary-pulse">server-rendered estimate</div>
+                <div class="summary-row"><span class="k">Profile</span><span class="v">{{ tier.name }}</span></div>
+                <div class="summary-row"><span class="k">Base vCPU</span><span class="v">{{ tier.vcpu }}</span></div>
+                <div class="summary-row"><span class="k">Base RAM</span><span class="v">{{ tier.ram_mb // 1024 }} GB</span></div>
+                <div class="summary-row"><span class="k">Base disk</span><span class="v">{{ tier.disk_gb }} GB</span></div>
+                <div class="summary-pulse">exact total confirmed before payment</div>
             </div>
             <div class="summary-panel">
                 <span class="panel-label">payment rail</span>

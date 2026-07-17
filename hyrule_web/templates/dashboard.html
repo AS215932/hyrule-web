@@ -46,7 +46,7 @@
                         <th class="px-3 py-2.5">vm_id</th>
                         <th class="px-3 py-2.5">status</th>
                         <th class="px-3 py-2.5">os</th>
-                        <th class="px-3 py-2.5">size</th>
+                        <th class="px-3 py-2.5">resources</th>
                         <th class="px-3 py-2.5">ipv6</th>
                         <th class="px-3 py-2.5">expires</th>
                         <th class="px-3 py-2.5">actions</th>
@@ -58,7 +58,7 @@
                         <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.vm_id }}</code></td>
                         <td class="px-3 py-2.5"><span class="status-pill">{{ vm.status }}</span></td>
                         <td class="px-3 py-2.5">{{ vm.os or '—' }}</td>
-                        <td class="px-3 py-2.5">{{ vm.size or '—' }}</td>
+                        <td class="px-3 py-2.5">{% if vm.resources %}<strong>{{ vm.profile or vm.size }}</strong><br><small>{{ vm.resources.vcpu }}C / {{ vm.resources.ram_mb // 1024 }}G / {{ vm.resources.disk_gb }}G</small>{% else %}{{ vm.profile or vm.size or '—' }}{% endif %}</td>
                         <td class="px-3 py-2.5"><code class="text-[0.85em]">{{ vm.ipv6 or '—' }}</code></td>
                         <td class="px-3 py-2.5">{{ (vm.expires_at[:10] if vm.expires_at else '—') }}</td>
                         <td class="whitespace-nowrap px-3 py-2.5">

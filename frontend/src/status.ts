@@ -50,6 +50,9 @@ function renderProvisioned(vm: VmStatus): string {
   const fqdn = vm.fqdn ?? "—";
   const ipv6 = vm.ipv6 ?? "—";
   const ssh = fqdn !== "—" ? `ssh root@${fqdn}` : "—";
+  const resources = vm.resources
+    ? `${vm.resources.vcpu}C / ${vm.resources.ram_mb / 1024}G RAM / ${vm.resources.disk_gb}G SSD`
+    : "—";
   return `
     <div class="status-card ok">
       <div class="status-row">
@@ -60,6 +63,7 @@ function renderProvisioned(vm: VmStatus): string {
         <div class="kv"><span class="k">hostname</span><span class="v"><code>${escapeHtml(fqdn)}</code></span><button class="copy" data-copy="${escapeHtml(fqdn)}">copy</button></div>
         <div class="kv"><span class="k">ipv6</span><span class="v"><code>${escapeHtml(ipv6)}</code></span><button class="copy" data-copy="${escapeHtml(ipv6)}">copy</button></div>
         <div class="kv"><span class="k">connect</span><span class="v"><code>${escapeHtml(ssh)}</code></span><button class="copy" data-copy="${escapeHtml(ssh)}">copy</button></div>
+        <div class="kv"><span class="k">resources</span><span class="v"><code>${escapeHtml(resources)}</code></span></div>
       </div>
     </div>
   `;

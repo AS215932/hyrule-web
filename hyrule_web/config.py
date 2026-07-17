@@ -11,10 +11,21 @@ from pydantic_settings import BaseSettings
 # actually gets provisioned — this table once drifted (xs shipped 1 GB while
 # the site still said 512 MB), which is why pages now render live products.
 VM_TIERS: dict[str, dict[str, Any]] = {
-    "xs": {"name": "Starter", "vcpu": 1, "ram_mb": 1024, "disk_gb": 10, "price": 0.05},
-    "sm": {"name": "Basic", "vcpu": 1, "ram_mb": 1024, "disk_gb": 20, "price": 0.10},
-    "md": {"name": "Standard", "vcpu": 2, "ram_mb": 2048, "disk_gb": 40, "price": 0.20},
-    "lg": {"name": "Performance", "vcpu": 4, "ram_mb": 4096, "disk_gb": 80, "price": 0.40},
+    "xs": {"name": "1C-1G-10G", "vcpu": 1, "ram_mb": 1024, "disk_gb": 10, "price": 0.20},
+    "sm": {"name": "1C-2G-20G", "vcpu": 1, "ram_mb": 2048, "disk_gb": 20, "price": 0.40},
+    "md": {"name": "2C-4G-20G", "vcpu": 2, "ram_mb": 4096, "disk_gb": 20, "price": 0.60},
+    "lg": {"name": "4C-4G-40G", "vcpu": 4, "ram_mb": 4096, "disk_gb": 40, "price": 0.80},
+}
+
+VM_CUSTOMIZATION: dict[str, dict[str, Any]] = {
+    "minimum": {"vcpu": 1, "ram_mb": 1024, "disk_gb": 10},
+    "maximum": {"vcpu": 4, "ram_mb": 8192, "disk_gb": 40},
+    "increments": {"vcpu": 1, "ram_mb": 1024, "disk_gb": 10},
+    "addon_prices": {
+        "vcpu_usd_day": "0.10",
+        "ram_gb_usd_day": "0.15",
+        "disk_10gb_usd_day": "0.05",
+    },
 }
 
 DEFAULT_OS_TEMPLATES: list[dict[str, Any]] = [

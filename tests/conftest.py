@@ -31,7 +31,70 @@ from hyrule_web.app import (
     _TOOL_CATALOG_CACHE,
     app,
 )
-from hyrule_web.config import VM_TIERS, settings
+from hyrule_web.config import VM_CUSTOMIZATION, VM_TIERS, settings
+
+
+def _price_vm_payload(payload: dict) -> tuple[dict, dict, float]:
+    """Mirror the API's cheapest-compatible-profile quote contract."""
+    resources = payload.get("resources")
+    if resources is None:
+        selected = VM_TIERS[payload["size"]]
+        resources = {
+            "vcpu": selected["vcpu"],
+            "ram_mb": selected["ram_mb"],
+            "disk_gb": selected["disk_gb"],
+        }
+    cpu_rate = float(VM_CUSTOMIZATION["addon_prices"]["vcpu_usd_day"])
+    ram_rate = float(VM_CUSTOMIZATION["addon_prices"]["ram_gb_usd_day"])
+    disk_rate = float(VM_CUSTOMIZATION["addon_prices"]["disk_10gb_usd_day"])
+    candidates: list[tuple[tuple[float, int, int, int], str, dict, tuple[int, int, int]]] = []
+    for position, (profile, tier) in enumerate(VM_TIERS.items()):
+        if any(tier[key] > resources[key] for key in ("vcpu", "ram_mb", "disk_gb")):
+            continue
+        addons = (
+            resources["vcpu"] - tier["vcpu"],
+            resources["ram_mb"] - tier["ram_mb"],
+            resources["disk_gb"] - tier["disk_gb"],
+        )
+        daily = (
+            tier["price"]
+            + addons[0] * cpu_rate
+            + addons[1] / 1024 * ram_rate
+            + addons[2] / 10 * disk_rate
+        )
+        daily = round(daily, 2)
+        candidates.append(
+            (
+                (
+                    daily,
+                    int(any(addons)),
+                    addons[0] + addons[1] // 1024 + addons[2] // 10,
+                    position,
+                ),
+                profile,
+                tier,
+                addons,
+            )
+        )
+    sort_key, profile, tier, addons = min(candidates, key=lambda candidate: candidate[0])
+    daily = sort_key[0]
+    duration = payload["duration_days"]
+    canonical_payload = {**payload, "size": profile, "resources": resources}
+    pricing = {
+        "base_profile": profile,
+        "base_label": tier["name"],
+        "base_price_usd_day": f"{tier['price']:.2f}",
+        "addon_vcpu": addons[0],
+        "addon_ram_mb": addons[1],
+        "addon_disk_gb": addons[2],
+        "addon_vcpu_usd_day": f"{addons[0] * cpu_rate:.2f}",
+        "addon_ram_usd_day": f"{addons[1] / 1024 * ram_rate:.2f}",
+        "addon_disk_usd_day": f"{addons[2] / 10 * disk_rate:.2f}",
+        "daily_price_usd": f"{daily:.2f}",
+        "duration_days": duration,
+        "total_usd": f"{daily * duration:.2f}",
+    }
+    return canonical_payload, pricing, daily
 
 
 @pytest.fixture
@@ -43,14 +106,16 @@ def mocked_api() -> Iterator[respx.MockRouter]:
         def create_quote(request: httpx.Request) -> httpx.Response:
             payload = json.loads(request.content.decode())["order_payload"]
             quote_id = f"q_test_{len(quotes) + 1}"
-            tier = VM_TIERS.get(payload["size"], {"price": 1.0})
-            amount_usd = tier["price"] * payload["duration_days"]
+            payload, pricing, daily = _price_vm_payload(payload)
+            amount_usd = daily * payload["duration_days"]
             quote = {
                 "quote_id": quote_id,
-                "status": "active",
+                "status": "created",
                 "amount_usd": f"{amount_usd:.2f}",
                 "expires_at": "2026-07-11T13:00:00+00:00",
                 "order_payload": payload,
+                "resources": payload["resources"],
+                "pricing": pricing,
                 "accepted_payment_methods": {
                     "evm": [
                         {"key": "base", "caip2": "eip155:8453", "asset": "USDC"},
@@ -63,7 +128,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             rx.get(f"/v1/vm/quote/{quote_id}").mock(return_value=httpx.Response(200, json=quote))
             return httpx.Response(201, json=quote)
 
-        rx.post("/v1/vm/quote").mock(side_effect=create_quote)
+        rx.post("/v1/vm/quote", name="vm_quote").mock(side_effect=create_quote)
         rx.get("/v1/stats/runtime").mock(
             return_value=httpx.Response(
                 200,
@@ -199,7 +264,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             )
         )
         # Overhaul: live VM product catalog for the tier grids (index/services/
-        # order). Mirrors the real GET /v1/products/vms response — xs is 1 GB.
+        # order). Mirrors the real GET /v1/products/vms response.
         rx.get("/v1/products/vms").mock(
             return_value=httpx.Response(
                 200,
@@ -209,37 +274,38 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                     "products": [
                         {
                             "size": "xs",
-                            "name": "Starter",
+                            "name": "1C-1G-10G",
                             "vcpu": 1,
                             "ram_mb": 1024,
                             "disk_gb": 10,
-                            "price_usd_day": "0.05",
-                        },
-                        {
-                            "size": "sm",
-                            "name": "Basic",
-                            "vcpu": 1,
-                            "ram_mb": 1024,
-                            "disk_gb": 20,
-                            "price_usd_day": "0.10",
-                        },
-                        {
-                            "size": "md",
-                            "name": "Standard",
-                            "vcpu": 2,
-                            "ram_mb": 2048,
-                            "disk_gb": 40,
                             "price_usd_day": "0.20",
                         },
                         {
-                            "size": "lg",
-                            "name": "Performance",
-                            "vcpu": 4,
-                            "ram_mb": 4096,
-                            "disk_gb": 80,
+                            "size": "sm",
+                            "name": "1C-2G-20G",
+                            "vcpu": 1,
+                            "ram_mb": 2048,
+                            "disk_gb": 20,
                             "price_usd_day": "0.40",
                         },
+                        {
+                            "size": "md",
+                            "name": "2C-4G-20G",
+                            "vcpu": 2,
+                            "ram_mb": 4096,
+                            "disk_gb": 20,
+                            "price_usd_day": "0.60",
+                        },
+                        {
+                            "size": "lg",
+                            "name": "4C-4G-40G",
+                            "vcpu": 4,
+                            "ram_mb": 4096,
+                            "disk_gb": 40,
+                            "price_usd_day": "0.80",
+                        },
                     ],
+                    "customization": VM_CUSTOMIZATION,
                 },
             )
         )
@@ -255,7 +321,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "path": "/v1/vm/create",
                             "method": "POST",
                             "description": "Provision a bare VM with SSH access",
-                            "minPrice": "0.05",
+                            "minPrice": "0.20",
                         },
                         {
                             "path": "/v1/domains/orders",
@@ -322,7 +388,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                                     }
                                 },
                                 "x-payment-info": {
-                                    "price": {"mode": "dynamic", "currency": "USD", "min": "0.05"}
+                                    "price": {"mode": "dynamic", "currency": "USD", "min": "0.20"}
                                 },
                             }
                         },
@@ -482,7 +548,8 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             return_value=httpx.Response(
                 200,
                 json={
-                    "vm_prices": {"xs (1vCPU/1GB/10GB)": "$0.05/day"},
+                    "vm_prices": {"xs (1C-1G-10G)": "$0.20/day"},
+                    "vm_customization": VM_CUSTOMIZATION,
                     "domain_auto": "$0.00 (subdomain under deploy.hyrule.host)",
                     "proxy_prices": {
                         "direct": "$0.01/request",

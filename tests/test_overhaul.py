@@ -39,7 +39,7 @@ def test_index_advertises_all_four_pillars(client: TestClient) -> None:
     for anchor in ("#compute", "#intel", "#domains", "#proxy"):
         assert f"/services{anchor}" in body
     # Entry prices come from enabled-only OpenAPI (conftest).
-    assert "$0.05/day" in body  # compute min
+    assert "$0.20/day" in body  # compute min
     assert "$0.001/req" in body  # intel min
     assert "priced by TLD" in body  # disabled x402 domain order is not invented
     # Agent purchase flow replaces the old BCP14/RFC role-play.
@@ -84,11 +84,11 @@ def test_malformed_product_row_is_skipped_not_fatal(
                 "products": [
                     {
                         "size": "xs",
-                        "name": "Starter",
+                        "name": "1C-1G-10G",
                         "vcpu": 1,
                         "ram_mb": 1024,
                         "disk_gb": 10,
-                        "price_usd_day": "0.05",
+                        "price_usd_day": "0.20",
                     },
                     {"size": "sm", "name": "Broken", "vcpu": None, "ram_mb": "??"},
                 ],
@@ -97,7 +97,7 @@ def test_malformed_product_row_is_skipped_not_fatal(
     )
     r = client.get("/services")
     assert r.status_code == 200
-    assert "Starter" in r.text  # the valid live row survives
+    assert "1C-1G-10G" in r.text  # the valid live row survives
     assert "Broken" not in r.text  # the malformed row is dropped
 
 

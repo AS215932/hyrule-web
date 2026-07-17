@@ -8,6 +8,8 @@ export interface VmStatus {
   rollback_available?: boolean;
   fqdn?: string;
   ipv6?: string;
+  profile?: string;
+  resources?: { vcpu: number; ram_mb: number; disk_gb: number };
   operator_message?: string;
   customer_message?: string;
 }

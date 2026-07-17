@@ -22,8 +22,24 @@ def _quote(status: str = "created") -> dict:
             "ssh_pubkey": "ssh-ed25519 AAAA reviewer",
             "domain_mode": "auto",
             "domain": None,
+            "resources": {"vcpu": 2, "ram_mb": 4096, "disk_gb": 20},
         },
-        "amount_usd": "1.40",
+        "resources": {"vcpu": 2, "ram_mb": 4096, "disk_gb": 20},
+        "pricing": {
+            "base_profile": "md",
+            "base_label": "2C-4G-20G",
+            "base_price_usd_day": "0.60",
+            "addon_vcpu": 0,
+            "addon_ram_mb": 0,
+            "addon_disk_gb": 0,
+            "addon_vcpu_usd_day": "0.00",
+            "addon_ram_usd_day": "0.00",
+            "addon_disk_usd_day": "0.00",
+            "daily_price_usd": "0.60",
+            "duration_days": 7,
+            "total_usd": "4.20",
+        },
+        "amount_usd": "4.20",
         "currency": "USD",
         "accepted_payment_methods": {"evm": [], "native": []},
         "created_at": "2026-05-30T12:00:00Z",
@@ -41,8 +57,8 @@ def test_review_renders_from_durable_quote(
     assert r.status_code == 200
     body = r.text
     assert "debian-13" in body
-    # md tier ($0.20/day) * 7 days
-    assert "1.40" in body
+    # md profile ($0.60/day) * 7 days
+    assert "4.20" in body
     # quote_id is wired into the hidden form so payment.ts forwards it.
     assert 'name="quote_id" value="q_test123"' in body
 
@@ -73,10 +89,10 @@ def test_review_survives_when_quoted_tier_leaves_live_catalog(
                     {
                         "size": "xl",
                         "name": "Agent XL",
-                        "vcpu": 8,
+                        "vcpu": 4,
                         "ram_mb": 8192,
-                        "disk_gb": 160,
-                        "price_usd_day": "0.80",
+                        "disk_gb": 40,
+                        "price_usd_day": "1.40",
                     }
                 ]
             },
@@ -89,8 +105,8 @@ def test_review_survives_when_quoted_tier_leaves_live_catalog(
     response = client.get("/order/review/q_retired")
 
     assert response.status_code == 200
-    assert "Basic" in response.text
-    assert "$1.40" in response.text
+    assert "2C-4G-20G" in response.text
+    assert "$4.20" in response.text
 
 
 def test_review_unknown_quote_redirects_to_order(

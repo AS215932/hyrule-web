@@ -174,7 +174,7 @@
     ]
   },
   "frontend/src/payment.ts": {
-    "file": "assets/payment-utdgVwmc.js",
+    "file": "assets/payment-DgVLVZzs.js",
     "name": "payment",
     "src": "frontend/src/payment.ts",
     "isEntry": true,
@@ -189,13 +189,13 @@
     "isEntry": true
   },
   "frontend/src/status.ts": {
-    "file": "assets/status-auvKyU85.js",
+    "file": "assets/status-BI6PgCZ4.js",
     "name": "status",
     "src": "frontend/src/status.ts",
     "isEntry": true
   },
   "frontend/src/styles/app.css": {
-    "file": "assets/styles-BAoMuew5.css",
+    "file": "assets/styles-rd6k5bGW.css",
     "name": "styles",
     "names": [
       "styles.css"

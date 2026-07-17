@@ -63,9 +63,16 @@ def test_review_order_data_form_carries_all_fields(client: TestClient) -> None:
     r = client.post("/order/review", data=_review_post_payload())
     body = r.text
     for field in (
-        'name="os"', 'name="size"', 'name="duration_days"',
-        'name="ssh_pubkey"', 'name="hostname"', 'name="domain_mode"',
+        'name="os"',
+        'name="size"',
+        'name="duration_days"',
+        'name="ssh_pubkey"',
+        'name="hostname"',
+        'name="domain_mode"',
         'name="domain"',
+        'name="vcpu"',
+        'name="ram_mb"',
+        'name="disk_gb"',
     ):
         assert field in body, f"missing hidden field {field}"
 
@@ -77,6 +84,9 @@ def test_review_order_data_form_carries_all_fields(client: TestClient) -> None:
         ("duration_days", "30"),
         ("ssh_pubkey", "ssh-ed25519 AAAA"),
         ("domain_mode", "auto"),
+        ("vcpu", "1"),
+        ("ram_mb", "2048"),
+        ("disk_gb", "20"),
     ):
         assert f'name="{name}" value="{value}"' in body, (
             f"hidden field {name} should carry value {value!r}"
