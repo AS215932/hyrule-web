@@ -72,7 +72,9 @@ def test_dashboard_renders_with_vms_when_authed(
     mocked_api.get("/v1/me/vms").mock(return_value=httpx.Response(200, json={
         "vms": [
             {"vm_id": "vm-aaa", "status": "ready", "os": "debian-13",
-             "size": "sm", "ipv6": "2a0c:b641::1", "expires_at": "2026-06-01T00:00:00+00:00"},
+             "size": "sm", "profile": "1C-1536M-20G",
+             "resources": {"vcpu": 1, "ram_mb": 1536, "disk_gb": 20},
+             "ipv6": "2a0c:b641::1", "expires_at": "2026-06-01T00:00:00+00:00"},
             {"vm_id": "vm-bbb", "status": "ready", "os": "alpine-3.21",
              "size": "md", "ipv6": "2a0c:b641::2", "expires_at": None},
         ],
@@ -82,6 +84,8 @@ def test_dashboard_renders_with_vms_when_authed(
     assert "ACCT_ABC" in r.text
     assert "vm-aaa" in r.text
     assert "vm-bbb" in r.text
+    assert "1C / 1536M / 20G" in r.text
+    assert "1C / 1G / 20G" not in r.text
 
 
 def test_dashboard_renders_error_banner_when_me_5xxs(

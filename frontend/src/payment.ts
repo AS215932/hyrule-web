@@ -94,6 +94,14 @@ import type { PaymentNetwork } from "./types";
       ssh_pubkey: fd.get("ssh_pubkey"),
       domain_mode: fd.get("domain_mode") || "auto",
     };
+    const exactResources = {
+      vcpu: parseInt(String(fd.get("vcpu")), 10),
+      ram_mb: parseInt(String(fd.get("ram_mb")), 10),
+      disk_gb: parseInt(String(fd.get("disk_gb")), 10),
+    };
+    if (Object.values(exactResources).every(Number.isFinite)) {
+      payload.resources = exactResources;
+    }
     const hostname = fd.get("hostname");
     if (hostname) payload.hostname = hostname;
     if (fd.get("domain") && fd.get("domain_mode") === "custom") {

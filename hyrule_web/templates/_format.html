@@ -1,0 +1,8 @@
+{% macro memory(value, compact=false) -%}
+{% set amount = value | int -%}
+{% if amount >= 1024 and amount % 1024 == 0 -%}
+{{ amount // 1024 }}{{ "G" if compact else " GB" }}
+{%- else -%}
+{{ amount }}{{ "M" if compact else " MB" }}
+{%- endif %}
+{%- endmacro %}

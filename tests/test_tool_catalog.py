@@ -41,7 +41,7 @@ def test_normalize_openapi_resolves_schema_and_classifies_surfaces() -> None:
                     "summary": "Create VM",
                     "responses": {},
                     "x-payment-info": {
-                        "price": {"mode": "dynamic", "currency": "USD", "min": "0.05"}
+                        "price": {"mode": "dynamic", "currency": "USD", "min": "0.20"}
                     },
                 }
             },

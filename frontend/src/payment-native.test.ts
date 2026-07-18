@@ -17,11 +17,15 @@ describe("native quote binding", () => {
       <input name="ssh_pubkey" value="ssh-ed25519 AAAA">
       <input name="domain_mode" value="auto">
       <input name="quote_id" value="q_locked">
+      <input name="vcpu" value="3">
+      <input name="ram_mb" value="5120">
+      <input name="disk_gb" value="30">
     `;
 
     const payload = gatherOrderPayload(form);
 
     expect(payload.quote_id).toBe("q_locked");
+    expect(payload.resources).toEqual({ vcpu: 3, ram_mb: 5120, disk_gb: 30 });
     expect(intentClientOrderStorageKey("BTC", payload)).toBe(
       "hyr_intent_client_order_id:BTC:q_locked",
     );

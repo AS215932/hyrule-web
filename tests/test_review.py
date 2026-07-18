@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import re
+from copy import deepcopy
+
 import httpx
 import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from hyrule_web.config import VM_TIERS
+from hyrule_web.app import _live_vm_customization
+from hyrule_web.config import VM_CUSTOMIZATION, VM_TIERS
 
 
 def _post_review(client: TestClient, **overrides: object) -> object:
@@ -33,6 +38,216 @@ def test_native_form_creates_durable_quote_and_redirects(client: TestClient) -> 
     assert response.headers["location"].startswith("/order/review/q_test_")
 
 
+def test_order_renders_technical_profiles_and_exact_resource_controls(
+    client: TestClient,
+) -> None:
+    response = client.get("/order?size=lg")
+
+    assert response.status_code == 200
+    for label in ("1C-1G-10G", "1C-2G-20G", "2C-4G-20G", "4C-4G-40G"):
+        assert label in response.text
+    for field in ('name="vcpu"', 'name="ram_mb"', 'name="disk_gb"'):
+        assert field in response.text
+    assert 'name="size" value="lg"' in response.text
+    assert 'formaction="/order/profile"' in response.text
+    assert "maximum 4C / 8G / 40G" in response.text
+    assert response.text.index('class="implicit-review-submit"') < response.text.index(
+        'formaction="/order/profile"'
+    )
+
+
+def test_profile_switch_preserves_entered_order_fields_and_loads_profile_defaults(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/os/list").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "templates": [
+                    {
+                        "name": "debian-13",
+                        "description": "Debian 13",
+                        "default": True,
+                    },
+                    {
+                        "name": "alpine-3.21",
+                        "description": "Alpine 3.21",
+                        "default": False,
+                    },
+                ]
+            },
+        )
+    )
+
+    response = client.post(
+        "/order/profile",
+        data={
+            "profile": "md",
+            "size": "xs",
+            "os": "alpine-3.21",
+            "duration": "90",
+            "ssh_pubkey": "ssh-ed25519 AAAA preserved-key",
+            "domain_mode": "custom",
+            "domain": "vm.example.com",
+            "vcpu": "3",
+            "ram_mb": "6144",
+            "disk_gb": "30",
+        },
+    )
+
+    assert response.status_code == 200
+    assert 'name="size" value="md"' in response.text
+    assert 'value="alpine-3.21" checked' in response.text
+    assert 'value="90"' in response.text
+    assert ">ssh-ed25519 AAAA preserved-key</textarea>" in response.text
+    assert 'value="custom" checked' in response.text
+    assert 'value="vm.example.com"' in response.text
+    assert re.search(r'<option value="2"\s+selected>2 vCPU</option>', response.text)
+    assert re.search(r'<option value="4096"\s+selected>4 GB RAM</option>', response.text)
+    assert re.search(r'<option value="20"\s+selected>20 GB SSD</option>', response.text)
+
+
+def test_order_limit_caption_comes_from_live_customization(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xs",
+                        "name": "1C-1G-10G",
+                        "vcpu": 1,
+                        "ram_mb": 1024,
+                        "disk_gb": 10,
+                        "price_usd_day": "0.20",
+                    }
+                ],
+                "customization": {
+                    "minimum": {"vcpu": 1, "ram_mb": 1024, "disk_gb": 10},
+                    "maximum": {"vcpu": 6, "ram_mb": 12288, "disk_gb": 60},
+                    "increments": {"vcpu": 1, "ram_mb": 1024, "disk_gb": 10},
+                    "addon_prices": {
+                        "vcpu_usd_day": "0.10",
+                        "ram_gb_usd_day": "0.15",
+                        "disk_10gb_usd_day": "0.05",
+                    },
+                },
+            },
+        )
+    )
+
+    response = client.get("/order")
+
+    assert response.status_code == 200
+    assert "maximum 6C / 12G / 60G" in response.text
+    assert "maximum 4C / 8G / 40G" not in response.text
+
+
+def test_fractional_gib_ram_is_rendered_without_flooring(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xs",
+                        "name": "1C-1536M-10G",
+                        "vcpu": 1,
+                        "ram_mb": 1536,
+                        "disk_gb": 10,
+                        "price_usd_day": "0.30",
+                    }
+                ],
+                "customization": {
+                    "minimum": {"vcpu": 1, "ram_mb": 512, "disk_gb": 10},
+                    "maximum": {"vcpu": 1, "ram_mb": 1536, "disk_gb": 10},
+                    "increments": {"vcpu": 1, "ram_mb": 512, "disk_gb": 10},
+                    "addon_prices": {
+                        "vcpu_usd_day": "0.10",
+                        "ram_gb_usd_day": "0.15",
+                        "disk_10gb_usd_day": "0.05",
+                    },
+                },
+            },
+        )
+    )
+
+    order = client.get("/order")
+    review = _post_review(client, size="xs", vcpu=1, ram_mb=1536, disk_gb=10)
+
+    assert order.status_code == 200
+    for label in ("512 MB RAM", "1 GB RAM", "1536 MB RAM"):
+        assert label in order.text
+    assert review.status_code == 200
+    assert "1536 MB RAM" in review.text
+    assert "+ 512 MB RAM" in review.text
+
+
+def test_non_finite_live_addon_price_falls_back_to_static_contract() -> None:
+    customization = deepcopy(VM_CUSTOMIZATION)
+    customization["addon_prices"]["vcpu_usd_day"] = "Infinity"
+
+    assert _live_vm_customization({"customization": customization}) == VM_CUSTOMIZATION
+
+
+def test_order_falls_back_from_malformed_live_customization(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xs",
+                        "name": "1C-1G-10G",
+                        "vcpu": 1,
+                        "ram_mb": 1024,
+                        "disk_gb": 10,
+                        "price_usd_day": "0.20",
+                    }
+                ],
+                "customization": {
+                    "minimum": {"vcpu": 1, "ram_mb": 1024, "disk_gb": 10},
+                    "maximum": {"vcpu": 4, "ram_mb": 8192, "disk_gb": 40},
+                    "increments": {"vcpu": 0, "ram_mb": 1024, "disk_gb": 10},
+                    "addon_prices": {
+                        "vcpu_usd_day": "0.10",
+                        "ram_gb_usd_day": "0.15",
+                        "disk_10gb_usd_day": "0.05",
+                    },
+                },
+            },
+        )
+    )
+
+    response = client.get("/order")
+
+    assert response.status_code == 200
+    assert 'name="vcpu"' in response.text
+    assert re.search(r'<option value="4"\s*>4 vCPU</option>', response.text)
+
+
+def test_profile_submission_uses_its_exact_defaults(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    quote_route = mocked_api["vm_quote"]
+
+    response = _post_review(client, size="lg")
+
+    assert response.status_code == 200
+    payload = json.loads(quote_route.calls.last.request.content)
+    assert payload["order_payload"]["resources"] == {
+        "vcpu": 4,
+        "ram_mb": 4096,
+        "disk_gb": 40,
+    }
+
+
 @pytest.mark.parametrize("size", list(VM_TIERS))
 def test_review_renders_for_every_tier(client: TestClient, size: str) -> None:
     r = _post_review(client, size=size)
@@ -48,7 +263,7 @@ def test_review_unknown_size_is_rejected_without_creating_quote(client: TestClie
     assert "Quote not created" in r.text
 
 
-def test_review_accepts_tier_from_live_product_catalog(
+def test_review_accepts_valid_resources_from_live_product_catalog(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
     mocked_api.get("/v1/products/vms").mock(
@@ -57,22 +272,44 @@ def test_review_accepts_tier_from_live_product_catalog(
             json={
                 "products": [
                     {
-                        "size": "xl",
-                        "name": "Agent XL",
-                        "vcpu": 8,
+                        "size": "lg",
+                        "name": "4C-8G-40G",
+                        "vcpu": 4,
                         "ram_mb": 8192,
-                        "disk_gb": 160,
-                        "price_usd_day": "0.80",
+                        "disk_gb": 40,
+                        "price_usd_day": "1.40",
                     }
                 ]
             },
         )
     )
 
-    response = _post_review(client, size="xl")
+    response = _post_review(client, size="lg")
 
     assert response.status_code == 200
-    assert "Agent XL" in response.text
+    assert "8 GB RAM" in response.text
+
+
+def test_review_quotes_custom_exact_resources(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    quote_route = mocked_api["vm_quote"]
+
+    response = _post_review(client, size="xs", vcpu=3, ram_mb=5120, disk_gb=30)
+
+    assert response.status_code == 200
+    payload = json.loads(quote_route.calls.last.request.content)
+    assert payload["order_payload"]["resources"] == {
+        "vcpu": 3,
+        "ram_mb": 5120,
+        "disk_gb": 30,
+    }
+    assert "3 vCPU" in response.text
+    assert "5 GB RAM" in response.text
+    assert "30 GB SSD" in response.text
+    assert "2C-4G-20G" in response.text
+    assert "30 days" in response.text
+    assert "$0.90/day" in response.text
 
 
 def test_review_duration_multiplies_price(client: TestClient) -> None:

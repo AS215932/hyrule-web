@@ -35,12 +35,18 @@ describe("renderStatus", () => {
 
   it("renders provisioned with FQDN, IPv6, and SSH command", () => {
     const html = renderStatus(
-      makeVm("provisioned", { fqdn: "vm-abc.deploy.hyrule.host", ipv6: "2a0c:b641::1" }),
+      makeVm("provisioned", {
+        fqdn: "vm-abc.deploy.hyrule.host",
+        ipv6: "2a0c:b641::1",
+        profile: "md",
+        resources: { vcpu: 3, ram_mb: 5120, disk_gb: 30 },
+      }),
     );
     expect(html).toContain("PROVISIONED");
     expect(html).toContain("vm-abc.deploy.hyrule.host");
     expect(html).toContain("2a0c:b641::1");
     expect(html).toContain("ssh root@vm-abc.deploy.hyrule.host");
+    expect(html).toContain("3C / 5G RAM / 30G SSD");
     expect(html).toContain("copy");
   });
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_format.html" import memory %}
 {% block title %}Review order — Hyrule Cloud{% endblock %}
 
 {% block content %}
@@ -7,6 +8,8 @@
 {% set payment_methods = order.payment_methods if order and order.payment_methods else {"evm": [], "native": []} %}
 {% set native_methods = payment_methods.native or [] %}
 {% set live_chains = (networks or []) | map(attribute='display_name') | list %}
+{% set resources = order.resources if order and order.resources else {'vcpu': tier.vcpu, 'ram_mb': tier.ram_mb, 'disk_gb': tier.disk_gb} %}
+{% set pricing = order.pricing if order and order.pricing else {} %}
 
 <section class="container">
     <div class="page-hero">
@@ -46,7 +49,7 @@
                 <div class="manifest-v"><code>{{ order.os if order else 'debian-13' }}</code></div>
 
                 <div class="manifest-k">size</div>
-                <div class="manifest-v"><strong>{{ tier.name }}</strong> · {{ tier.vcpu }} vCPU · {% if tier.ram_mb >= 1024 %}{{ tier.ram_mb // 1024 }} GB{% else %}{{ tier.ram_mb }} MB{% endif %} · {{ tier.disk_gb }} GB SSD</div>
+                <div class="manifest-v"><strong>{{ tier.name }}</strong> · {{ resources.vcpu }} vCPU · {{ memory(resources.ram_mb) }} RAM · {{ resources.disk_gb }} GB SSD</div>
 
                 <div class="manifest-k">duration</div>
                 <div class="manifest-v">{{ duration }} days</div>
@@ -69,7 +72,11 @@
             <div class="payment-card">
                 <span class="panel-label">amount due</span>
                 <div class="price">
-                    <div class="price-line"><span>VM ({{ tier.name }}, {{ duration }} days)</span><span>${{ "%.2f"|format(total) }}</span></div>
+                    <div class="price-line"><span>Base {{ tier.name }}</span><span>${{ pricing.base_price_usd_day or "%.2f"|format(tier.price) }}/day</span></div>
+                    {% if pricing.addon_vcpu %}<div class="price-line"><span>+ {{ pricing.addon_vcpu }} vCPU</span><span>${{ pricing.addon_vcpu_usd_day }}/day</span></div>{% endif %}
+                    {% if pricing.addon_ram_mb %}<div class="price-line"><span>+ {{ memory(pricing.addon_ram_mb) }} RAM</span><span>${{ pricing.addon_ram_usd_day }}/day</span></div>{% endif %}
+                    {% if pricing.addon_disk_gb %}<div class="price-line"><span>+ {{ pricing.addon_disk_gb }} GB SSD</span><span>${{ pricing.addon_disk_usd_day }}/day</span></div>{% endif %}
+                    <div class="price-line"><span>{{ duration }} days × ${{ pricing.daily_price_usd or "%.2f"|format(tier.price) }}/day</span><span>${{ "%.2f"|format(total) }}</span></div>
                     <div class="price-line"><span>DNS subdomain</span><span>$0.00</span></div>
                     <div class="price-line"><span>x402 settlement</span><span>gas covered</span></div>
                     <div class="price-line total"><span>Total</span><span>${{ "%.2f"|format(total) }} USDC</span></div>
@@ -111,6 +118,9 @@
                 <form id="order-data" class="hidden">
                     <input type="hidden" name="os" value="{{ order.os if order else '' }}">
                     <input type="hidden" name="size" value="{{ order.size if order else '' }}">
+                    <input type="hidden" name="vcpu" value="{{ resources.vcpu }}">
+                    <input type="hidden" name="ram_mb" value="{{ resources.ram_mb }}">
+                    <input type="hidden" name="disk_gb" value="{{ resources.disk_gb }}">
                     <input type="hidden" name="duration_days" value="{{ order.duration if order else '' }}">
                     <input type="hidden" name="ssh_pubkey" value="{{ order.ssh_pubkey if order else '' }}">
                     <input type="hidden" name="hostname" value="{{ order.hostname if order else '' }}">

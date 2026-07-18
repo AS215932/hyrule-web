@@ -32,7 +32,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
-from .config import DEFAULT_OS_TEMPLATES, VM_TIERS, settings
+from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
@@ -830,6 +830,47 @@ def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]
     return tiers or VM_TIERS
 
 
+def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Return a validated order-control contract, falling back fail-closed."""
+    value = (products or {}).get("customization")
+    if not isinstance(value, dict):
+        return VM_CUSTOMIZATION
+    try:
+        contract: dict[str, dict[str, Any]] = {
+            "minimum": {
+                key: int(value["minimum"][key])
+                for key in ("vcpu", "ram_mb", "disk_gb")
+            },
+            "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
+            "increments": {
+                key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
+            },
+            "addon_prices": {
+                key: str(value["addon_prices"][key])
+                for key in ("vcpu_usd_day", "ram_gb_usd_day", "disk_10gb_usd_day")
+            },
+        }
+        for key in ("vcpu", "ram_mb", "disk_gb"):
+            minimum = contract["minimum"][key]
+            maximum = contract["maximum"][key]
+            increment = contract["increments"][key]
+            if (
+                minimum <= 0
+                or maximum < minimum
+                or increment <= 0
+                or (maximum - minimum) % increment
+                or (maximum - minimum) // increment > 256
+            ):
+                raise ValueError(f"invalid {key} customization range")
+        prices = [Decimal(price) for price in contract["addon_prices"].values()]
+        if any(not price.is_finite() or price < 0 for price in prices):
+            raise ValueError("invalid VM add-on price")
+        return contract
+    except (InvalidOperation, KeyError, TypeError, ValueError):
+        log.warning("products_customization_malformed")
+        return VM_CUSTOMIZATION
+
+
 def _proxy_prices(pricing: dict[str, Any] | None) -> dict[str, str]:
     """Per-route proxy prices from GET /v1/pricing; unavailable means hidden."""
     prices = (pricing or {}).get("proxy_prices")
@@ -1161,20 +1202,71 @@ async def domain_order_status(request: Request, order_id: str) -> Response:
     )
 
 
-@app.get("/order", response_class=HTMLResponse)
-async def page_order(request: Request) -> Response:
+async def _render_order_form(
+    request: Request,
+    *,
+    products: dict[str, Any] | None = None,
+    form_values: dict[str, Any] | None = None,
+    order_error: str | None = None,
+    status_code: int = 200,
+) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     catalog = await _refresh_networks(request)
+    products = products if products is not None else await _refresh_products(request)
     return _render(
         request,
         "order.html",
         os_templates=os_list,
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
-        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
-        order_error=None,
-        form_values={},
+        vm_tiers=_live_vm_tiers(products),
+        vm_customization=_live_vm_customization(products),
+        order_error=order_error,
+        form_values=form_values or {},
+        status_code=status_code,
+    )
+
+
+@app.get("/order", response_class=HTMLResponse)
+async def page_order(request: Request) -> Response:
+    return await _render_order_form(request)
+
+
+@app.post("/order/profile", response_class=HTMLResponse)
+async def page_order_profile(
+    request: Request,
+    profile: Annotated[str, Form()],
+    os: Annotated[str, Form()] = "",
+    duration: Annotated[int, Form()] = 30,
+    ssh_pubkey: Annotated[str, Form()] = "",
+    hostname: Annotated[str, Form()] = "",
+    domain_mode: Annotated[str, Form()] = "auto",
+    domain: Annotated[str, Form()] = "",
+) -> Response:
+    """Switch profile defaults without discarding the rest of the order form."""
+    products = await _refresh_products(request)
+    vm_tiers = _live_vm_tiers(products)
+    valid_profile = profile in vm_tiers
+    selected_profile = (
+        profile
+        if valid_profile
+        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+    )
+    return await _render_order_form(
+        request,
+        products=products,
+        form_values={
+            "os": os,
+            "size": selected_profile,
+            "duration": duration,
+            "ssh_pubkey": ssh_pubkey,
+            "hostname": hostname,
+            "domain_mode": domain_mode,
+            "domain": domain,
+        },
+        order_error=None if valid_profile else "Choose a valid server size.",
+        status_code=200 if valid_profile else 422,
     )
 
 
@@ -1199,7 +1291,19 @@ async def page_review(
     hostname: Annotated[str, Form()] = "",
     domain_mode: Annotated[str, Form()] = "auto",
     domain: Annotated[str, Form()] = "",
+    vcpu: Annotated[int | None, Form()] = None,
+    ram_mb: Annotated[int | None, Form()] = None,
+    disk_gb: Annotated[int | None, Form()] = None,
 ) -> Response:
+    products = await _refresh_products(request)
+    vm_tiers = _live_vm_tiers(products)
+    customization = _live_vm_customization(products)
+    selected_tier = vm_tiers.get(size, VM_TIERS["sm"])
+    final_resources = {
+        "vcpu": vcpu if vcpu is not None else int(selected_tier["vcpu"]),
+        "ram_mb": ram_mb if ram_mb is not None else int(selected_tier["ram_mb"]),
+        "disk_gb": disk_gb if disk_gb is not None else int(selected_tier["disk_gb"]),
+    }
     form_values = {
         "os": os,
         "size": size,
@@ -1208,8 +1312,8 @@ async def page_review(
         "hostname": hostname,
         "domain_mode": domain_mode,
         "domain": domain,
+        **final_resources,
     }
-    vm_tiers = _live_vm_tiers(await _refresh_products(request))
     custom_domain = _normalise_custom_domain(domain) if domain_mode == "custom" else None
     error: str | None = None
     if size not in vm_tiers:
@@ -1220,6 +1324,15 @@ async def page_review(
         error = "Choose automatic or custom domain setup."
     elif domain_mode == "custom" and custom_domain is None:
         error = "Enter a valid fully-qualified domain name."
+    else:
+        for key, label in (("vcpu", "vCPU"), ("ram_mb", "RAM"), ("disk_gb", "SSD")):
+            minimum = int(customization["minimum"][key])
+            maximum = int(customization["maximum"][key])
+            increment = int(customization["increments"][key])
+            value = final_resources[key]
+            if not minimum <= value <= maximum or (value - minimum) % increment:
+                error = f"Choose {label} within the available order limits."
+                break
 
     if error is None:
         order_payload: dict[str, Any] = {
@@ -1228,6 +1341,7 @@ async def page_review(
             "duration_days": duration,
             "ssh_pubkey": ssh_pubkey,
             "domain_mode": domain_mode,
+            "resources": final_resources,
         }
         if custom_domain is not None:
             order_payload["domain"] = custom_domain
@@ -1258,16 +1372,9 @@ async def page_review(
         else:
             error = "The ordering API is temporarily unavailable. Your form has not been submitted."
 
-    os_data = await _fetch_api(request, "/v1/os/list")
-    os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
-    catalog = await _refresh_networks(request)
-    return _render(
+    return await _render_order_form(
         request,
-        "order.html",
-        os_templates=os_list,
-        networks=_catalog_networks(catalog),
-        native=_catalog_native(catalog),
-        vm_tiers=vm_tiers,
+        products=products,
         order_error=error,
         form_values=form_values,
         status_code=422,
@@ -1290,7 +1397,26 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
     size = payload.get("size", "sm")
     duration = payload.get("duration_days", 30)
     vm_tiers = _live_vm_tiers(await _refresh_products(request))
-    tier = vm_tiers.get(size, VM_TIERS["sm"])
+    catalog_tier = vm_tiers.get(size, VM_TIERS["sm"])
+    resources = (
+        quote.get("resources")
+        or payload.get("resources")
+        or {
+            "vcpu": catalog_tier["vcpu"],
+            "ram_mb": catalog_tier["ram_mb"],
+            "disk_gb": catalog_tier["disk_gb"],
+        }
+    )
+    pricing_value = quote.get("pricing")
+    pricing: dict[str, Any] = pricing_value if isinstance(pricing_value, dict) else {}
+    tier = {
+        **catalog_tier,
+        "name": pricing.get("base_label") or catalog_tier["name"],
+        "vcpu": int(resources["vcpu"]),
+        "ram_mb": int(resources["ram_mb"]),
+        "disk_gb": int(resources["disk_gb"]),
+        "price": float(pricing.get("daily_price_usd") or catalog_tier["price"]),
+    }
     try:
         total = Decimal(str(quote["amount_usd"]))
     except (KeyError, InvalidOperation):
@@ -1307,6 +1433,8 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
         "id": quote_id,
         "quote_id": quote_id,
         "amount_usd": total,
+        "resources": resources,
+        "pricing": pricing,
         "expired": quote.get("status") == "expired",
         "payment_methods": quote.get("accepted_payment_methods") or {},
     }
