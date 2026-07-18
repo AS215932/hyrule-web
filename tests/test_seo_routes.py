@@ -61,7 +61,7 @@ def test_llms_txt_constant_is_the_fallback_variant() -> None:
 def test_llms_txt_advertises_paid_network_diagnostics(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    """The operation section is generated only from enabled OpenAPI."""
+    """The operation section is generated only from paid OpenAPI annotations."""
     r = client.get("/llms.txt")
     assert r.status_code == 200
     text = r.text
@@ -98,6 +98,8 @@ def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:
     for path in (
         "https://hyrule.host/",
         "https://hyrule.host/services",
+        "https://hyrule.host/tools",
+        "https://hyrule.host/tools/dns-lookup-api",
         "https://hyrule.host/order",
         "https://hyrule.host/about",
         "https://hyrule.host/llms.txt",

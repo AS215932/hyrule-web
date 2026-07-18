@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Agent integration — Hyrule Cloud x402 and WebMCP{% endblock %}
-{% block meta_description %}Integrate Hyrule Cloud through enabled-only OpenAPI, direct x402 payments, or autonomous browser-native WebMCP tools.{% endblock %}
+{% block title %}Agent integration — Hyrule Cloud x402, MCP, and WebMCP{% endblock %}
+{% block meta_description %}Integrate Hyrule Cloud through complete OpenAPI documentation, a spend-controlled buyer MCP, official x402 clients, or browser-native WebMCP tools.{% endblock %}
 
 {% block content %}
 <section class="container">
@@ -8,8 +8,8 @@
         <div>
             <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">agents</span></div>
             <span class="panel-label">agent integration</span>
-            <h1>One catalog. Two agent paths.</h1>
-            <p class="hero-blurb">Headless agents call the public API directly. Browser agents can discover, quote, sign, pay, and consume diagnostics through the visible <a href="/toolbox">toolbox</a>. Both paths use the same enabled-only OpenAPI contract and live x402 challenge.</p>
+            <h1>One catalog. Three agent paths.</h1>
+            <p class="hero-blurb">Headless agents can use the spend-controlled buyer MCP or an official x402 client. Browser agents can discover, quote, sign, pay, and consume diagnostics through the visible <a href="/toolbox">toolbox</a>. Every path resolves the paid subset from the live manifest, validates requests against complete OpenAPI, and receives the same x402 challenge.</p>
             <div class="hero-actions">
                 <a href="/toolbox" class="btn btn-primary btn-lg">Open the toolbox</a>
                 <a href="https://cloud.hyrule.host/openapi.json" class="btn btn-secondary btn-lg">Read OpenAPI</a>
@@ -18,8 +18,9 @@
         <div class="hero-side-card">
             <span class="panel-label mb-2">discovery</span>
             <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-text-muted">
-                <li>+ <a href="https://cloud.hyrule.host/openapi.json">Enabled OpenAPI</a></li>
+                <li>+ <a href="https://cloud.hyrule.host/openapi.json">Complete OpenAPI</a></li>
                 <li>+ <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a></li>
+                <li>+ <a href="https://github.com/AS215932/hyrule-cloud/tree/main/packages/hyrule-cloud-mcp">Buyer MCP source</a></li>
                 <li>+ <a href="/llms.txt">llms.txt</a></li>
                 <li>+ <a href="/toolbox">WebMCP toolbox</a></li>
             </ul>
@@ -34,11 +35,11 @@
     </div>
     <div class="api-preview">
         <div class="api-side">
-            <h3>Headless golden path</h3>
+            <h3>Official-client golden path</h3>
             <div class="row"><span class="k">1 · discover</span><span><code>GET /openapi.json</code></span></div>
             <div class="row"><span class="k">2 · request</span><span><code>POST /v1/dns/lookup</code></span></div>
             <div class="row"><span class="k">3 · quote</span><span><code>402 Payment-Required</code></span></div>
-            <div class="row"><span class="k">4 · settle</span><span><code>Payment-Signature: eyJ…</code></span></div>
+            <div class="row"><span class="k">4 · settle</span><span>client enforces policy and sends <code>Payment-Signature</code></span></div>
             <div class="row"><span class="k">5 · consume</span><span><code>200 / 202 / binary</code></span></div>
         </div>
         <div class="api-code" data-nosnippet>
@@ -47,19 +48,31 @@
             <div>&nbsp;&nbsp;-H <span class="pstr">'content-type: application/json'</span> \</div>
             <div>&nbsp;&nbsp;-d <span class="pstr">'{"name":"example.com","type":"AAAA"}'</span></div>
             <br>
-            <div><span class="pcom"># sign accept.amount exactly, then replay</span></div>
-            <div>curl https://cloud.hyrule.host/v1/dns/lookup \</div>
-            <div>&nbsp;&nbsp;-H <span class="pstr">'Payment-Signature: eyJ…'</span> \</div>
-            <div>&nbsp;&nbsp;-H <span class="pstr">'content-type: application/json'</span> \</div>
-            <div>&nbsp;&nbsp;-d <span class="pstr">'{"name":"example.com","type":"AAAA"}'</span></div>
+            <div><span class="pcom"># curl stops at the quote; do not hand-build payment headers</span></div>
+            <div><span class="pcom"># use the Hyrule buyer MCP or an official x402 v2 client</span></div>
+            <div><span class="pcom"># to validate the origin/path, enforce budgets, sign, and retry</span></div>
         </div>
     </div>
 </section>
 
 <section class="container page-section">
     <div class="section-heading split">
-        <div class="heading-main"><span class="panel-label">b. browser agents</span><h2>WebMCP keeps the work in the page.</h2></div>
-        <div class="heading-side">When the browser supports WebMCP, the toolbox exposes a small set of state-aware tools. An agent can use the installed wallet or provide a payment payload signed by its own wallet. Hyrule adds no spending cap or confirmation step to agent calls.</div>
+        <div class="heading-main"><span class="panel-label">b. buyer MCP</span><h2>Give an agent tools, not a wallet prompt.</h2></div>
+        <div class="heading-side">The standalone Hyrule buyer MCP discovers the live manifest and exposes two tools: search the catalog, then call one allowed capability. The model never receives the private key.</div>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card"><span class="num">01</span><h3>Exact origin and path</h3><p>Only <code>https://cloud.hyrule.host</code> and paths resolved from the live manifest are payable.</p></div>
+        <div class="feature-card"><span class="num">02</span><h3>Atomic spend limits</h3><p>Per-payment and daily caps are enforced before signing, with a durable SQLite reservation ledger.</p></div>
+        <div class="feature-card"><span class="num">03</span><h3>Infrastructure deny-by-default</h3><p>VM and network operations require a separate exact capability allowlist and an explicit infrastructure switch.</p></div>
+        <div class="feature-card"><span class="num">04</span><h3>Operator-owned packaging</h3><p><a href="https://github.com/AS215932/hyrule-cloud/tree/main/packages/hyrule-cloud-mcp">Inspect the package and registry metadata</a>. Publication remains an operator action.</p></div>
+    </div>
+    <div class="cta mt-6"><span class="panel-label">Agent skills</span><h2>Install the routing context separately.</h2><p><code>npx skills add AS215932/hyrule-cloud</code> installs the umbrella Hyrule skill and lets an agent load focused diagnostic references progressively.</p></div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">c. browser agents</span><h2>WebMCP keeps the work in the page.</h2></div>
+        <div class="heading-side">When the browser supports WebMCP, the toolbox exposes a small set of state-aware tools. An agent can use the installed wallet or provide a payment payload signed by its own wallet. The browser or wallet must enforce its own confirmation and spend policy; the Hyrule endpoint cannot impose a client-side cap.</div>
     </div>
     <div class="figure">
         <table class="spec-table">
@@ -77,8 +90,8 @@
 
 <section class="container page-section">
     <div class="section-heading split">
-        <div class="heading-main"><span class="panel-label">c. enabled operations</span><h2>The API controls what appears here.</h2></div>
-        <div class="heading-side">{% if catalog_status == 'live' %}Fresh from enabled-only OpenAPI. Tagged diagnostics run in the toolbox; product operations hand off to their purpose-built flow.{% elif catalog_status == 'stale' %}The last known catalog is shown without authoritative prices. Toolbox execution remains disabled until discovery is fresh.{% else %}Live discovery is unavailable, so no endpoint list is guessed.{% endif %}</div>
+        <div class="heading-main"><span class="panel-label">d. enabled operations</span><h2>The API controls what appears here.</h2></div>
+        <div class="heading-side">{% if catalog_status == 'live' %}Fresh from payable annotations in complete OpenAPI. Tagged diagnostics run in the toolbox; product operations hand off to their purpose-built flow.{% elif catalog_status == 'stale' %}The last known catalog is shown without authoritative prices. Toolbox execution remains disabled until discovery is fresh.{% else %}Live discovery is unavailable, so no endpoint list is guessed.{% endif %}</div>
     </div>
     <div class="figure">
         <table class="spec-table">
@@ -100,7 +113,7 @@
 
 <section class="container page-section">
     <div class="section-heading split">
-        <div class="heading-main"><span class="panel-label">d. settlement rails</span><h2>Networks are live configuration too.</h2></div>
+        <div class="heading-main"><span class="panel-label">e. settlement rails</span><h2>Networks are live configuration too.</h2></div>
         <div class="heading-side">The wallet UI and agent tools accept only network and token contracts currently returned by <code>GET /v1/payments/networks</code>.</div>
     </div>
     <div class="feature-grid">

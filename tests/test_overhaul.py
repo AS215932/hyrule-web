@@ -38,7 +38,7 @@ def test_index_advertises_all_four_pillars(client: TestClient) -> None:
     # The four service groups, each linking into /services.
     for anchor in ("#compute", "#intel", "#domains", "#proxy"):
         assert f"/services{anchor}" in body
-    # Entry prices come from enabled-only OpenAPI (conftest).
+    # Entry prices come from paid annotations in complete OpenAPI (conftest).
     assert "$0.20/day" in body  # compute min
     assert "$0.001/req" in body  # intel min
     assert "priced by TLD" in body  # disabled x402 domain order is not invented
@@ -132,7 +132,7 @@ def test_services_price_tables_fail_closed_without_live_sources(
     # No hand-maintained endpoint or proxy-price mirror is substituted.
     assert "/v1/dns/lookup" not in body
     assert "/v1/bgp/lookup" not in body
-    assert "proxy is not currently confirmed by the enabled OpenAPI catalog" in body
+    assert "proxy is not currently confirmed by the paid OpenAPI annotations" in body
 
 
 def test_agents_page_documents_the_x402_contract(client: TestClient) -> None:

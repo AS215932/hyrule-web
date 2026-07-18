@@ -310,7 +310,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             )
         )
         # Legacy manifest fixture plus live proxy-route pricing. Public operation
-        # discovery now comes from the enabled-only OpenAPI fixture below.
+        # paid discovery now comes from annotations in the full OpenAPI fixture below.
         rx.get("/.well-known/x402.json").mock(
             return_value=httpx.Response(
                 200,
@@ -362,8 +362,23 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                 200,
                 json={
                     "openapi": "3.1.0",
-                    "info": {"title": "Hyrule enabled x402 API", "version": "test"},
+                    "info": {"title": "Hyrule Cloud API", "version": "test"},
                     "paths": {
+                        "/health": {
+                            "get": {
+                                "operationId": "health",
+                                "summary": "Health",
+                                "responses": {"200": {}},
+                            }
+                        },
+                        "/v1/auth/login": {
+                            "post": {
+                                "tags": ["auth"],
+                                "operationId": "login",
+                                "summary": "Login",
+                                "responses": {"200": {}},
+                            }
+                        },
                         "/v1/vm/create": {
                             "post": {
                                 "operationId": "create_vm",

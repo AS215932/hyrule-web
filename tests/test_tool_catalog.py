@@ -45,6 +45,21 @@ def test_normalize_openapi_resolves_schema_and_classifies_surfaces() -> None:
                     },
                 }
             },
+            "/v1/auth/login": {
+                "post": {
+                    "tags": ["auth"],
+                    "operationId": "login",
+                    "summary": "Login",
+                    "responses": {"200": {}},
+                }
+            },
+            "/health": {
+                "get": {
+                    "operationId": "health",
+                    "summary": "Health",
+                    "responses": {"200": {}},
+                }
+            },
         },
         "components": {
             "schemas": {
@@ -71,6 +86,8 @@ def test_normalize_openapi_resolves_schema_and_classifies_surfaces() -> None:
     assert vm["handoff_url"] == "/order"
     assert vm["tool_code"] == "VM"
     assert "dedicated order flow" in vm["catalog_blurb"]
+    assert "login" not in tools
+    assert "health" not in tools
 
 
 def test_unknown_enabled_operation_gets_safe_catalog_copy() -> None:
@@ -83,6 +100,7 @@ def test_unknown_enabled_operation_gets_safe_catalog_copy() -> None:
                         "operationId": "future_check",
                         "summary": "Future check",
                         "responses": {},
+                        "x-payment-info": {"price": {"mode": "fixed", "amount": "0.01"}},
                     }
                 }
             }
@@ -138,6 +156,7 @@ def test_toolbox_renders_enabled_openapi_and_webmcp_entry(client: TestClient) ->
     assert 'class="tool-drawer"' in response.text
     assert 'class="toolbox-grid"' not in response.text
     assert "dns_lookup" in response.text
+    assert '"operation_id": "login"' not in response.text
     assert "toolbox-" in response.text
     assert 'type="module"' in response.text
     assert 'href="/toolbox"' in client.get("/").text
