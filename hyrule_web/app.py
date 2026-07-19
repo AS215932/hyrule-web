@@ -409,7 +409,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "terms": {
         "title": "Terms",
         "description": "Terms for Hyrule Cloud compute, domain, and DNS services.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Service",
@@ -457,7 +457,8 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                 "Payments",
                 [
                     _copy(
-                        "Crypto is accepted only as payment for hosting. Hyrule Cloud",
+                        "Crypto is accepted only as payment for prepaid Hyrule Cloud",
+                        "services, including hosting and domain registration. Hyrule Cloud",
                         "does not custody, exchange, broker, transmit, or administer",
                         "crypto-assets for customers.",
                     ),
@@ -474,7 +475,13 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "another registrar.",
                     ),
                     _copy(
-                        "Registration and renewal are separate prepaid transactions. Registrar",
+                        "For wallet-first USDC registration, the verified payer wallet creates",
+                        "or identifies the customer account that controls those contractual",
+                        "rights. The management session is issued only after payment settles.",
+                    ),
+                    _copy(
+                        "Initial registration covers one year. Registration and renewal are",
+                        "separate prepaid transactions. Registrar",
                         "auto-renew is disabled; you must purchase a renewal before expiry.",
                         "Availability and provider cost are checked again after",
                         "payment settlement.",
@@ -491,17 +498,19 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "privacy": {
         "title": "Privacy",
         "description": "Privacy details for Hyrule Cloud orders.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Ordering Model",
                 [
                     _copy(
                         "Hyrule Cloud uses a no-KYC ordering model and does not",
-                        "require identity verification for hosting orders.",
+                        "require identity verification for prepaid service orders.",
                     ),
                     _copy(
-                        "Anonymous checkout returns a one-time management token.",
+                        "Anonymous VM checkout returns a one-time management token.",
+                        "Wallet-first domain checkout maps the verified payer wallet to",
+                        "the controlling account after payment settles.",
                         "Account signup uses a random handle and a password you set.",
                     ),
                 ],
@@ -614,7 +623,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "legal": {
         "title": "Legal",
         "description": "Legal contact and service posture for Hyrule Cloud.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Operator And Jurisdiction",
@@ -633,7 +642,8 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                 "Crypto Payment Posture",
                 [
                     _copy(
-                        "Crypto payment support is limited to paying for hosting.",
+                        "Crypto payment support is limited to paying for prepaid Hyrule Cloud",
+                        "services, including hosting and domain registration.",
                         "Hyrule Cloud does not provide customer wallets, exchange services,",
                         "brokerage, transmission, or custody.",
                     ),
@@ -1150,6 +1160,18 @@ async def domain_checkout(request: Request, quote_id: str) -> Response:
         )
     me_response = await _api_request(request, "/v1/me")
     authenticated = bool(me_response is not None and me_response.status_code == 200)
+    sales_response = await _api_request(
+        request, "/v1/domains/sales/status", forward_cookie=False
+    )
+    sales_status: dict[str, Any] = {}
+    if sales_response is not None and sales_response.status_code == 200:
+        try:
+            decoded_sales_status = sales_response.json()
+        except ValueError:
+            decoded_sales_status = {}
+        if isinstance(decoded_sales_status, dict):
+            sales_status = decoded_sales_status
+    marketplace_enabled = sales_status.get("enabled") is True
     catalog = await _refresh_networks(request)
     return _render(
         request,
@@ -1162,6 +1184,7 @@ async def domain_checkout(request: Request, quote_id: str) -> Response:
             if isinstance(network, dict) and network.get("family") == "evm"
         ],
         native=_catalog_native(catalog),
+        marketplace_enabled=marketplace_enabled,
         error=None,
     )
 
@@ -2213,6 +2236,14 @@ async def proxy_api(request: Request, path: str) -> Response:
             "cookie",
         ):
             forward_headers[key] = request.headers[key]
+
+    # Preserve the browser address across the same-origin web proxy without
+    # forwarding a user-supplied X-Forwarded-For value. The backend uses it for
+    # coarse abuse controls when both services sit behind the trusted local
+    # reverse proxy.
+    if request.client is not None:
+        forward_headers["X-Forwarded-For"] = request.client.host
+    forward_headers["X-Forwarded-Proto"] = request.url.scheme
 
     body = await request.body()
 

@@ -93,19 +93,62 @@ def test_domain_quote_redirects_to_account_checkout(
     }
 
 
-def test_domain_checkout_requires_account_before_payment(
+def test_domain_registration_checkout_allows_anonymous_usdc(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
     mocked_api.get("/v1/domains/quotes/dq_example123456789").mock(
         return_value=httpx.Response(200, json=quote())
     )
     mocked_api.get("/v1/me").mock(return_value=httpx.Response(401))
+    mocked_api.get("/v1/domains/sales/status").mock(
+        return_value=httpx.Response(200, json={"enabled": True})
+    )
     response = client.get("/domains/checkout/dq_example123456789")
     assert response.status_code == 200
-    assert "Log in or create an account before paying" in response.text
-    assert "Pay and place order" not in response.text
+    assert "The wallet that pays with USDC becomes the domain owner" in response.text
+    assert "Pay and place order" in response.text
+    assert 'value="usdc"' in response.text
+    assert 'value="btc"' not in response.text
+    assert 'value="xmr"' not in response.text
     assert "/login?next=/domains/checkout/dq_example123456789" in response.text
+
+
+def test_domain_registration_checkout_falls_back_to_account_when_public_sales_are_disabled(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/domains/quotes/dq_example123456789").mock(
+        return_value=httpx.Response(200, json=quote())
+    )
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(401))
+    mocked_api.get("/v1/domains/sales/status").mock(
+        return_value=httpx.Response(200, json={"enabled": False})
+    )
+
+    response = client.get("/domains/checkout/dq_example123456789")
+
+    assert response.status_code == 200
+    assert "Wallet-first checkout is temporarily unavailable" in response.text
+    assert "Pay and place order" not in response.text
     assert "/signup?next=/domains/checkout/dq_example123456789" in response.text
+
+
+def test_domain_renewal_checkout_still_requires_account(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    renewal = {**quote(), "action": "renew"}
+    mocked_api.get("/v1/domains/quotes/dq_example123456789").mock(
+        return_value=httpx.Response(200, json=renewal)
+    )
+    mocked_api.get("/v1/me").mock(return_value=httpx.Response(401))
+    mocked_api.get("/v1/domains/sales/status").mock(
+        return_value=httpx.Response(200, json={"enabled": True})
+    )
+
+    response = client.get("/domains/checkout/dq_example123456789")
+
+    assert response.status_code == 200
+    assert "Renewals belong to an existing account" in response.text
+    assert "Pay and place order" not in response.text
 
 
 def test_domain_checkout_excludes_non_evm_payment_networks(
@@ -115,6 +158,9 @@ def test_domain_checkout_excludes_non_evm_payment_networks(
         return_value=httpx.Response(200, json=quote())
     )
     mocked_api.get("/v1/me").mock(return_value=httpx.Response(200, json={"account_id": "acct"}))
+    mocked_api.get("/v1/domains/sales/status").mock(
+        return_value=httpx.Response(200, json={"enabled": True})
+    )
     mocked_api.get("/v1/payments/networks").mock(
         return_value=httpx.Response(
             200,
