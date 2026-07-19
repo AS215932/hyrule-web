@@ -33,6 +33,7 @@ from markupsafe import Markup
 
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
 from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
+from .journeys import CAMPAIGN_LAUNCH, JOURNEYS, JOURNEYS_BY_SLUG
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
@@ -249,6 +250,10 @@ _TOOL_CATALOG_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
+# Agent Mail is launch-gated. A stale success may be displayed as last-known
+# copy, but it can never keep the public availability badge green.
+_MAIL_PRODUCTS_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_MAIL_PRODUCTS_TTL_SECONDS = 60
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -408,8 +413,8 @@ def _normalise_custom_domain(value: str) -> str | None:
 LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "terms": {
         "title": "Terms",
-        "description": "Terms for Hyrule Cloud compute, domain, and DNS services.",
-        "updated": "2026-07-15",
+        "description": "Terms for Hyrule Cloud compute, domain, DNS, and Agent Mail services.",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Service",
@@ -486,12 +491,35 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     ),
                 ],
             ),
+            (
+                "Agent Mail",
+                [
+                    _copy(
+                        "Agent Mail is an API-only conversational email service. It does not",
+                        "provide public SMTP submission, IMAP, POP, or webmail. Each outbound",
+                        "message has one recipient; CC, BCC, outbound attachments, marketing,",
+                        "and bulk use are prohibited.",
+                    ),
+                    _copy(
+                        "Activation lasts 30 days and does not auto-renew. Outbound access",
+                        "stops at expiry. Inbound delivery and reads remain available for a",
+                        "seven-day grace period, after which the mailbox and Agent Mail-owned",
+                        "DNS records are deleted. A purchased domain remains registered.",
+                    ),
+                    _copy(
+                        "The launch limits are five new recipients and twenty outbound messages",
+                        "per mailbox per UTC day. Complaints, malware signals, or material bounce",
+                        "rates may suspend outbound access immediately. Local acceptance does not",
+                        "guarantee remote delivery or inbox placement.",
+                    ),
+                ],
+            ),
         ],
     },
     "privacy": {
         "title": "Privacy",
         "description": "Privacy details for Hyrule Cloud orders.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Ordering Model",
@@ -523,6 +551,12 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "reconcile payment. For abuse rate-limiting we store a sha256",
                         "hash of your IPv6 /64 prefix with a private pepper.",
                     ),
+                    _copy(
+                        "For Agent Mail we store the mailbox address, encrypted backend",
+                        "credential, lifecycle and payment state, recipient/send counters,",
+                        "delivery events, webhook configuration, message index, message bodies,",
+                        "and inbound attachments needed to provide the service.",
+                    ),
                 ],
             ),
             (
@@ -535,6 +569,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     _copy(
                         "Network and host telemetry is used for reliability, abuse",
                         "response, and capacity planning.",
+                    ),
+                    _copy(
+                        "Agent Mail necessarily processes message content and attachments for",
+                        "delivery, API retrieval, malware controls, and abuse response. This is",
+                        "separate from customer VM contents, which are not proactively inspected.",
                     ),
                 ],
             ),
@@ -549,6 +588,12 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "Abuse reports may be retained with evidence, action taken,",
                         "customer notice, and appeal result.",
                     ),
+                    _copy(
+                        "Agent Mail message bodies and attachments use a 30-day rolling",
+                        "retention window. After activation expiry they remain readable during",
+                        "the seven-day grace period and are then deleted. Payment, security,",
+                        "delivery, and abuse records may be retained longer where necessary.",
+                    ),
                 ],
             ),
         ],
@@ -556,7 +601,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "abuse": {
         "title": "Abuse",
         "description": "Report abuse involving Hyrule Cloud infrastructure.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Report Channels",
@@ -583,6 +628,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     _copy(
                         "We do not require broad personal data to act on precise,",
                         "technically actionable reports.",
+                    ),
+                    _copy(
+                        "For Agent Mail, a recipient complaint, detected malware, or sustained",
+                        "hard-bounce pattern can suspend outbound API access before manual review.",
+                        "Reads may remain available unless preserving access would create risk.",
                     ),
                 ],
             ),
@@ -614,7 +664,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "legal": {
         "title": "Legal",
         "description": "Legal contact and service posture for Hyrule Cloud.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Operator And Jurisdiction",
@@ -650,6 +700,18 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "Every VM may receive a deploy.hyrule.host subdomain. For purchased",
                         "domains Hyrule remains the legal registrant and grants the customer",
                         "the contractual rights to use, manage, renew, and transfer the name.",
+                    ),
+                ],
+            ),
+            (
+                "Agent Mail",
+                [
+                    _copy(
+                        "Agent Mail is operated as a communications hosting service on dedicated",
+                        "mail infrastructure separate from Hyrule's corporate email. Public launch",
+                        "requires recorded legal, privacy, and abuse-policy approval in",
+                        "addition to",
+                        "technical readiness and a controlled production canary.",
                     ),
                 ],
             ),
@@ -805,6 +867,28 @@ async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
     return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
 
 
+async def _refresh_mail_products(request: Request) -> dict[str, Any]:
+    now = time.time()
+    cached = _MAIL_PRODUCTS_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_MAIL_PRODUCTS_CACHE["expires_at"]):
+        return {**cached, "catalog_status": "live"}
+    data = await _fetch_api(request, "/v1/mail/products")
+    if isinstance(data, dict) and isinstance(data.get("products"), list):
+        _MAIL_PRODUCTS_CACHE.update(
+            value=data,
+            expires_at=now + _MAIL_PRODUCTS_TTL_SECONDS,
+        )
+        return {**data, "catalog_status": "live"}
+    if isinstance(cached, dict):
+        return {**cached, "available": False, "catalog_status": "stale"}
+    return {
+        "available": False,
+        "products": [],
+        "terms_version": None,
+        "catalog_status": "unavailable",
+    }
+
+
 def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
     """Map GET /v1/products/vms onto the template tier shape. Malformed rows
     are skipped (pr-agent #32: one bad row must not discard the whole live
@@ -837,10 +921,7 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
         return VM_CUSTOMIZATION
     try:
         contract: dict[str, dict[str, Any]] = {
-            "minimum": {
-                key: int(value["minimum"][key])
-                for key in ("vcpu", "ram_mb", "disk_gb")
-            },
+            "minimum": {key: int(value["minimum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "increments": {
                 key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
@@ -987,6 +1068,7 @@ async def page_index(request: Request) -> Response:
         vm_tiers=_live_vm_tiers(await _refresh_products(request)),
         x402_resources=catalog_resources(tool_catalog),
         catalog_status=tool_catalog["status"],
+        mail=await _refresh_mail_products(request),
     )
 
 
@@ -1008,7 +1090,84 @@ async def page_services(request: Request) -> Response:
         catalog_status=tool_catalog["status"],
         proxy_enabled=proxy_enabled,
         proxy_prices=proxy_prices,
+        mail=await _refresh_mail_products(request),
     )
+
+
+@app.get("/agent-mail", response_class=HTMLResponse)
+async def page_agent_mail(request: Request) -> Response:
+    """API-only agent identity offer, availability sourced from live backend."""
+    await _refresh_runtime(request)
+    products = await _refresh_mail_products(request)
+    return _render(
+        request,
+        "agent_mail.html",
+        mail=products,
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+@app.get("/blog", response_class=HTMLResponse)
+async def page_blog(request: Request) -> Response:
+    await _refresh_runtime(request)
+    return _render(
+        request,
+        "blog.html",
+        journeys=JOURNEYS,
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+async def _render_journey(request: Request, slug: str) -> Response:
+    journey = JOURNEYS_BY_SLUG.get(slug)
+    if journey is None:
+        raise HTTPException(status_code=404)
+    await _refresh_runtime(request)
+    mail = (
+        await _refresh_mail_products(request)
+        if slug == "agent-email-domain-deliverability"
+        else None
+    )
+    return _render(
+        request,
+        "journey.html",
+        journey=journey,
+        journeys=JOURNEYS,
+        mail=mail,
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+@app.get(
+    "/blog/explain-broken-website-tls",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_web(request: Request) -> Response:
+    return await _render_journey(request, "explain-broken-website-tls")
+
+
+@app.get(
+    "/blog/agent-email-domain-deliverability",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_mail(request: Request) -> Response:
+    return await _render_journey(request, "agent-email-domain-deliverability")
+
+
+@app.get(
+    "/blog/deploy-fresh-vm",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_vm(request: Request) -> Response:
+    return await _render_journey(request, "deploy-fresh-vm")
+
+
+@app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def page_journey(request: Request, slug: str) -> Response:
+    return await _render_journey(request, slug)
 
 
 @app.get("/agents", response_class=HTMLResponse)
@@ -1249,9 +1408,7 @@ async def page_order_profile(
     vm_tiers = _live_vm_tiers(products)
     valid_profile = profile in vm_tiers
     selected_profile = (
-        profile
-        if valid_profile
-        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+        profile if valid_profile else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
     )
     return await _render_order_form(
         request,
@@ -2174,11 +2331,13 @@ async def llms(request: Request) -> str:
     tool_catalog = await _refresh_tool_catalog(request)
     network_fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
     catalog_fresh = tool_catalog.get("status") == "live"
+    mail = await _refresh_mail_products(request)
     return build_llms_txt(
         networks,
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
         tools=tool_catalog.get("tools"),
+        mail=mail if mail.get("catalog_status") == "live" else None,
     )
 
 

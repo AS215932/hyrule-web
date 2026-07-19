@@ -71,6 +71,10 @@ _LLMS_TXT_PREAMBLE = """\
 - [Order a VM](https://hyrule.host/order): server-rendered durable quote flow.
 - [Search domains](https://hyrule.host/domains): live eligibility, registration,
   renewal pricing, managed DNS, DNSSEC, and transfer policy.
+- [Agent Mail](https://hyrule.host/agent-mail): launch-gated API-only email
+  identities, controlled conversational sending, inbound API, and webhooks.
+- [Customer journeys](https://hyrule.host/blog): exact prompts, runnable
+  discovery commands, proof contracts, budgets, and agent-client variants.
 - [Service status](https://hyrule.host/status): current customer-impacting
   health for API checkout, compute, intelligence, domains/DNS, and proxy.
 - [About & policy](https://hyrule.host/about): mission, operating principles,
@@ -212,11 +216,32 @@ def _render_payment_section(
     return "\n".join(lines)
 
 
+def _render_mail_section(mail: dict[str, Any] | None) -> str:
+    """Advertise the paid Agent Mail API only from a fresh, ready catalog."""
+    if not isinstance(mail, dict) or not mail.get("available"):
+        return ""
+    products = mail.get("products")
+    if not isinstance(products, list) or not any(
+        isinstance(product, dict) and product.get("available") for product in products
+    ):
+        return ""
+    terms = str(mail.get("terms_version") or "query the live catalog")
+    return (
+        "## Agent Mail (live)\n\n"
+        "- Product catalog: https://cloud.hyrule.host/v1/mail/products\n"
+        "- Pricing: https://cloud.hyrule.host/v1/mail/pricing\n"
+        "- Capabilities: https://cloud.hyrule.host/v1/mail/capabilities\n"
+        "- API-only submission and retrieval; no public SMTP submission, IMAP, or webmail.\n"
+        f"- Current terms version: `{terms}`. Confirm the live quote before payment.\n"
+    )
+
+
 def build_llms_txt(
     networks: Iterable[dict[str, Any]] | None = None,
     native: Iterable[str] | None = None,
     diagnostics_live: bool = True,
     tools: Iterable[dict[str, Any]] | None = None,
+    mail: dict[str, Any] | None = None,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
@@ -244,6 +269,9 @@ def build_llms_txt(
         section = _render_tools_section(tools)
         if section:
             text += "\n" + section
+    mail_section = _render_mail_section(mail)
+    if mail_section:
+        text += "\n" + mail_section
     return text
 
 
