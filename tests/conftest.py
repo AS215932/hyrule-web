@@ -310,47 +310,61 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             )
         )
         # Legacy manifest fixture plus live proxy-route pricing. Public operation
-        # discovery now comes from the enabled-only OpenAPI fixture below.
+        # paid discovery now comes from annotations in the full OpenAPI fixture below.
         rx.get("/.well-known/x402.json").mock(
             return_value=httpx.Response(
                 200,
                 json={
+                    "x402Version": 2,
                     "name": "Hyrule Cloud",
                     "resources": [
                         {
+                            "id": "hyrule.vm.create",
                             "path": "/v1/vm/create",
                             "method": "POST",
                             "description": "Provision a bare VM with SSH access",
                             "minPrice": "0.20",
                         },
                         {
+                            "id": "hyrule.domains.orders",
                             "path": "/v1/domains/orders",
                             "method": "POST",
                             "description": "Place a domain registration or renewal",
                             "minPrice": "6.00",
                         },
                         {
+                            "id": "hyrule.network.request",
                             "path": "/v1/network/request",
                             "method": "POST",
                             "description": "Proxied network request",
                             "minPrice": "0.01",
                         },
                         {
+                            "id": "hyrule.dns.lookup",
                             "path": "/v1/dns/lookup",
                             "method": "POST",
                             "description": "Paid DNS lookup",
                             "minPrice": "0.001",
                         },
                         {
+                            "id": "hyrule.bgp.lookup",
                             "path": "/v1/bgp/lookup",
                             "method": "POST",
                             "description": "Paid BGP lookup",
                             "minPrice": "0.005",
                         },
                         {
+                            "id": "hyrule.web.tls.deep",
                             "path": "/v1/web/tls/deep",
                             "method": "POST",
                             "description": "Deep TLS scan",
+                            "minPrice": "0.10",
+                        },
+                        {
+                            "id": "hyrule.bgp.snapshots.router.snapshot_id.download",
+                            "path": "/v1/bgp/snapshots/router/{snapshot_id}/download",
+                            "method": "GET",
+                            "description": "Download BGP snapshot",
                             "minPrice": "0.10",
                         },
                     ],
@@ -362,11 +376,27 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                 200,
                 json={
                     "openapi": "3.1.0",
-                    "info": {"title": "Hyrule enabled x402 API", "version": "test"},
+                    "info": {"title": "Hyrule Cloud API", "version": "test"},
                     "paths": {
+                        "/health": {
+                            "get": {
+                                "operationId": "health",
+                                "summary": "Health",
+                                "responses": {"200": {}},
+                            }
+                        },
+                        "/v1/auth/login": {
+                            "post": {
+                                "tags": ["auth"],
+                                "operationId": "login",
+                                "summary": "Login",
+                                "responses": {"200": {}},
+                            }
+                        },
                         "/v1/vm/create": {
                             "post": {
                                 "operationId": "create_vm",
+                                "x-hyrule-capability-id": "hyrule.vm.create",
                                 "summary": "Provision a bare VM",
                                 "requestBody": {
                                     "content": {
@@ -395,6 +425,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                         "/v1/network/request": {
                             "post": {
                                 "operationId": "network_request",
+                                "x-hyrule-capability-id": "hyrule.network.request",
                                 "summary": "Proxied network request",
                                 "requestBody": {
                                     "content": {
@@ -425,6 +456,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "post": {
                                 "tags": ["DNS lookup"],
                                 "operationId": "dns_lookup",
+                                "x-hyrule-capability-id": "hyrule.dns.lookup",
                                 "summary": "Paid DNS lookup",
                                 "requestBody": {
                                     "content": {
@@ -452,6 +484,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "post": {
                                 "tags": ["BGP intelligence"],
                                 "operationId": "bgp_lookup",
+                                "x-hyrule-capability-id": "hyrule.bgp.lookup",
                                 "summary": "Paid BGP lookup",
                                 "requestBody": {
                                     "content": {
@@ -479,6 +512,7 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "post": {
                                 "tags": ["Web reachability"],
                                 "operationId": "web_tls_deep",
+                                "x-hyrule-capability-id": "hyrule.web.tls.deep",
                                 "summary": "Deep TLS scan",
                                 "requestBody": {
                                     "content": {
@@ -504,6 +538,9 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "get": {
                                 "tags": ["BGP intelligence"],
                                 "operationId": "bgp_snapshot_download",
+                                "x-hyrule-capability-id": (
+                                    "hyrule.bgp.snapshots.router.snapshot_id.download"
+                                ),
                                 "summary": "Download BGP snapshot",
                                 "parameters": [
                                     {

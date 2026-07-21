@@ -138,7 +138,7 @@
                     <td class="price">{{ r.price_display }}{% if r.min_price %}<span class="unit">/req</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
-                {% if not intel_rows %}<tr><td colspan="3">No network-intelligence operation is currently confirmed by the enabled OpenAPI catalog.</td></tr>{% endif %}
+                {% if not intel_rows %}<tr><td colspan="3">No network-intelligence operation is currently confirmed by the paid OpenAPI annotations.</td></tr>{% endif %}
             </tbody>
         </table>
         <span class="figcap"><b>Table 2.</b> Enabled network-intelligence endpoints — discovery prices live from OpenAPI</span>
@@ -186,7 +186,7 @@
                     <td class="price">{{ price }}</td>
                 </tr>
                 {% endfor %}
-                {% if not proxy_prices %}<tr><td colspan="3">{% if proxy_enabled %}Live proxy pricing is temporarily unavailable. Query <code>GET /v1/pricing</code> before purchase.{% else %}The proxy is not currently confirmed by the enabled OpenAPI catalog.{% endif %}</td></tr>{% endif %}
+                {% if not proxy_prices %}<tr><td colspan="3">{% if proxy_enabled %}Live proxy pricing is temporarily unavailable. Query <code>GET /v1/pricing</code> before purchase.{% else %}The proxy is not currently confirmed by the paid OpenAPI annotations.{% endif %}</td></tr>{% endif %}
             </tbody>
         </table>
         <span class="figcap"><b>Table 4.</b> Proxy routes — prices live from <code>GET /v1/pricing</code></span>

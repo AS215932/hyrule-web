@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Network diagnostic APIs for AI agents — Hyrule Cloud{% endblock %}
+{% block meta_description %}Explore Hyrule Cloud DNS, BGP, RDAP, WHOIS, web, TLS, mail, port, NAT, IP, and SIP APIs by the problem an agent needs to solve.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">{{ structured_data | tojson }}</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">tools</span></div>
+            <span class="panel-label">Network evidence directory</span>
+            <h1>Start with the question, then choose the API.</h1>
+            <p class="hero-blurb">Each page maps a real troubleshooting intent to one stable Hyrule capability, its evidence contract, and the live x402 execution surface. The complete API—including free and authenticated operations—remains documented in OpenAPI.</p>
+        </div>
+        <aside class="hero-side-card">
+            <span class="panel-label">Live contract</span>
+            <p>The paid subset is read from current <code>x-payment-info</code> annotations. Catalog state: <strong>{{ catalog_status }}</strong>.</p>
+            <a class="btn btn-primary btn-block" href="/toolbox">Run a live diagnostic</a>
+            <a class="btn btn-secondary btn-block" href="https://cloud.hyrule.host/openapi.json">Read complete OpenAPI</a>
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">Intent pages</span><h2>Public network questions Hyrule can investigate.</h2></div>
+        <div class="heading-side">Availability and prices are never copied into these pages. A green live label appears only when the capability is present in the current paid contract.</div>
+    </div>
+    <div class="feature-grid">
+        {% for entry in entries %}
+        <article class="feature-card">
+            <span class="num">{{ "%02d"|format(loop.index) }}</span>
+            <span class="panel-label">{{ entry.page.category }} · {{ "live" if entry.live else "check live catalog" }}</span>
+            <h3><a href="{{ entry.page.url }}">{{ entry.page.headline }}</a></h3>
+            <p>{{ entry.page.summary }}</p>
+            <p><code>{{ entry.page.capability_id }}</code>{% if entry.price_display %} · {{ entry.price_display }}{% endif %}</p>
+            <a href="{{ entry.page.url }}">Match intent to evidence →</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">Machine discovery</span>
+        <h2>Use stable capability IDs, not copied endpoint lists.</h2>
+        <p>Read <code>/.well-known/x402.json</code> for the live paid catalog, then use <code>/openapi.json</code> for the complete request and response contract.</p>
+        <div class="cta-actions">
+            <a class="btn btn-primary btn-lg" href="https://cloud.hyrule.host/.well-known/x402.json">Open x402 manifest</a>
+            <a class="btn btn-secondary btn-lg" href="/agents">Agent integration guide</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

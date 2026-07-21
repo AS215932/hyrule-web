@@ -34,6 +34,7 @@ from markupsafe import Markup
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
 from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
+from .tool_pages import TOOL_PAGES, TOOL_PAGES_BY_SLUG, ToolPage
 
 # Newline-delimited JSON to stdout per AS215932's application logging
 # contract (hyrule-infra/docs/application-logging.md). systemd-journald
@@ -777,28 +778,101 @@ async def _refresh_products(request: Request) -> dict[str, Any] | None:
     )
 
 
+def _manifest_resources(document: dict[str, Any] | None) -> list[dict[str, str]] | None:
+    if document is None or str(document.get("x402Version")) != "2":
+        return None
+    resources = document.get("resources")
+    if not isinstance(resources, list):
+        return None
+    normalized: list[dict[str, str]] = []
+    for resource in resources:
+        if not isinstance(resource, dict):
+            return None
+        capability_id = resource.get("id")
+        method = resource.get("method")
+        path = resource.get("path")
+        if (
+            not isinstance(capability_id, str)
+            or not capability_id
+            or not isinstance(method, str)
+            or not method
+            or not isinstance(path, str)
+            or not path
+        ):
+            return None
+        normalized.append({"id": capability_id, "method": method.upper(), "path": path})
+    return normalized
+
+
 async def _refresh_tool_catalog(request: Request) -> dict[str, Any]:
-    """Fetch and normalize enabled OpenAPI operations with fail-closed freshness."""
+    """Intersect the complete OpenAPI contract with the live paid manifest."""
     now = time.time()
     cached = _TOOL_CATALOG_CACHE.get("value")
     if isinstance(cached, dict) and now < float(_TOOL_CATALOG_CACHE["expires_at"]):
         return {**cached, "status": "live"}
 
     document = await _fetch_api(request, "/openapi.json")
-    if document is not None:
+    manifest = await _fetch_api(request, "/.well-known/x402.json")
+    manifest_resources = _manifest_resources(manifest)
+    if document is not None and manifest_resources is not None:
         normalized = normalize_openapi(document)
         tools = normalized.get("tools")
         if isinstance(document.get("paths"), dict) and isinstance(tools, list):
+            enabled = {
+                (resource["id"], resource["method"], resource["path"])
+                for resource in manifest_resources
+            }
+            normalized["tools"] = [
+                tool
+                for tool in tools
+                if isinstance(tool, dict)
+                and (
+                    str(tool.get("capability_id")),
+                    str(tool.get("method")),
+                    str(tool.get("path")),
+                )
+                in enabled
+            ]
+            normalized["manifest_resources"] = manifest_resources
             normalized["fetched_at"] = now
             _TOOL_CATALOG_CACHE["value"] = normalized
             _TOOL_CATALOG_CACHE["expires_at"] = now + _TOOL_CATALOG_TTL_SECONDS
             _TOOL_CATALOG_CACHE["successful_at"] = now
             return {**normalized, "status": "live"}
-        log.warning("x402_openapi_invalid")
+        log.warning("x402_discovery_invalid")
 
     if isinstance(cached, dict):
         return {**cached, "status": "stale"}
     return {"status": "unavailable", "fetched_at": None, "tools": []}
+
+
+def _tool_page_entry(page: ToolPage, snapshot: dict[str, Any]) -> dict[str, Any]:
+    tools = snapshot.get("tools")
+    match = next(
+        (
+            tool
+            for tool in tools or []
+            if isinstance(tool, dict)
+            and str(tool.get("method")) == page.method
+            and str(tool.get("path")) == page.path
+            and str(tool.get("capability_id")) == page.capability_id
+        ),
+        None,
+    )
+    manifest_match = any(
+        isinstance(resource, dict)
+        and resource.get("id") == page.capability_id
+        and resource.get("method") == page.method
+        and resource.get("path") == page.path
+        for resource in snapshot.get("manifest_resources") or []
+    )
+    live = snapshot.get("status") == "live" and match is not None and manifest_match
+    return {
+        "page": page,
+        "tool": match,
+        "live": live,
+        "price_display": str(match.get("price_display")) if match is not None and live else None,
+    }
 
 
 async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
@@ -837,10 +911,7 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
         return VM_CUSTOMIZATION
     try:
         contract: dict[str, dict[str, Any]] = {
-            "minimum": {
-                key: int(value["minimum"][key])
-                for key in ("vcpu", "ram_mb", "disk_gb")
-            },
+            "minimum": {key: int(value["minimum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "increments": {
                 key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
@@ -1027,9 +1098,113 @@ async def page_agents(request: Request) -> Response:
     )
 
 
+@app.get("/tools", response_class=HTMLResponse)
+async def page_tools(request: Request) -> Response:
+    """Search-indexable intent directory backed by live x402 annotations."""
+    tool_catalog = await _refresh_tool_catalog(request)
+    entries = [_tool_page_entry(page, tool_catalog) for page in TOOL_PAGES]
+    structured_data = {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": "Hyrule Cloud network tools for AI agents",
+        "url": "https://hyrule.host/tools",
+        "description": (
+            "Intent-led network diagnostic APIs with live x402 availability and "
+            "machine-readable contracts."
+        ),
+        "mainEntity": {
+            "@type": "ItemList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": position,
+                    "name": entry["page"].headline,
+                    "url": entry["page"].absolute_url,
+                }
+                for position, entry in enumerate(entries, start=1)
+            ],
+        },
+    }
+    return _render(
+        request,
+        "tools_index.html",
+        entries=entries,
+        catalog_status=tool_catalog["status"],
+        structured_data=structured_data,
+    )
+
+
+@app.get("/tools/{slug}", response_class=HTMLResponse)
+async def page_tool_detail(request: Request, slug: str) -> Response:
+    """Render one unique buyer-intent page and its current API readiness."""
+    page = TOOL_PAGES_BY_SLUG.get(slug)
+    if page is None:
+        raise HTTPException(status_code=404)
+    tool_catalog = await _refresh_tool_catalog(request)
+    entry = _tool_page_entry(page, tool_catalog)
+    related = [TOOL_PAGES_BY_SLUG[value] for value in page.related]
+    structured_data = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebPage",
+                "@id": f"{page.absolute_url}#page",
+                "url": page.absolute_url,
+                "name": page.title,
+                "description": page.meta_description,
+                "isPartOf": {"@id": "https://hyrule.host/#website"},
+                "mainEntity": {"@id": f"{page.absolute_url}#service"},
+            },
+            {
+                "@type": "Service",
+                "@id": f"{page.absolute_url}#service",
+                "name": page.headline,
+                "description": page.summary,
+                "serviceType": f"{page.category} network diagnostics API",
+                "provider": {"@id": "https://hyrule.host/#organization"},
+                "url": page.absolute_url,
+                "subjectOf": "https://cloud.hyrule.host/openapi.json",
+                "termsOfService": "https://hyrule.host/terms",
+            },
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "Home",
+                        "item": "https://hyrule.host/",
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Tools",
+                        "item": "https://hyrule.host/tools",
+                    },
+                    {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": page.headline,
+                        "item": page.absolute_url,
+                    },
+                ],
+            },
+        ],
+    }
+    return _render(
+        request,
+        "tool_detail.html",
+        page=page,
+        entry=entry,
+        related=related,
+        catalog_status=tool_catalog["status"],
+        structured_data=structured_data,
+    )
+
+
 @app.get("/toolbox", response_class=HTMLResponse)
 async def page_toolbox(request: Request) -> Response:
-    """Human and browser-agent x402 diagnostics driven by enabled OpenAPI."""
+    """Human and browser-agent x402 diagnostics driven by paid OpenAPI annotations."""
     network_catalog = await _refresh_networks(request)
     networks = _catalog_networks(network_catalog)
     tool_catalog = await _refresh_tool_catalog(request)
@@ -1249,9 +1424,7 @@ async def page_order_profile(
     vm_tiers = _live_vm_tiers(products)
     valid_profile = profile in vm_tiers
     selected_profile = (
-        profile
-        if valid_profile
-        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+        profile if valid_profile else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
     )
     return await _render_order_form(
         request,

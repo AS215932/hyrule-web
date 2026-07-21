@@ -16,6 +16,8 @@ from xml.sax.saxutils import escape
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
+from .tool_pages import TOOL_PAGES
+
 SITE_BASE_URL = "https://hyrule.host"
 
 ROBOTS_TXT = """\
@@ -63,9 +65,11 @@ _LLMS_TXT_PREAMBLE = """\
 
 - [Service catalog](https://hyrule.host/services): all four service groups —
   compute, network intelligence, domains & DNS, network proxy — with live
-  per-endpoint pricing from enabled-only OpenAPI.
+  per-endpoint pricing from paid annotations in complete OpenAPI.
 - [Toolbox](https://hyrule.host/toolbox): browser-wallet and WebMCP access to
   every currently enabled paid diagnostic.
+- [Network tools](https://hyrule.host/tools): intent-led pages for DNS, BGP,
+  RDAP/WHOIS, IP/ASN, web/TLS, mail, ports/NAT, and SIP evidence.
 - [For agents](https://hyrule.host/agents): direct x402 and browser-agent paths,
   including autonomous wallet settlement through WebMCP.
 - [Order a VM](https://hyrule.host/order): server-rendered durable quote flow.
@@ -135,7 +139,7 @@ def _render_tools_section(tools: Iterable[dict[str, Any]]) -> str:
     lines = [
         "## Enabled x402 operations",
         "",
-        "This list is generated from the API's enabled-only OpenAPI document.",
+        "This list is generated from x402 annotations in the complete OpenAPI document.",
         "Tagged diagnostics can also be run at https://hyrule.host/toolbox.",
         "",
     ]
@@ -155,6 +159,20 @@ def _render_tools_section(tools: Iterable[dict[str, Any]]) -> str:
             "",
         ]
     )
+    return "\n".join(lines)
+
+
+def _render_intent_pages() -> str:
+    lines = [
+        "## Network evidence by intent",
+        "",
+        "These public pages explain when to use each capability. Resolve current",
+        "availability and price from the x402 manifest before calling it.",
+        "",
+    ]
+    for page in TOOL_PAGES:
+        lines.append(f"- [{page.headline}]({page.absolute_url}) — `{page.capability_id}`")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -232,6 +250,8 @@ def build_llms_txt(
         + _render_payment_section(network_list, native=native)
         + "\n"
         + _LLMS_TXT_WHAT_SHIPS
+        + "\n"
+        + _render_intent_pages()
     )
     # Only advertise the paid diagnostics suite when FRESH live discovery
     # succeeded AND at least one EVM x402 chain is enabled: the golden path
@@ -281,6 +301,7 @@ def iter_sitemap_paths(app: FastAPI) -> list[str]:
             continue
         paths.add(path)
     paths.add("/llms.txt")
+    paths.update(page.url for page in TOOL_PAGES)
     return sorted(paths)
 
 

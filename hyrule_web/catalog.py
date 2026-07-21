@@ -1,9 +1,9 @@
-"""Normalize the enabled-only Hyrule x402 OpenAPI document for web surfaces.
+"""Project payable operations from Hyrule's complete OpenAPI document.
 
-The API's curated ``/openapi.json`` is generated from its paid-operation
-registry, so it is the only catalog the website should advertise.  Keeping the
-normalizer here makes the HTML pages, llms.txt, and the browser toolbox consume
-the same shape without maintaining another endpoint list.
+The canonical ``/openapi.json`` documents the whole API. Only operations with
+``x-payment-info`` belong in the browser toolbox and paid marketing tables.
+Keeping that projection here makes HTML, llms.txt, and WebMCP consume the same
+annotations without mistaking free or authenticated operations for x402 tools.
 """
 
 from __future__ import annotations
@@ -97,6 +97,7 @@ _CATALOG_PRESENTATION: dict[str, tuple[str, str]] = {
 _BROWSER_TOOL_FIELDS = frozenset(
     {
         "operation_id",
+        "capability_id",
         "method",
         "path",
         "title",
@@ -104,6 +105,8 @@ _BROWSER_TOOL_FIELDS = frozenset(
         "catalog_blurb",
         "tool_code",
         "search_terms",
+        "intents",
+        "capabilities",
         "category",
         "executable",
         "input_schema",
@@ -301,12 +304,27 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
             if method.lower() not in _HTTP_METHODS or not isinstance(raw_operation, dict):
                 continue
             operation: dict[str, Any] = raw_operation
+            if not isinstance(operation.get("x-payment-info"), dict):
+                continue
             raw_tags = operation.get("tags")
             tags = (
                 [str(tag) for tag in raw_tags if isinstance(tag, str)]
                 if isinstance(raw_tags, list)
                 else []
             )
+            raw_intents = operation.get("x-hyrule-intents")
+            intents = (
+                [str(value) for value in raw_intents if isinstance(value, str)]
+                if isinstance(raw_intents, list)
+                else []
+            )
+            raw_capabilities = operation.get("x-hyrule-capabilities")
+            capabilities = (
+                [str(value) for value in raw_capabilities if isinstance(value, str)]
+                if isinstance(raw_capabilities, list)
+                else []
+            )
+            capability_id = str(operation.get("x-hyrule-capability-id") or "")
             operation_id = str(
                 operation.get("operationId")
                 or re.sub(r"[^a-z0-9]+", "_", f"{method}_{path}".lower()).strip("_")
@@ -350,7 +368,16 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
             category = tags[0] if tags else _operation_group(path, tags).title()
             catalog_blurb, tool_code = _catalog_presentation(path, summary, category)
             search_terms = _search_terms(
-                [summary, catalog_blurb, description, path, *tags],
+                [
+                    summary,
+                    catalog_blurb,
+                    description,
+                    capability_id,
+                    path,
+                    *tags,
+                    *intents,
+                    *capabilities,
+                ],
                 input_schema,
                 output_schema,
                 body_example,
@@ -359,6 +386,7 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
             tools.append(
                 {
                     "operation_id": operation_id,
+                    "capability_id": capability_id,
                     "method": method.upper(),
                     "path": path,
                     "title": summary,
@@ -367,6 +395,8 @@ def normalize_openapi(document: dict[str, Any]) -> dict[str, Any]:
                     "tool_code": tool_code,
                     "search_terms": search_terms,
                     "tags": tags,
+                    "intents": intents,
+                    "capabilities": capabilities,
                     "category": category,
                     "group": _operation_group(path, tags),
                     "executable": executable,

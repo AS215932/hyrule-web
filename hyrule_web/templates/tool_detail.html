@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block meta_description %}{{ page.meta_description }}{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">{{ structured_data | tojson }}</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><a href="/tools">tools</a><span class="sep">/</span><span class="here">{{ page.slug }}</span></div>
+            <span class="panel-label">{{ page.category }} · agent-readable evidence</span>
+            <h1>{{ page.headline }}</h1>
+            <p class="hero-blurb">{{ page.summary }}</p>
+        </div>
+        <aside class="hero-side-card">
+            <span class="panel-label">Execution contract</span>
+            <p><strong>{{ "Live paid capability" if entry.live else "Verify live availability" }}</strong></p>
+            <p><code>{{ page.capability_id }}</code></p>
+            <p><code>{{ page.method }} {{ page.path }}</code></p>
+            {% if entry.price_display %}<p>Current discovery price: <strong>{{ entry.price_display }}</strong></p>{% endif %}
+            <a class="btn btn-primary btn-block" href="/toolbox{% if entry.tool %}?tool={{ entry.tool.operation_id }}{% endif %}">Open toolbox</a>
+            <a class="btn btn-secondary btn-block" href="https://cloud.hyrule.host/openapi.json">Complete API docs</a>
+        </aside>
+    </div>
+</section>
+
+{% if not entry.live %}
+<section class="container">
+    <p class="hero-blurb"><em>This page describes the capability and its intended evidence. The live paid catalog does not currently confirm it{% if catalog_status != 'live' %} because discovery is {{ catalog_status }}{% endif %}; do not pay or automate it until the manifest lists <code>{{ page.capability_id }}</code>.</em></p>
+</section>
+{% endif %}
+
+<section class="container page-section">
+    <div class="section-heading"><span class="panel-label">When to use it</span><h2>Questions this capability is designed to answer.</h2></div>
+    <div class="feature-grid">
+        {% for question in page.questions %}
+        <article class="feature-card"><span class="num">{{ "%02d"|format(loop.index) }}</span><h3>{{ question }}</h3></article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading split">
+        <div class="heading-main"><span class="panel-label">Evidence contract</span><h2>What the result contributes.</h2></div>
+        <div class="heading-side">A missing provider, timeout, or partial response stays explicit. The service does not turn unavailable evidence into a healthy result.</div>
+    </div>
+    <div class="feature-grid">
+        {% for item in page.evidence %}
+        <article class="feature-card"><span class="num">{{ "%02d"|format(loop.index) }}</span><h3>{{ item }}</h3></article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><span class="panel-label">Agent workflow</span><h2>Discover, validate, pay, preserve evidence.</h2></div>
+    <div class="feature-grid">
+        {% for step in page.workflow %}
+        <article class="feature-card"><span class="num">{{ "%02d"|format(loop.index) }}</span><p>{{ step }}</p></article>
+        {% endfor %}
+    </div>
+    <div class="cta mt-6">
+        <span class="panel-label">Canonical sources</span>
+        <h2>The manifest decides whether it is payable. OpenAPI defines the whole API.</h2>
+        <p>Resolve <code>{{ page.capability_id }}</code> from the live x402 manifest, validate <code>{{ page.method }} {{ page.path }}</code> against the complete OpenAPI document, and let an official x402 v2 client handle <code>Payment-Required</code> and <code>Payment-Signature</code>.</p>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><span class="panel-label">Related evidence</span><h2>Continue the investigation without losing the thread.</h2></div>
+    <div class="feature-grid">
+        {% for item in related %}
+        <article class="feature-card"><span class="panel-label">{{ item.category }}</span><h3><a href="{{ item.url }}">{{ item.headline }}</a></h3><p>{{ item.summary }}</p></article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
