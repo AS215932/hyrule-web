@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import httpx
@@ -75,6 +76,45 @@ def test_agent_mail_fails_closed_without_an_available_product(
 
     assert "Launch gated" in response.text
     assert "Not currently offered" in response.text
+
+
+@pytest.mark.parametrize(
+    "product",
+    [
+        pytest.param(
+            {"id": "agent-mail-hosted", "available": True},
+            id="missing-price",
+        ),
+        pytest.param(
+            {"id": "agent-mail-hosted", "price_usd": "NaN", "available": True},
+            id="non-finite-price",
+        ),
+        pytest.param(
+            {"id": "not-a-supported-offer", "price_usd": "1.00", "available": True},
+            id="unsupported-product",
+        ),
+    ],
+)
+def test_agent_mail_fails_closed_without_a_supported_renderable_product(
+    client: TestClient,
+    mocked_api: respx.MockRouter,
+    product: dict[str, object],
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [product],
+            },
+        )
+    )
+
+    response = client.get("/agent-mail")
+
+    assert "Launch gated" in response.text
+    assert "## Agent Mail (live)" not in client.get("/llms.txt").text
 
 
 def test_agent_mail_honors_catalog_wide_availability(
@@ -265,10 +305,10 @@ def test_mail_catalog_negative_ttl_starts_after_a_slow_failure(
     monkeypatch.setattr(app_module, "time", SimpleNamespace(time=lambda: clock[0]))
     original_fetch = app_module._fetch_api
 
-    async def slow_fetch(request, path):
+    async def slow_fetch(request, path, *, timeout=None):
         if path == "/v1/mail/products":
             clock[0] += 30
-        return await original_fetch(request, path)
+        return await original_fetch(request, path, timeout=timeout)
 
     monkeypatch.setattr(app_module, "_fetch_api", slow_fetch)
     route = mocked_api.get("/v1/mail/products").mock(return_value=httpx.Response(503))
@@ -276,6 +316,38 @@ def test_mail_catalog_negative_ttl_starts_after_a_slow_failure(
     assert "Launch gated" in client.get("/agent-mail").text
     assert "Launch gated" in client.get("/agent-mail").text
     assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_optional_mail_feed_timeout_is_bounded_and_cold_fetches_are_coalesced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.requests import Request
+
+    import hyrule_web.app as app_module
+
+    calls = 0
+
+    async def hanging_fetch(request, path, *, timeout=None):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(60)
+        return None
+
+    monkeypatch.setattr(app_module, "_fetch_api", hanging_fetch)
+    monkeypatch.setattr(app_module, "_MAIL_FEED_TIMEOUT_SECONDS", 0.01)
+    app_module._MAIL_PRODUCTS_CACHE.update(value=None, expires_at=0.0, retry_at=0.0)
+    app_module.app.state.mail_products_lock = asyncio.Lock()
+    request = Request({"type": "http", "app": app_module.app})
+
+    first, second = await asyncio.gather(
+        app_module._refresh_mail_products(request),
+        app_module._refresh_mail_products(request),
+    )
+
+    assert calls == 1
+    assert first["catalog_status"] == "unavailable"
+    assert second["catalog_status"] == "unavailable"
 
 
 def test_domain_bundle_surfaces_require_the_matching_live_product(
@@ -292,18 +364,14 @@ def test_domain_bundle_surfaces_require_the_matching_live_product(
             }
         ],
     }
-    mocked_api.get("/v1/mail/products").mock(
-        return_value=httpx.Response(200, json=hosted_only)
-    )
+    mocked_api.get("/v1/mail/products").mock(return_value=httpx.Response(200, json=hosted_only))
 
     assert "Not currently offered" in client.get("/agent-mail").text
 
     from hyrule_web.app import _MAIL_PRODUCTS_CACHE
 
     _MAIL_PRODUCTS_CACHE.update(value=None, expires_at=0.0, retry_at=0.0)
-    assert "Canary pending" in client.get(
-        "/blog/agent-email-domain-deliverability"
-    ).text
+    assert "Canary pending" in client.get("/blog/agent-email-domain-deliverability").text
 
     _MAIL_PRODUCTS_CACHE.update(value=None, expires_at=0.0, retry_at=0.0)
     mocked_api.get("/v1/mail/products").mock(
@@ -325,9 +393,7 @@ def test_domain_bundle_surfaces_require_the_matching_live_product(
 
     assert "live domain quote + $1.25" in client.get("/agent-mail").text
     _MAIL_PRODUCTS_CACHE.update(value=None, expires_at=0.0, retry_at=0.0)
-    assert "Catalog available" in client.get(
-        "/blog/agent-email-domain-deliverability"
-    ).text
+    assert "Catalog available" in client.get("/blog/agent-email-domain-deliverability").text
 
 
 def test_blog_lists_three_outcome_journeys(client: TestClient) -> None:
@@ -375,6 +441,47 @@ def test_vm_journey_opens_ssh_plus_declared_workload_ports(client: TestClient) -
     assert "comma-separated numeric ports" in response.text
 
 
+def test_vm_journey_uses_the_live_xs_catalog_price(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "products": [
+                    {
+                        "size": "xs",
+                        "name": "1C-1G-10G",
+                        "vcpu": 1,
+                        "ram_mb": 1024,
+                        "disk_gb": 10,
+                        "price_usd_day": "0.25",
+                    }
+                ]
+            },
+        )
+    )
+
+    detail = client.get("/blog/deploy-fresh-vm")
+    listing = client.get("/blog")
+
+    expected = "$11.25 at the live $0.25/day catalog price"
+    assert expected in detail.text
+    assert expected in listing.text
+    assert "$9.00 at the current $0.20/day contract" not in detail.text
+
+
+def test_vm_journey_withholds_numeric_example_when_catalog_is_unavailable(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/products/vms").mock(return_value=httpx.Response(503))
+
+    response = client.get("/blog/deploy-fresh-vm")
+
+    assert "numeric example unavailable while the catalog cannot be validated" in response.text
+    assert "$9.00 at the current $0.20/day contract" not in response.text
+
+
 def test_agent_mail_journey_combines_identity_and_deliverability(client: TestClient) -> None:
     response = client.get("/blog/agent-email-domain-deliverability")
 
@@ -416,8 +523,7 @@ def test_agent_mail_journey_uses_live_activation_and_outbound_prices(
     listing = client.get("/blog")
 
     expected = (
-        "Live one-year domain quote + $1.25 Agent Mail activation + "
-        "$0.07 controlled outbound"
+        "Live one-year domain quote + $1.25 Agent Mail activation + $0.07 controlled outbound"
     )
     assert expected in detail.text
     assert expected in listing.text
