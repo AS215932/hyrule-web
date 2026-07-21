@@ -56,7 +56,7 @@
             <span class="num">01</span>
             <h3>Hosted agent address</h3>
             <p>Choose a local part under <code>@agentmail.hyrule.host</code>. The activation lasts 30 days and never auto-renews.</p>
-            <p class="campaign-price">{% if mail.products %}${{ mail.products[0].price_usd }}{% else %}$1.00 launch contract{% endif %} <small>/ 30 days</small></p>
+            <p class="campaign-price">{% if hosted_mail_product %}${{ hosted_mail_product.price_usd }} <small>/ 30 days</small>{% else %}Not currently offered{% endif %}</p>
         </article>
         <article class="feature-card">
             <span class="num">02</span>

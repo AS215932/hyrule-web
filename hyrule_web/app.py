@@ -867,18 +867,49 @@ async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
     return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
 
 
+def _mail_catalog_available(catalog: dict[str, Any]) -> bool:
+    products = catalog.get("products")
+    return catalog.get("available") is True and isinstance(products, list) and any(
+        isinstance(product, dict) and product.get("available") is True
+        for product in products
+    )
+
+
+def _available_mail_product(
+    catalog: dict[str, Any], product_id: str
+) -> dict[str, Any] | None:
+    products = catalog.get("products")
+    if not isinstance(products, list):
+        return None
+    return next(
+        (
+            product
+            for product in products
+            if isinstance(product, dict)
+            and product.get("id") == product_id
+            and product.get("available") is True
+        ),
+        None,
+    )
+
+
 async def _refresh_mail_products(request: Request) -> dict[str, Any]:
     now = time.time()
     cached = _MAIL_PRODUCTS_CACHE.get("value")
     if isinstance(cached, dict) and now < float(_MAIL_PRODUCTS_CACHE["expires_at"]):
-        return {**cached, "catalog_status": "live"}
+        return {
+            **cached,
+            "available": _mail_catalog_available(cached),
+            "catalog_status": "live",
+        }
     data = await _fetch_api(request, "/v1/mail/products")
     if isinstance(data, dict) and isinstance(data.get("products"), list):
+        normalized = {**data, "available": _mail_catalog_available(data)}
         _MAIL_PRODUCTS_CACHE.update(
-            value=data,
+            value=normalized,
             expires_at=now + _MAIL_PRODUCTS_TTL_SECONDS,
         )
-        return {**data, "catalog_status": "live"}
+        return {**normalized, "catalog_status": "live"}
     if isinstance(cached, dict):
         return {**cached, "available": False, "catalog_status": "stale"}
     return {
@@ -1103,6 +1134,7 @@ async def page_agent_mail(request: Request) -> Response:
         request,
         "agent_mail.html",
         mail=products,
+        hosted_mail_product=_available_mail_product(products, "agent-mail-hosted"),
         campaign_launch=CAMPAIGN_LAUNCH,
     )
 
@@ -2336,6 +2368,7 @@ async def llms(request: Request) -> str:
         networks,
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
+        payments_live=network_fresh,
         tools=tool_catalog.get("tools"),
         mail=mail if mail.get("catalog_status") == "live" else None,
     )

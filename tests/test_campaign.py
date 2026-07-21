@@ -48,6 +48,63 @@ def test_agent_mail_shows_available_only_from_live_catalog(
     assert "$1.00" in response.text
 
 
+def test_agent_mail_fails_closed_without_an_available_product(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [
+                    {
+                        "id": "agent-mail-hosted",
+                        "price_usd": "1.00",
+                        "available": False,
+                    }
+                ],
+            },
+        )
+    )
+
+    response = client.get("/agent-mail")
+
+    assert "Launch gated" in response.text
+    assert "Not currently offered" in response.text
+
+
+def test_agent_mail_selects_hosted_price_by_product_id(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [
+                    {
+                        "id": "agent-mail-domain-bundle",
+                        "price_usd": "99.00",
+                        "available": True,
+                    },
+                    {
+                        "id": "agent-mail-hosted",
+                        "price_usd": "2.34",
+                        "available": True,
+                    },
+                ],
+            },
+        )
+    )
+
+    response = client.get("/agent-mail")
+
+    assert "$2.34" in response.text
+    assert "$99.00" not in response.text
+
+
 def test_blog_lists_three_outcome_journeys(client: TestClient) -> None:
     response = client.get("/blog")
 
@@ -147,3 +204,29 @@ def test_llms_advertises_mail_api_only_when_live(
     text = client.get("/llms.txt").text
     assert "## Agent Mail (live)" in text
     assert "https://cloud.hyrule.host/v1/mail/products" in text
+
+
+def test_llms_mail_requires_a_fresh_evm_payment_network() -> None:
+    from hyrule_web.seo import build_llms_txt
+
+    mail = {
+        "available": True,
+        "terms_version": "2026-08-04",
+        "products": [{"id": "agent-mail-hosted", "available": True}],
+    }
+    base = {"family": "evm", "key": "base"}
+
+    assert "## Agent Mail (live)" not in build_llms_txt(None, mail=mail)
+    assert "## Agent Mail (live)" not in build_llms_txt(
+        [base], payments_live=False, mail=mail
+    )
+    assert "## Agent Mail (live)" in build_llms_txt([base], mail=mail)
+
+
+def test_desktop_navigation_waits_for_full_width() -> None:
+    from pathlib import Path
+
+    css = Path("frontend/src/styles/monochrome.css").read_text()
+    assert "@media (width < 1280px)" in css
+    assert "@media (width >= 1280px)" in css
+    assert "@media (width < 1080px)" not in css
