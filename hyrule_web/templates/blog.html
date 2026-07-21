@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Customer Journeys — Hyrule Cloud Blog{% endblock %}
+{% block meta_description %}Outcome-led Hyrule Cloud customer journeys with an exact prompt, runnable command, redacted result, expected x402 cost, elapsed time, and client-specific variants.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Blog",
+  "name": "Hyrule Cloud Customer Journeys",
+  "url": "https://hyrule.host/blog",
+  "description": "Reproducible x402 infrastructure outcomes for autonomous agents."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero campaign-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">blog</span></div>
+            <span class="panel-label">customer journeys · launch {{ campaign_launch }}</span>
+            <h1>Prompts to proof, not endpoint inventories.</h1>
+            <p class="hero-blurb">Each journey publishes the exact job, the first runnable command, a redacted result contract, a hard budget, measured-time fields, and three agent-client adaptations.</p>
+        </div>
+        <aside class="hero-side-card">
+            <span class="panel-label">evidence rule</span>
+            <strong class="availability availability-pending">Canaries pending</strong>
+            <p>No template below is presented as a real customer run. Observed results replace the pending blocks only after a controlled production payment and outside-in verification.</p>
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="journey-grid">
+        {% for journey in journeys %}
+        <article class="journey-card">
+            <div class="journey-card-top"><span class="num">{{ journey.number }}</span><span class="campaign-badge">proof template</span></div>
+            <h2><a href="/blog/{{ journey.slug }}">{{ journey.title }}</a></h2>
+            <p>{{ journey.dek }}</p>
+            <dl class="journey-facts"><dt>Expected cost</dt><dd>{{ journey.cost }}</dd><dt>Elapsed</dt><dd>{{ journey.elapsed }}</dd></dl>
+            <a href="/blog/{{ journey.slug }}" class="text-link">Prompt, command, result, variants →</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta-panel">
+        <div><span class="panel-label">campaign rule</span><h2>One controlled proof budget.</h2><p>The launch canary caps total proof spend at $50 and records diagnosis, purchasing, provisioning, delivery, and verification time separately.</p></div>
+        <a href="/agents" class="btn btn-secondary btn-lg">Agent integration</a>
+    </div>
+</section>
+{% endblock %}

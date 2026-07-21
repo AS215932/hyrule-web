@@ -24,6 +24,8 @@ from fastapi.testclient import TestClient
 
 from hyrule_web.app import (
     _CATALOG_CACHE,
+    _MAIL_PRICING_CACHE,
+    _MAIL_PRODUCTS_CACHE,
     _PRICING_CACHE,
     _PRODUCTS_CACHE,
     _RUNTIME_CACHE,
@@ -230,6 +232,40 @@ def mocked_api() -> Iterator[respx.MockRouter]:
             )
         )
         rx.get("/v1/domains").mock(return_value=httpx.Response(200, json={"domains": []}))
+        rx.get("/v1/mail/products").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "available": False,
+                    "terms_version": "2026-08-04",
+                    "backend": "dedicated Stalwart",
+                    "products": [
+                        {
+                            "id": "agent-mail-hosted",
+                            "title": "Agent mailbox on @agentmail.hyrule.host",
+                            "price_usd": "1.00",
+                            "billing": "30 days, no auto-renew",
+                            "available": False,
+                            "constraints": ["API-only submission and retrieval"],
+                        }
+                    ],
+                },
+            )
+        )
+        rx.get("/v1/mail/pricing").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "activation_usd": "1.00",
+                    "outbound_message_usd": "0.01",
+                    "inbound_usd": "0.00",
+                    "storage_gb": 1,
+                    "active_days": 30,
+                    "grace_days": 7,
+                    "auto_renew": False,
+                },
+            )
+        )
         rx.get("/v1/auth/wallet").mock(
             return_value=httpx.Response(
                 200, json={"address": None, "chain_id": None, "linked_at": None}
@@ -587,5 +623,11 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _TOOL_CATALOG_CACHE["successful_at"] = 0.0
     _PRICING_CACHE["value"] = None
     _PRICING_CACHE["expires_at"] = 0.0
+    _MAIL_PRICING_CACHE["value"] = None
+    _MAIL_PRICING_CACHE["expires_at"] = 0.0
+    _MAIL_PRICING_CACHE["retry_at"] = 0.0
+    _MAIL_PRODUCTS_CACHE["value"] = None
+    _MAIL_PRODUCTS_CACHE["expires_at"] = 0.0
+    _MAIL_PRODUCTS_CACHE["retry_at"] = 0.0
     with TestClient(app) as c:
         yield c

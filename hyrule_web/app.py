@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -33,6 +34,7 @@ from markupsafe import Markup
 
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
 from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
+from .journeys import CAMPAIGN_LAUNCH, JOURNEYS, JOURNEYS_BY_SLUG
 from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
 
 # Newline-delimited JSON to stdout per AS215932's application logging
@@ -82,6 +84,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         base_url=settings.api_base_url,
         timeout=30,
     )
+    app.state.mail_products_lock = asyncio.Lock()
+    app.state.mail_pricing_lock = asyncio.Lock()
     yield
     await app.state.http.aclose()
 
@@ -249,6 +253,26 @@ _TOOL_CATALOG_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
+# Agent Mail is launch-gated. A stale success may be displayed as last-known
+# copy, but it can never keep the public availability badge green.
+_MAIL_PRODUCTS_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "retry_at": 0.0,
+}
+_MAIL_PRODUCTS_TTL_SECONDS = 60
+_MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS = 5
+_MAIL_PRICING_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "retry_at": 0.0,
+}
+_MAIL_PRICING_TTL_SECONDS = 60
+_MAIL_PRICING_NEGATIVE_TTL_SECONDS = 5
+_MAIL_FEED_TIMEOUT_SECONDS = 3.0
+_SUPPORTED_MAIL_PRODUCT_IDS = frozenset(
+    {"agent-mail-hosted", "agent-mail-custom", "agent-mail-domain-bundle"}
+)
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -408,8 +432,8 @@ def _normalise_custom_domain(value: str) -> str | None:
 LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "terms": {
         "title": "Terms",
-        "description": "Terms for Hyrule Cloud compute, domain, and DNS services.",
-        "updated": "2026-07-15",
+        "description": "Terms for Hyrule Cloud compute, domain, DNS, and Agent Mail services.",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Service",
@@ -486,12 +510,35 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     ),
                 ],
             ),
+            (
+                "Agent Mail",
+                [
+                    _copy(
+                        "Agent Mail is an API-only conversational email service. It does not",
+                        "provide public SMTP submission, IMAP, POP, or webmail. Each outbound",
+                        "message has one recipient; CC, BCC, outbound attachments, marketing,",
+                        "and bulk use are prohibited.",
+                    ),
+                    _copy(
+                        "Activation lasts 30 days and does not auto-renew. Outbound access",
+                        "stops at expiry. Inbound delivery and reads remain available for a",
+                        "seven-day grace period, after which the mailbox and Agent Mail-owned",
+                        "DNS records are deleted. A purchased domain remains registered.",
+                    ),
+                    _copy(
+                        "The launch limits are five new recipients and twenty outbound messages",
+                        "per mailbox per UTC day. Complaints, malware signals, or material bounce",
+                        "rates may suspend outbound access immediately. Local acceptance does not",
+                        "guarantee remote delivery or inbox placement.",
+                    ),
+                ],
+            ),
         ],
     },
     "privacy": {
         "title": "Privacy",
         "description": "Privacy details for Hyrule Cloud orders.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Ordering Model",
@@ -523,6 +570,12 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "reconcile payment. For abuse rate-limiting we store a sha256",
                         "hash of your IPv6 /64 prefix with a private pepper.",
                     ),
+                    _copy(
+                        "For Agent Mail we store the mailbox address, encrypted backend",
+                        "credential, lifecycle and payment state, recipient/send counters,",
+                        "delivery events, webhook configuration, message index, message bodies,",
+                        "and inbound attachments needed to provide the service.",
+                    ),
                 ],
             ),
             (
@@ -535,6 +588,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     _copy(
                         "Network and host telemetry is used for reliability, abuse",
                         "response, and capacity planning.",
+                    ),
+                    _copy(
+                        "Agent Mail necessarily processes message content and attachments for",
+                        "delivery, API retrieval, malware controls, and abuse response. This is",
+                        "separate from customer VM contents, which are not proactively inspected.",
                     ),
                 ],
             ),
@@ -549,6 +607,12 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "Abuse reports may be retained with evidence, action taken,",
                         "customer notice, and appeal result.",
                     ),
+                    _copy(
+                        "Agent Mail message bodies and attachments use a 30-day rolling",
+                        "retention window. After activation expiry they remain readable during",
+                        "the seven-day grace period and are then deleted. Payment, security,",
+                        "delivery, and abuse records may be retained longer where necessary.",
+                    ),
                 ],
             ),
         ],
@@ -556,7 +620,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "abuse": {
         "title": "Abuse",
         "description": "Report abuse involving Hyrule Cloud infrastructure.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Report Channels",
@@ -583,6 +647,11 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                     _copy(
                         "We do not require broad personal data to act on precise,",
                         "technically actionable reports.",
+                    ),
+                    _copy(
+                        "For Agent Mail, a recipient complaint, detected malware, or sustained",
+                        "hard-bounce pattern can suspend outbound API access before manual review.",
+                        "Reads may remain available unless preserving access would create risk.",
                     ),
                 ],
             ),
@@ -614,7 +683,7 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
     "legal": {
         "title": "Legal",
         "description": "Legal contact and service posture for Hyrule Cloud.",
-        "updated": "2026-07-15",
+        "updated": "2026-07-19",
         "sections": [
             (
                 "Operator And Jurisdiction",
@@ -650,6 +719,18 @@ LEGAL_PAGES: dict[str, dict[str, Any]] = {
                         "Every VM may receive a deploy.hyrule.host subdomain. For purchased",
                         "domains Hyrule remains the legal registrant and grants the customer",
                         "the contractual rights to use, manage, renew, and transfer the name.",
+                    ),
+                ],
+            ),
+            (
+                "Agent Mail",
+                [
+                    _copy(
+                        "Agent Mail is operated as a communications hosting service on dedicated",
+                        "mail infrastructure separate from Hyrule's corporate email. Public launch",
+                        "requires recorded legal, privacy, and abuse-policy approval in",
+                        "addition to",
+                        "technical readiness and a controlled production canary.",
                     ),
                 ],
             ),
@@ -805,6 +886,227 @@ async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
     return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
 
 
+def _usable_mail_product(product: Any) -> bool:
+    if not isinstance(product, dict):
+        return False
+    raw_price = product.get("price_usd")
+    if (
+        product.get("available") is not True
+        or product.get("id") not in _SUPPORTED_MAIL_PRODUCT_IDS
+        or not isinstance(raw_price, str)
+    ):
+        return False
+    try:
+        price = Decimal(raw_price)
+    except InvalidOperation:
+        return False
+    return price.is_finite() and price >= 0
+
+
+def _mail_catalog_available(catalog: dict[str, Any]) -> bool:
+    products = catalog.get("products")
+    return (
+        catalog.get("available") is True
+        and isinstance(products, list)
+        and any(_usable_mail_product(product) for product in products)
+    )
+
+
+def _available_mail_product(catalog: dict[str, Any], product_id: str) -> dict[str, Any] | None:
+    if catalog.get("available") is not True:
+        return None
+    products = catalog.get("products")
+    if not isinstance(products, list):
+        return None
+    return next(
+        (
+            product
+            for product in products
+            if _usable_mail_product(product) and product.get("id") == product_id
+        ),
+        None,
+    )
+
+
+async def _fetch_mail_feed(request: Request, path: str) -> dict[str, Any] | None:
+    """Fetch an optional launch-gated feed without holding a public page open."""
+
+    try:
+        async with asyncio.timeout(_MAIL_FEED_TIMEOUT_SECONDS):
+            return await _fetch_api(
+                request,
+                path,
+                timeout=_MAIL_FEED_TIMEOUT_SECONDS,
+            )
+    except TimeoutError:
+        log.warning("mail_feed_timeout", path=path, timeout=_MAIL_FEED_TIMEOUT_SECONDS)
+        return None
+
+
+async def _refresh_mail_products(request: Request) -> dict[str, Any]:
+    now = time.time()
+    cached = _MAIL_PRODUCTS_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_MAIL_PRODUCTS_CACHE["expires_at"]):
+        return {
+            **cached,
+            "available": _mail_catalog_available(cached),
+            "catalog_status": "live",
+        }
+    if now < float(_MAIL_PRODUCTS_CACHE.get("retry_at", 0.0)):
+        if isinstance(cached, dict):
+            return {**cached, "available": False, "catalog_status": "stale"}
+        return {
+            "available": False,
+            "products": [],
+            "terms_version": None,
+            "catalog_status": "unavailable",
+        }
+    async with request.app.state.mail_products_lock:
+        # A concurrent cold request may have populated either cache while this
+        # request waited. Recheck before issuing another backend call.
+        now = time.time()
+        cached = _MAIL_PRODUCTS_CACHE.get("value")
+        if isinstance(cached, dict) and now < float(_MAIL_PRODUCTS_CACHE["expires_at"]):
+            return {
+                **cached,
+                "available": _mail_catalog_available(cached),
+                "catalog_status": "live",
+            }
+        if now < float(_MAIL_PRODUCTS_CACHE.get("retry_at", 0.0)):
+            if isinstance(cached, dict):
+                return {**cached, "available": False, "catalog_status": "stale"}
+            return {
+                "available": False,
+                "products": [],
+                "terms_version": None,
+                "catalog_status": "unavailable",
+            }
+        data = await _fetch_mail_feed(request, "/v1/mail/products")
+        observed_at = time.time()
+        if isinstance(data, dict) and isinstance(data.get("products"), list):
+            normalized = {**data, "available": _mail_catalog_available(data)}
+            _MAIL_PRODUCTS_CACHE.update(
+                value=normalized,
+                expires_at=observed_at + _MAIL_PRODUCTS_TTL_SECONDS,
+                retry_at=0.0,
+            )
+            return {**normalized, "catalog_status": "live"}
+        _MAIL_PRODUCTS_CACHE["retry_at"] = observed_at + _MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS
+        if isinstance(cached, dict):
+            return {**cached, "available": False, "catalog_status": "stale"}
+        return {
+            "available": False,
+            "products": [],
+            "terms_version": None,
+            "catalog_status": "unavailable",
+        }
+
+
+def _mail_send_price(pricing: dict[str, Any]) -> str | None:
+    if pricing.get("pricing_status") != "live":
+        return None
+    raw = pricing.get("outbound_message_usd")
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return None
+    if not value.is_finite() or value < 0:
+        return None
+    return raw
+
+
+def _mail_journey_cost(products: dict[str, Any], pricing: dict[str, Any]) -> str:
+    product = _available_mail_product(products, "agent-mail-domain-bundle")
+    raw_activation = product.get("price_usd") if product is not None else None
+    activation: str | None = None
+    if isinstance(raw_activation, str):
+        try:
+            value = Decimal(raw_activation)
+        except InvalidOperation:
+            pass
+        else:
+            if value.is_finite() and value >= 0:
+                activation = raw_activation
+    outbound = _mail_send_price(pricing)
+    if activation is None or outbound is None:
+        return (
+            "Live one-year domain quote + live Agent Mail activation + live "
+            "controlled outbound fee. Hard cap: $26.10."
+        )
+    return (
+        f"Live one-year domain quote + ${activation} Agent Mail activation + "
+        f"${outbound} controlled outbound. Hard cap: $26.10."
+    )
+
+
+def _vm_journey_cost(products: dict[str, Any] | None) -> str:
+    fallback = (
+        "45 times the live xs daily price; numeric example unavailable while the "
+        "catalog cannot be validated. Hard cap: $12.00."
+    )
+    rows = (products or {}).get("products")
+    if not isinstance(rows, list):
+        return fallback
+    row = next(
+        (item for item in rows if isinstance(item, dict) and item.get("size") == "xs"),
+        None,
+    )
+    raw_price = row.get("price_usd_day") if row is not None else None
+    if not isinstance(raw_price, str):
+        return fallback
+    try:
+        daily = Decimal(raw_price)
+    except InvalidOperation:
+        return fallback
+    if not daily.is_finite() or daily < 0:
+        return fallback
+    total = daily * Decimal(45)
+    return (
+        f"45 times the live xs daily price; ${total:.2f} at the live "
+        f"${daily:.2f}/day catalog price. Hard cap: $12.00."
+    )
+
+
+async def _refresh_mail_pricing(request: Request) -> dict[str, Any]:
+    now = time.time()
+    cached = _MAIL_PRICING_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_MAIL_PRICING_CACHE["expires_at"]):
+        return {**cached, "pricing_status": "live"}
+    if now < float(_MAIL_PRICING_CACHE.get("retry_at", 0.0)):
+        if isinstance(cached, dict):
+            return {**cached, "pricing_status": "stale"}
+        return {"pricing_status": "unavailable"}
+
+    async with request.app.state.mail_pricing_lock:
+        now = time.time()
+        cached = _MAIL_PRICING_CACHE.get("value")
+        if isinstance(cached, dict) and now < float(_MAIL_PRICING_CACHE["expires_at"]):
+            return {**cached, "pricing_status": "live"}
+        if now < float(_MAIL_PRICING_CACHE.get("retry_at", 0.0)):
+            if isinstance(cached, dict):
+                return {**cached, "pricing_status": "stale"}
+            return {"pricing_status": "unavailable"}
+
+        data = await _fetch_mail_feed(request, "/v1/mail/pricing")
+        observed_at = time.time()
+        if isinstance(data, dict):
+            normalized = {**data, "pricing_status": "live"}
+            if _mail_send_price(normalized) is not None:
+                _MAIL_PRICING_CACHE.update(
+                    value=data,
+                    expires_at=observed_at + _MAIL_PRICING_TTL_SECONDS,
+                    retry_at=0.0,
+                )
+                return normalized
+
+        _MAIL_PRICING_CACHE["retry_at"] = observed_at + _MAIL_PRICING_NEGATIVE_TTL_SECONDS
+        if isinstance(cached, dict):
+            return {**cached, "pricing_status": "stale"}
+        return {"pricing_status": "unavailable"}
+
+
 def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
     """Map GET /v1/products/vms onto the template tier shape. Malformed rows
     are skipped (pr-agent #32: one bad row must not discard the whole live
@@ -837,10 +1139,7 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
         return VM_CUSTOMIZATION
     try:
         contract: dict[str, dict[str, Any]] = {
-            "minimum": {
-                key: int(value["minimum"][key])
-                for key in ("vcpu", "ram_mb", "disk_gb")
-            },
+            "minimum": {key: int(value["minimum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "increments": {
                 key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
@@ -879,10 +1178,18 @@ def _proxy_prices(pricing: dict[str, Any] | None) -> dict[str, str]:
     return {}
 
 
-async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
+async def _fetch_api(
+    request: Request,
+    path: str,
+    *,
+    timeout: float | None = None,
+) -> dict[str, Any] | None:
     """GET a JSON endpoint from the backend API, return parsed dict or None."""
     try:
-        resp = await request.app.state.http.get(path)
+        if timeout is None:
+            resp = await request.app.state.http.get(path)
+        else:
+            resp = await request.app.state.http.get(path, timeout=timeout)
         if resp.status_code == 200:
             data: Any = resp.json()
             if isinstance(data, dict):
@@ -975,18 +1282,23 @@ async def page_index(request: Request) -> Response:
     Issue #14: the settlement-chain copy is also driven from the live
     /v1/payments/networks list (single source of truth, same as /faq and
     llms.txt) — never hardcoded — per [[feedback_verified_payment_chains]]."""
-    runtime = await _refresh_runtime(request)
-    catalog = await _refresh_networks(request)
-    tool_catalog = await _refresh_tool_catalog(request)
+    runtime, catalog, tool_catalog, products, mail = await asyncio.gather(
+        _refresh_runtime(request),
+        _refresh_networks(request),
+        _refresh_tool_catalog(request),
+        _refresh_products(request),
+        _refresh_mail_products(request),
+    )
     return _render(
         request,
         "index.html",
         runtime=runtime,
         networks=_catalog_networks(catalog),
         native=_catalog_native(catalog),
-        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+        vm_tiers=_live_vm_tiers(products),
         x402_resources=catalog_resources(tool_catalog),
         catalog_status=tool_catalog["status"],
+        mail=mail,
     )
 
 
@@ -999,6 +1311,10 @@ async def page_services(request: Request) -> Response:
         isinstance(tool, dict) and tool.get("group") == "proxy" for tool in tool_catalog["tools"]
     )
     proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
+    mail, mail_pricing = await asyncio.gather(
+        _refresh_mail_products(request),
+        _refresh_mail_pricing(request),
+    )
     return _render(
         request,
         "services.html",
@@ -1008,7 +1324,119 @@ async def page_services(request: Request) -> Response:
         catalog_status=tool_catalog["status"],
         proxy_enabled=proxy_enabled,
         proxy_prices=proxy_prices,
+        mail=mail,
+        hosted_mail_product=_available_mail_product(mail, "agent-mail-hosted"),
+        outbound_mail_price=_mail_send_price(mail_pricing),
     )
+
+
+@app.get("/agent-mail", response_class=HTMLResponse)
+async def page_agent_mail(request: Request) -> Response:
+    """API-only agent identity offer, availability sourced from live backend."""
+    _, products, pricing = await asyncio.gather(
+        _refresh_runtime(request),
+        _refresh_mail_products(request),
+        _refresh_mail_pricing(request),
+    )
+    return _render(
+        request,
+        "agent_mail.html",
+        mail=products,
+        hosted_mail_product=_available_mail_product(products, "agent-mail-hosted"),
+        domain_bundle_product=_available_mail_product(products, "agent-mail-domain-bundle"),
+        outbound_mail_price=_mail_send_price(pricing),
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+@app.get("/blog", response_class=HTMLResponse)
+async def page_blog(request: Request) -> Response:
+    _, products, mail, mail_pricing = await asyncio.gather(
+        _refresh_runtime(request),
+        _refresh_products(request),
+        _refresh_mail_products(request),
+        _refresh_mail_pricing(request),
+    )
+    mail_cost = _mail_journey_cost(mail, mail_pricing)
+    vm_cost = _vm_journey_cost(products)
+    costs = {
+        "agent-email-domain-deliverability": mail_cost,
+        "deploy-fresh-vm": vm_cost,
+    }
+    return _render(
+        request,
+        "blog.html",
+        journeys=tuple(
+            {**journey, "cost": costs.get(journey["slug"], journey["cost"])} for journey in JOURNEYS
+        ),
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+async def _render_journey(request: Request, slug: str) -> Response:
+    journey = JOURNEYS_BY_SLUG.get(slug)
+    if journey is None:
+        raise HTTPException(status_code=404)
+    mail: dict[str, Any] | None = None
+    products: dict[str, Any] | None = None
+    if slug == "agent-email-domain-deliverability":
+        _, mail, mail_pricing = await asyncio.gather(
+            _refresh_runtime(request),
+            _refresh_mail_products(request),
+            _refresh_mail_pricing(request),
+        )
+        journey = {**journey, "cost": _mail_journey_cost(mail, mail_pricing)}
+    elif slug == "deploy-fresh-vm":
+        _, products = await asyncio.gather(
+            _refresh_runtime(request),
+            _refresh_products(request),
+        )
+        journey = {**journey, "cost": _vm_journey_cost(products)}
+    else:
+        await _refresh_runtime(request)
+    return _render(
+        request,
+        "journey.html",
+        journey=journey,
+        journeys=JOURNEYS,
+        mail=mail,
+        domain_bundle_product=(
+            _available_mail_product(mail, "agent-mail-domain-bundle") if mail is not None else None
+        ),
+        campaign_launch=CAMPAIGN_LAUNCH,
+    )
+
+
+@app.get(
+    "/blog/explain-broken-website-tls",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_web(request: Request) -> Response:
+    return await _render_journey(request, "explain-broken-website-tls")
+
+
+@app.get(
+    "/blog/agent-email-domain-deliverability",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_mail(request: Request) -> Response:
+    return await _render_journey(request, "agent-email-domain-deliverability")
+
+
+@app.get(
+    "/blog/deploy-fresh-vm",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+)
+async def page_journey_vm(request: Request) -> Response:
+    return await _render_journey(request, "deploy-fresh-vm")
+
+
+@app.get("/blog/{slug}", response_class=HTMLResponse, include_in_schema=False)
+async def page_journey(request: Request, slug: str) -> Response:
+    return await _render_journey(request, slug)
 
 
 @app.get("/agents", response_class=HTMLResponse)
@@ -1249,9 +1677,7 @@ async def page_order_profile(
     vm_tiers = _live_vm_tiers(products)
     valid_profile = profile in vm_tiers
     selected_profile = (
-        profile
-        if valid_profile
-        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+        profile if valid_profile else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
     )
     return await _render_order_form(
         request,
@@ -2174,11 +2600,14 @@ async def llms(request: Request) -> str:
     tool_catalog = await _refresh_tool_catalog(request)
     network_fresh = time.time() < float(_CATALOG_CACHE.get("expires_at", 0.0))
     catalog_fresh = tool_catalog.get("status") == "live"
+    mail = await _refresh_mail_products(request)
     return build_llms_txt(
         networks,
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
+        payments_live=network_fresh,
         tools=tool_catalog.get("tools"),
+        mail=mail if mail.get("catalog_status") == "live" else None,
     )
 
 

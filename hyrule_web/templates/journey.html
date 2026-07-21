@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ journey.title }} — Hyrule Cloud{% endblock %}
+{% block meta_description %}{{ journey.dek }} Exact prompt, runnable command, redacted result contract, expected cost, elapsed time, and agent-client variants.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": {{ journey.title | tojson }},
+  "description": {{ journey.dek | tojson }},
+  "datePublished": {{ campaign_launch | tojson }},
+  "dateModified": {{ campaign_launch | tojson }},
+  "author": {"@type": "Organization", "name": "Hyrule Cloud"},
+  "mainEntityOfPage": "https://hyrule.host/blog/{{ journey.slug }}"
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<article>
+<section class="container">
+    <div class="page-hero campaign-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><a href="/blog">blog</a><span class="sep">/</span><span class="here">{{ journey.slug }}</span></div>
+            <span class="panel-label">customer journey {{ journey.number }} · proof template</span>
+            <h1>{{ journey.title }}</h1>
+            <p class="hero-blurb">{{ journey.dek }}</p>
+        </div>
+        <aside class="hero-side-card">
+            <span class="panel-label">launch state</span>
+            {% if journey.slug == 'agent-email-domain-deliverability' and domain_bundle_product %}
+            <strong class="availability availability-live">Catalog available</strong>
+            <p>The live catalog reports every launch gate open; the redacted public canary is still required before this result block changes.</p>
+            {% else %}
+            <strong class="availability availability-pending">Canary pending</strong>
+            <p>Nothing on this page claims an observed production result yet.</p>
+            {% endif %}
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section journey-section">
+    <span class="eyebrow">Exact prompt</span>
+    <h2>Give the agent this job.</h2>
+    <blockquote class="campaign-prompt">{{ journey.prompt }}</blockquote>
+</section>
+
+<section class="container page-section journey-section">
+    <span class="eyebrow">Runnable command</span>
+    <h2>Start with the unpriced discovery or quote call.</h2>
+    <pre class="campaign-code"><code>{{ journey.command }}</code></pre>
+    <p class="campaign-note">The first paid-resource call returns HTTP 402. Retry the identical request through an x402 v2 wallet client using the exact live requirement.</p>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><div><span class="eyebrow">Journey</span><h2>What happens next.</h2></div></div>
+    <ol class="journey-steps">
+        {% for step in journey.steps %}<li><span>{{ "%02d"|format(loop.index) }}</span><p>{{ step }}</p></li>{% endfor %}
+    </ol>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><div><span class="eyebrow">Redacted real-result shape</span><h2>Pending until a production canary exists.</h2></div><p class="heading-side">A real result must carry settled transaction evidence and measured timestamps.</p></div>
+    <dl class="result-sheet">
+        {% for label, value in journey.result %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+        <div><dt>Expected cost</dt><dd>{{ journey.cost }}</dd></div>
+        <div><dt>Elapsed contract</dt><dd>{{ journey.elapsed }}</dd></div>
+    </dl>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading"><div><span class="eyebrow">Client versions</span><h2>Same outcome, native handoff.</h2></div></div>
+    <div class="client-variants">
+        {% for variant in journey.variants %}
+        <article class="client-variant">
+            <span class="panel-label">{{ variant.name }}</span>
+            <h3>Exact prompt</h3>
+            <p>{{ variant.prompt }}</p>
+            <h3>Command or endpoint</h3>
+            <pre class="campaign-code campaign-code-small"><code>{{ variant.command }}</code></pre>
+            <p class="campaign-note">{{ variant.note }}</p>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta-panel">
+        <div><span class="panel-label">next outcome</span><h2>Keep following the customer, not the catalog.</h2><p>All three proof templates share the same evidence, budget, redaction, and timing discipline.</p></div>
+        <a href="/blog" class="btn btn-primary btn-lg">All customer journeys →</a>
+    </div>
+</section>
+</article>
+{% endblock %}

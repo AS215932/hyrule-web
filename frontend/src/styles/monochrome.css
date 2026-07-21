@@ -632,7 +632,7 @@
     }
   }
 
-  @media (width < 1080px) {
+  @media (width < 1280px) {
     .site-nav {
       display: none;
     }
@@ -642,7 +642,7 @@
     }
   }
 
-  @media (width >= 1080px) {
+  @media (width >= 1280px) {
     .site-header-inner {
       grid-template-columns: auto minmax(0, 1fr) auto;
     }

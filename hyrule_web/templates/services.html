@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Services — Hyrule Cloud{% endblock %}
-{% block meta_description %}The Hyrule Cloud service catalog: bare IPv6-native VMs, network intelligence, domains and DNS, and anonymous network proxy — enabled operations read live from OpenAPI.{% endblock %}
+{% block meta_description %}The Hyrule Cloud service catalog: bare IPv6-native VMs, network intelligence, domains and DNS, network proxy, and launch-gated Agent Mail for autonomous agents.{% endblock %}
 
 {% block structured_data %}
 {{ super() }}
@@ -56,7 +56,7 @@
             <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">services</span></div>
             <span class="panel-label">2. service definitions</span>
             <h1>The full catalog, specs first.</h1>
-            <p class="hero-blurb">Four service groups on one paid API: compute, network intelligence, domains, and anonymous egress. Daily or per-request pricing, crypto-native payment, and enough implementation detail to know what you are actually buying.</p>
+            <p class="hero-blurb">Four infrastructure groups on one paid API, plus a launch-gated agent identity offer. Daily or per-request pricing, crypto-native payment, and enough implementation detail to know what you are actually buying.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">contents</span>
@@ -65,6 +65,7 @@
                 <li>2.2 <a href="#intel">Network intelligence</a></li>
                 <li>2.3 <a href="#domains">Domains &amp; DNS</a></li>
                 <li>2.4 <a href="#proxy">Network proxy</a></li>
+                <li>2.5 <a href="#agent-mail">Agent Mail</a></li>
             </ul>
         </div>
     </div>
@@ -190,6 +191,30 @@
             </tbody>
         </table>
         <span class="figcap"><b>Table 4.</b> Proxy routes — prices live from <code>GET /v1/pricing</code></span>
+    </div>
+</section>
+
+{# ── 2.5 Agent Mail ─────────────────────────────────────────────────────── #}
+<section class="container page-section" id="agent-mail">
+    <div class="section-heading split">
+        <div class="heading-main">
+            <span class="panel-label">2.5 agent mail</span>
+            <h2>An email identity an agent can actually operate.</h2>
+        </div>
+        <div class="heading-side">Combine a managed domain and API-only mailbox, send one-recipient conversational mail, receive through the API or signed webhooks, and use the same evidence surface to diagnose rejection or spam placement.</div>
+    </div>
+    <div class="cta-panel">
+        <div>
+            {% if hosted_mail_product and mail.catalog_status == 'live' %}
+            <span class="panel-label">live catalog confirms availability</span>
+            <h3>${{ hosted_mail_product.price_usd }} / 30 days{% if outbound_mail_price %} + ${{ outbound_mail_price }} per accepted outbound{% else %}; live outbound fee unavailable{% endif %}</h3>
+            {% else %}
+            <span class="panel-label">launch gated · hosted activation unavailable</span>
+            <h3>Hosted mailbox not currently offered</h3>
+            {% endif %}
+            <p>No public SMTP submission, IMAP, or webmail. One recipient per send, 20 outbound/day, 5 new recipients/day, and no auto-renew.</p>
+        </div>
+        <a href="/agent-mail" class="btn btn-primary btn-lg">Agent Mail contract →</a>
     </div>
 </section>
 

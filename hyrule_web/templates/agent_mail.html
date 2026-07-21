@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Email Accounts for Agents — Hyrule Cloud{% endblock %}
+{% block meta_description %}API-only email identities for autonomous agents: hosted or managed-domain mailboxes, x402 activation and sends, inbound API and signed webhooks, with deliverability diagnostics.{% endblock %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Service",
+  "name": "Hyrule Agent Mail",
+  "serviceType": "API-only email accounts for autonomous agents",
+  "provider": {"@type": "Organization", "name": "Hyrule Cloud", "url": "https://hyrule.host"},
+  "url": "https://hyrule.host/agent-mail",
+  "description": "Wallet-native agent email identity with a hosted or managed domain, one-recipient conversational sending, inbound API access, and signed webhooks."
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero campaign-hero">
+        <div>
+            <div class="crumbs"><a href="/">~</a><span class="sep">/</span><span class="here">agent-mail</span></div>
+            <span class="panel-label">identity infrastructure · x402</span>
+            <h1>Email accounts built for agents, not inbox tabs.</h1>
+            <p class="hero-blurb">Buy a domain and mailbox in one payment, or activate <code>agent@agentmail.hyrule.host</code>. Send and receive through an API, then use the same evidence surface when delivery breaks.</p>
+            <div class="hero-actions">
+                <a href="/blog/agent-email-domain-deliverability" class="btn btn-primary btn-lg">Read the proof journey</a>
+                <a href="https://cloud.hyrule.host/v1/mail/products" class="btn btn-secondary btn-lg">Machine-readable products ↗</a>
+            </div>
+        </div>
+        <aside class="hero-side-card campaign-status" aria-label="Agent Mail availability">
+            <span class="panel-label">live launch gate</span>
+            {% if mail.available and mail.catalog_status == 'live' %}
+            <strong class="availability availability-live">Available</strong>
+            <p>The backend reports every launch gate open. Confirm the live quote before paying.</p>
+            {% elif mail.catalog_status == 'stale' %}
+            <strong class="availability availability-pending">Unconfirmed</strong>
+            <p>The last product response is stale. New paid activation must remain closed.</p>
+            {% else %}
+            <strong class="availability availability-pending">Launch gated</strong>
+            <p>Target: {{ campaign_launch }}. Dedicated mail infrastructure, policy approval, and the production canary must all pass first.</p>
+            {% endif %}
+        </aside>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">The offer</span><h2>One identity outcome, two ways in.</h2></div>
+        <p class="heading-side">No human signup, no public SMTP submission, no IMAP, and no webmail.</p>
+    </div>
+    <div class="feature-grid campaign-grid">
+        <article class="feature-card">
+            <span class="num">01</span>
+            <h3>Hosted agent address</h3>
+            <p>Choose a local part under <code>@agentmail.hyrule.host</code>. The activation lasts 30 days and never auto-renews.</p>
+            <p class="campaign-price">{% if hosted_mail_product %}${{ hosted_mail_product.price_usd }} <small>/ 30 days</small>{% else %}Not currently offered{% endif %}</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">02</span>
+            <h3>Domain + mailbox</h3>
+            <p>Combine a live one-year registrar quote with the mailbox activation. One x402 settlement returns one shared capability token.</p>
+            <p class="campaign-price">{% if domain_bundle_product %}live domain quote + ${{ domain_bundle_product.price_usd }}{% else %}Not currently offered{% endif %}</p>
+        </article>
+        <article class="feature-card">
+            <span class="num">03</span>
+            <h3>Conversation sends</h3>
+            <p>One recipient, text plus sanitized HTML, five new recipients/day, twenty outbound/day. Replies to known inbound correspondents are supported.</p>
+            <p class="campaign-price">{% if outbound_mail_price %}${{ outbound_mail_price }} <small>/ accepted outbound</small>{% else %}Live send fee unavailable{% endif %}</p>
+        </article>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">Product boundary</span><h2>What the agent gets.</h2></div>
+    </div>
+    <div class="split-proof">
+        <article class="proof-panel">
+            <span class="panel-label">included</span>
+            <ul class="campaign-list">
+                <li>1 GB mailbox and 30-day rolling message retention</li>
+                <li>Inbound message bodies and attachments up to 25 MiB through the API</li>
+                <li>Signed receive and delivery webhooks</li>
+                <li>Managed MX, SPF, DKIM, DMARC, TLS-RPT, and MTA-STS records</li>
+                <li>Seven-day inbound/read grace after activation expiry</li>
+            </ul>
+        </article>
+        <article class="proof-panel">
+            <span class="panel-label">deliberately excluded</span>
+            <ul class="campaign-list">
+                <li>Public SMTP submission, IMAP, POP, or webmail</li>
+                <li>CC, BCC, multiple recipients, or outbound attachments</li>
+                <li>Marketing, list mail, or bulk automation</li>
+                <li>Automatic renewal or an uncapped registrar purchase</li>
+                <li>A claim that local acceptance guarantees remote inbox placement</li>
+            </ul>
+        </article>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="section-heading">
+        <div><span class="eyebrow">Runnable start</span><h2>Ask the service before you trust this page.</h2></div>
+        <p class="heading-side">The response exposes availability, current terms, price, and constraints.</p>
+    </div>
+    <pre class="campaign-code"><code>curl -sS https://cloud.hyrule.host/v1/mail/products
+curl -sS https://cloud.hyrule.host/v1/mail/pricing
+curl -sS https://cloud.hyrule.host/v1/mail/capabilities</code></pre>
+</section>
+
+<section class="container page-section">
+    <div class="cta-panel">
+        <div><span class="panel-label">outcome 02</span><h2>From a domain candidate to a proved agent identity.</h2><p>The public journey carries the exact prompt, commands, redacted result shape, expected cost, elapsed-time fields, and Coinbase Bazaar MCP, OpenClaw, and generic Agent Skills variants.</p></div>
+        <a href="/blog/agent-email-domain-deliverability" class="btn btn-primary btn-lg">Open the journey →</a>
+    </div>
+</section>
+{% endblock %}

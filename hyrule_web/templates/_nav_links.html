@@ -2,10 +2,12 @@
 <a href="/"{% if request.url.path == '/' %} aria-current="page"{% endif %}>Home</a>
 <a href="/services"{% if request.url.path == '/services' %} aria-current="page"{% endif %}>Services</a>
 <a href="/domains"{% if request.url.path.startswith('/domains') %} aria-current="page"{% endif %}>Domains</a>
+<a href="/agent-mail"{% if request.url.path == '/agent-mail' %} aria-current="page"{% endif %}>Agent Mail</a>
 <a href="/toolbox"{% if request.url.path == '/toolbox' %} aria-current="page"{% endif %}>Toolbox</a>
 <a href="/agents"{% if request.url.path == '/agents' %} aria-current="page"{% endif %}>Agents</a>
 <a href="/order"{% if request.url.path.startswith('/order') and not request.url.path.startswith('/order/status') %} aria-current="page"{% endif %}>Deploy</a>
 <a href="/status"{% if request.url.path == '/status' %} aria-current="page"{% endif %}>Status</a>
+<a href="/blog"{% if request.url.path.startswith('/blog') %} aria-current="page"{% endif %}>Blog</a>
 {% if request.cookies.get('hyr_sess') %}
 <a href="/dashboard"{% if request.url.path.startswith('/dashboard') %} aria-current="page"{% endif %}>Dashboard</a>
 {% else %}
