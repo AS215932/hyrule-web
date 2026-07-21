@@ -130,11 +130,11 @@ curl -sS -X POST https://cloud.hyrule.host/v1/mail/accounts/quote \\
         "prompt": _VM_PROMPT,
         "command": """curl -sS -X POST https://cloud.hyrule.host/v1/vm/quote \\
   -H 'Content-Type: application/json' \\
-  -d '{"order_payload":{"duration_days":45,"size":"xs","os":"debian-13","ssh_pubkey":"<SSH_PUBLIC_KEY>","domain_mode":"auto","open_ports":[80,443]},"client_order_id":"<HIGH_ENTROPY_ID>"}'""",
+  -d '{"order_payload":{"duration_days":45,"size":"xs","os":"debian-13","ssh_pubkey":"<SSH_PUBLIC_KEY>","domain_mode":"auto","open_ports":[22,<WORKLOAD_PORTS>]},"client_order_id":"<HIGH_ENTROPY_ID>"}'""",
         "cost": "45 times the live xs daily price; $9.00 at the current $0.20/day contract. Hard cap: $12.00.",
         "elapsed": "Quote, payment, provisioning, DNS, and outside-in verification are measured separately in the real canary.",
         "steps": [
-            "Quote an xs Debian 13 VM for 45 days with the exact workload ports.",
+            "Replace <WORKLOAD_PORTS> with the workload's comma-separated numeric ports; keep SSH port 22, and quote an xs Debian 13 VM for 45 days.",
             "Use the returned automatic hostname; never expose the private SSH key.",
             "Poll to ready, attach the hostname, then verify DNS and public IPv6 reachability.",
             "Return SSH/service connection details, exact cost, measured time, and expiry date.",

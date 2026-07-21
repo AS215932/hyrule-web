@@ -610,5 +610,6 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _PRICING_CACHE["expires_at"] = 0.0
     _MAIL_PRODUCTS_CACHE["value"] = None
     _MAIL_PRODUCTS_CACHE["expires_at"] = 0.0
+    _MAIL_PRODUCTS_CACHE["retry_at"] = 0.0
     with TestClient(app) as c:
         yield c

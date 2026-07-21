@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
@@ -105,6 +108,89 @@ def test_agent_mail_selects_hosted_price_by_product_id(
     assert "$99.00" not in response.text
 
 
+def test_services_uses_the_live_hosted_product_price(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [
+                    {
+                        "id": "agent-mail-hosted",
+                        "price_usd": "2.34",
+                        "available": True,
+                    }
+                ],
+            },
+        )
+    )
+
+    response = client.get("/services")
+
+    assert "$2.34 / 30 days + $0.01 per accepted outbound" in response.text
+    assert "$1 / 30 days" not in response.text
+
+
+def test_services_does_not_advertise_hosted_mail_when_only_another_product_is_live(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [
+                    {
+                        "id": "agent-mail-custom",
+                        "price_usd": "8.76",
+                        "available": True,
+                    }
+                ],
+            },
+        )
+    )
+
+    response = client.get("/services")
+
+    assert "Hosted mailbox not currently offered" in response.text
+    assert "$8.76 / 30 days" not in response.text
+
+
+@pytest.mark.parametrize(
+    "backend_response",
+    [
+        pytest.param(httpx.Response(503), id="backend-unavailable"),
+        pytest.param(
+            httpx.Response(200, json={"available": True, "products": "invalid"}),
+            id="invalid-catalog",
+        ),
+    ],
+)
+def test_mail_catalog_failures_are_negatively_cached_for_a_short_window(
+    client: TestClient,
+    mocked_api: respx.MockRouter,
+    monkeypatch: pytest.MonkeyPatch,
+    backend_response: httpx.Response,
+) -> None:
+    import hyrule_web.app as app_module
+
+    clock = [1_000.0]
+    monkeypatch.setattr(app_module, "time", SimpleNamespace(time=lambda: clock[0]))
+    route = mocked_api.get("/v1/mail/products").mock(return_value=backend_response)
+
+    assert "Launch gated" in client.get("/agent-mail").text
+    assert "Launch gated" in client.get("/agent-mail").text
+    assert route.call_count == 1
+
+    clock[0] += app_module._MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS + 1
+    assert "Launch gated" in client.get("/agent-mail").text
+    assert route.call_count == 2
+
+
 def test_blog_lists_three_outcome_journeys(client: TestClient) -> None:
     response = client.get("/blog")
 
@@ -140,6 +226,14 @@ def test_each_journey_publishes_the_required_proof_contract(client: TestClient) 
         ):
             assert needle in response.text, f"{path} missing {needle}"
         assert "openclaw skills install @as215932/" in response.text
+
+
+def test_vm_journey_opens_ssh_plus_declared_workload_ports(client: TestClient) -> None:
+    response = client.get("/blog/deploy-fresh-vm")
+
+    assert "&#34;open_ports&#34;:[22,&lt;WORKLOAD_PORTS&gt;]" in response.text
+    assert "&#34;open_ports&#34;:[80,443]" not in response.text
+    assert "comma-separated numeric ports" in response.text
 
 
 def test_agent_mail_journey_combines_identity_and_deliverability(client: TestClient) -> None:
@@ -217,9 +311,7 @@ def test_llms_mail_requires_a_fresh_evm_payment_network() -> None:
     base = {"family": "evm", "key": "base"}
 
     assert "## Agent Mail (live)" not in build_llms_txt(None, mail=mail)
-    assert "## Agent Mail (live)" not in build_llms_txt(
-        [base], payments_live=False, mail=mail
-    )
+    assert "## Agent Mail (live)" not in build_llms_txt([base], payments_live=False, mail=mail)
     assert "## Agent Mail (live)" in build_llms_txt([base], mail=mail)
 
 

@@ -205,12 +205,12 @@
     </div>
     <div class="cta-panel">
         <div>
-            {% if mail.available and mail.catalog_status == 'live' %}
+            {% if hosted_mail_product and mail.catalog_status == 'live' %}
             <span class="panel-label">live catalog confirms availability</span>
-            <h3>$1 / 30 days + $0.01 per accepted outbound</h3>
+            <h3>${{ hosted_mail_product.price_usd }} / 30 days + $0.01 per accepted outbound</h3>
             {% else %}
-            <span class="panel-label">launch gated · paid activation unavailable</span>
-            <h3>$1 activation + $0.01 outbound launch contract</h3>
+            <span class="panel-label">launch gated · hosted activation unavailable</span>
+            <h3>Hosted mailbox not currently offered</h3>
             {% endif %}
             <p>No public SMTP submission, IMAP, or webmail. One recipient per send, 20 outbound/day, 5 new recipients/day, and no auto-renew.</p>
         </div>

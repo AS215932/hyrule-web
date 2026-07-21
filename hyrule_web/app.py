@@ -252,8 +252,13 @@ _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
 # Agent Mail is launch-gated. A stale success may be displayed as last-known
 # copy, but it can never keep the public availability badge green.
-_MAIL_PRODUCTS_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_MAIL_PRODUCTS_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "retry_at": 0.0,
+}
 _MAIL_PRODUCTS_TTL_SECONDS = 60
+_MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS = 5
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -869,15 +874,16 @@ async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
 
 def _mail_catalog_available(catalog: dict[str, Any]) -> bool:
     products = catalog.get("products")
-    return catalog.get("available") is True and isinstance(products, list) and any(
-        isinstance(product, dict) and product.get("available") is True
-        for product in products
+    return (
+        catalog.get("available") is True
+        and isinstance(products, list)
+        and any(
+            isinstance(product, dict) and product.get("available") is True for product in products
+        )
     )
 
 
-def _available_mail_product(
-    catalog: dict[str, Any], product_id: str
-) -> dict[str, Any] | None:
+def _available_mail_product(catalog: dict[str, Any], product_id: str) -> dict[str, Any] | None:
     products = catalog.get("products")
     if not isinstance(products, list):
         return None
@@ -902,14 +908,25 @@ async def _refresh_mail_products(request: Request) -> dict[str, Any]:
             "available": _mail_catalog_available(cached),
             "catalog_status": "live",
         }
+    if now < float(_MAIL_PRODUCTS_CACHE.get("retry_at", 0.0)):
+        if isinstance(cached, dict):
+            return {**cached, "available": False, "catalog_status": "stale"}
+        return {
+            "available": False,
+            "products": [],
+            "terms_version": None,
+            "catalog_status": "unavailable",
+        }
     data = await _fetch_api(request, "/v1/mail/products")
     if isinstance(data, dict) and isinstance(data.get("products"), list):
         normalized = {**data, "available": _mail_catalog_available(data)}
         _MAIL_PRODUCTS_CACHE.update(
             value=normalized,
             expires_at=now + _MAIL_PRODUCTS_TTL_SECONDS,
+            retry_at=0.0,
         )
         return {**normalized, "catalog_status": "live"}
+    _MAIL_PRODUCTS_CACHE["retry_at"] = now + _MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS
     if isinstance(cached, dict):
         return {**cached, "available": False, "catalog_status": "stale"}
     return {
@@ -1112,6 +1129,7 @@ async def page_services(request: Request) -> Response:
         isinstance(tool, dict) and tool.get("group") == "proxy" for tool in tool_catalog["tools"]
     )
     proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
+    mail = await _refresh_mail_products(request)
     return _render(
         request,
         "services.html",
@@ -1121,7 +1139,8 @@ async def page_services(request: Request) -> Response:
         catalog_status=tool_catalog["status"],
         proxy_enabled=proxy_enabled,
         proxy_prices=proxy_prices,
-        mail=await _refresh_mail_products(request),
+        mail=mail,
+        hosted_mail_product=_available_mail_product(mail, "agent-mail-hosted"),
     )
 
 
