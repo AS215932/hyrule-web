@@ -778,24 +778,68 @@ async def _refresh_products(request: Request) -> dict[str, Any] | None:
     )
 
 
+def _manifest_resources(document: dict[str, Any] | None) -> list[dict[str, str]] | None:
+    if document is None or str(document.get("x402Version")) != "2":
+        return None
+    resources = document.get("resources")
+    if not isinstance(resources, list):
+        return None
+    normalized: list[dict[str, str]] = []
+    for resource in resources:
+        if not isinstance(resource, dict):
+            return None
+        capability_id = resource.get("id")
+        method = resource.get("method")
+        path = resource.get("path")
+        if (
+            not isinstance(capability_id, str)
+            or not capability_id
+            or not isinstance(method, str)
+            or not method
+            or not isinstance(path, str)
+            or not path
+        ):
+            return None
+        normalized.append({"id": capability_id, "method": method.upper(), "path": path})
+    return normalized
+
+
 async def _refresh_tool_catalog(request: Request) -> dict[str, Any]:
-    """Fetch the full OpenAPI contract and project its annotated paid operations."""
+    """Intersect the complete OpenAPI contract with the live paid manifest."""
     now = time.time()
     cached = _TOOL_CATALOG_CACHE.get("value")
     if isinstance(cached, dict) and now < float(_TOOL_CATALOG_CACHE["expires_at"]):
         return {**cached, "status": "live"}
 
     document = await _fetch_api(request, "/openapi.json")
-    if document is not None:
+    manifest = await _fetch_api(request, "/.well-known/x402.json")
+    manifest_resources = _manifest_resources(manifest)
+    if document is not None and manifest_resources is not None:
         normalized = normalize_openapi(document)
         tools = normalized.get("tools")
         if isinstance(document.get("paths"), dict) and isinstance(tools, list):
+            enabled = {
+                (resource["id"], resource["method"], resource["path"])
+                for resource in manifest_resources
+            }
+            normalized["tools"] = [
+                tool
+                for tool in tools
+                if isinstance(tool, dict)
+                and (
+                    str(tool.get("capability_id")),
+                    str(tool.get("method")),
+                    str(tool.get("path")),
+                )
+                in enabled
+            ]
+            normalized["manifest_resources"] = manifest_resources
             normalized["fetched_at"] = now
             _TOOL_CATALOG_CACHE["value"] = normalized
             _TOOL_CATALOG_CACHE["expires_at"] = now + _TOOL_CATALOG_TTL_SECONDS
             _TOOL_CATALOG_CACHE["successful_at"] = now
             return {**normalized, "status": "live"}
-        log.warning("x402_openapi_invalid")
+        log.warning("x402_discovery_invalid")
 
     if isinstance(cached, dict):
         return {**cached, "status": "stale"}
@@ -811,10 +855,18 @@ def _tool_page_entry(page: ToolPage, snapshot: dict[str, Any]) -> dict[str, Any]
             if isinstance(tool, dict)
             and str(tool.get("method")) == page.method
             and str(tool.get("path")) == page.path
+            and str(tool.get("capability_id")) == page.capability_id
         ),
         None,
     )
-    live = snapshot.get("status") == "live" and match is not None
+    manifest_match = any(
+        isinstance(resource, dict)
+        and resource.get("id") == page.capability_id
+        and resource.get("method") == page.method
+        and resource.get("path") == page.path
+        for resource in snapshot.get("manifest_resources") or []
+    )
+    live = snapshot.get("status") == "live" and match is not None and manifest_match
     return {
         "page": page,
         "tool": match,

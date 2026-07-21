@@ -173,6 +173,20 @@ def test_toolbox_fails_closed_without_fresh_discovery(
     assert "Paid DNS lookup" not in response.text
 
 
+def test_toolbox_fails_closed_without_live_x402_manifest(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/.well-known/x402.json").mock(
+        side_effect=httpx.ConnectError("manifest offline")
+    )
+
+    response = client.get("/toolbox")
+
+    assert response.status_code == 200
+    assert "No static endpoint list" in response.text
+    assert "Paid DNS lookup" not in response.text
+
+
 def test_empty_enabled_catalog_is_authoritative(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

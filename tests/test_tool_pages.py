@@ -8,6 +8,7 @@ from html import unescape
 
 from fastapi.testclient import TestClient
 
+from hyrule_web.app import _tool_page_entry
 from hyrule_web.tool_pages import TOOL_PAGES, TOOL_PAGES_BY_SLUG
 
 
@@ -81,3 +82,38 @@ def test_sitemap_and_llms_include_every_intent_page(client: TestClient) -> None:
 
 def test_unknown_tool_slug_is_404(client: TestClient) -> None:
     assert client.get("/tools/not-a-real-capability").status_code == 404
+
+
+def test_live_tool_page_requires_exact_capability_id_and_manifest_entry() -> None:
+    page = next(item for item in TOOL_PAGES if item.capability_id == "hyrule.dns.lookup")
+    tool = {
+        "method": page.method,
+        "path": page.path,
+        "capability_id": "hyrule.dns.changed",
+        "price_display": "$0.001",
+    }
+    manifest_resource = {
+        "id": page.capability_id,
+        "method": page.method,
+        "path": page.path,
+    }
+
+    wrong_id = _tool_page_entry(
+        page,
+        {"status": "live", "tools": [tool], "manifest_resources": [manifest_resource]},
+    )
+    assert wrong_id["live"] is False
+    assert wrong_id["price_display"] is None
+
+    tool["capability_id"] = page.capability_id
+    missing_manifest = _tool_page_entry(
+        page, {"status": "live", "tools": [tool], "manifest_resources": []}
+    )
+    assert missing_manifest["live"] is False
+
+    confirmed = _tool_page_entry(
+        page,
+        {"status": "live", "tools": [tool], "manifest_resources": [manifest_resource]},
+    )
+    assert confirmed["live"] is True
+    assert confirmed["price_display"] == "$0.001"
