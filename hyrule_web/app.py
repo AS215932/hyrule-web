@@ -964,6 +964,32 @@ def _mail_send_price(pricing: dict[str, Any]) -> str | None:
     return raw
 
 
+def _mail_journey_cost(
+    products: dict[str, Any], pricing: dict[str, Any]
+) -> str:
+    product = _available_mail_product(products, "agent-mail-domain-bundle")
+    raw_activation = product.get("price_usd") if product is not None else None
+    activation: str | None = None
+    if isinstance(raw_activation, str):
+        try:
+            value = Decimal(raw_activation)
+        except InvalidOperation:
+            pass
+        else:
+            if value.is_finite() and value >= 0:
+                activation = raw_activation
+    outbound = _mail_send_price(pricing)
+    if activation is None or outbound is None:
+        return (
+            "Live one-year domain quote + live Agent Mail activation + live "
+            "controlled outbound fee. Hard cap: $26.10."
+        )
+    return (
+        f"Live one-year domain quote + ${activation} Agent Mail activation + "
+        f"${outbound} controlled outbound. Hard cap: $26.10."
+    )
+
+
 async def _refresh_mail_pricing(request: Request) -> dict[str, Any]:
     now = time.time()
     cached = _MAIL_PRICING_CACHE.get("value")
@@ -1223,10 +1249,18 @@ async def page_agent_mail(request: Request) -> Response:
 @app.get("/blog", response_class=HTMLResponse)
 async def page_blog(request: Request) -> Response:
     await _refresh_runtime(request)
+    mail = await _refresh_mail_products(request)
+    mail_pricing = await _refresh_mail_pricing(request)
+    mail_cost = _mail_journey_cost(mail, mail_pricing)
     return _render(
         request,
         "blog.html",
-        journeys=JOURNEYS,
+        journeys=tuple(
+            {**journey, "cost": mail_cost}
+            if journey["slug"] == "agent-email-domain-deliverability"
+            else journey
+            for journey in JOURNEYS
+        ),
         campaign_launch=CAMPAIGN_LAUNCH,
     )
 
@@ -1241,6 +1275,13 @@ async def _render_journey(request: Request, slug: str) -> Response:
         if slug == "agent-email-domain-deliverability"
         else None
     )
+    mail_pricing = (
+        await _refresh_mail_pricing(request)
+        if slug == "agent-email-domain-deliverability"
+        else None
+    )
+    if mail is not None and mail_pricing is not None:
+        journey = {**journey, "cost": _mail_journey_cost(mail, mail_pricing)}
     return _render(
         request,
         "journey.html",

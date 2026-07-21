@@ -389,6 +389,41 @@ def test_agent_mail_journey_combines_identity_and_deliverability(client: TestCli
         assert needle in response.text
 
 
+def test_agent_mail_journey_uses_live_activation_and_outbound_prices(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/mail/products").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "available": True,
+                "terms_version": "2026-08-04",
+                "products": [
+                    {
+                        "id": "agent-mail-domain-bundle",
+                        "price_usd": "1.25",
+                        "available": True,
+                    }
+                ],
+            },
+        )
+    )
+    mocked_api.get("/v1/mail/pricing").mock(
+        return_value=httpx.Response(200, json={"outbound_message_usd": "0.07"})
+    )
+
+    detail = client.get("/blog/agent-email-domain-deliverability")
+    listing = client.get("/blog")
+
+    expected = (
+        "Live one-year domain quote + $1.25 Agent Mail activation + "
+        "$0.07 controlled outbound"
+    )
+    assert expected in detail.text
+    assert expected in listing.text
+    assert "+ $1 activation + $0.01 controlled outbound" not in detail.text
+
+
 def test_unknown_journey_is_not_found(client: TestClient) -> None:
     assert client.get("/blog/not-a-real-journey").status_code == 404
 

@@ -97,7 +97,7 @@ JOURNEYS: tuple[dict[str, Any], ...] = (
 curl -sS -X POST https://cloud.hyrule.host/v1/mail/accounts/quote \\
   -H 'Content-Type: application/json' \\
   -d '{"local_part":"agent","mode":"domain_and_mailbox","domain":"<CANDIDATE>","terms_version":"<LIVE_MAIL_TERMS>","domain_terms_version":"<LIVE_DOMAIN_TERMS>"}'""",
-        "cost": "Live one-year domain quote + $1 activation + $0.01 controlled outbound. Hard cap: $26.10.",
+        "cost": "Live one-year domain quote + live Agent Mail activation + live controlled outbound fee. Hard cap: $26.10.",
         "elapsed": "Split into quote/payment, registrar, mailbox/DNS, send/receive, and diagnosis phases in the real canary.",
         "steps": [
             "Choose only from the ordered candidate list and reject premium or over-cap quotes.",
