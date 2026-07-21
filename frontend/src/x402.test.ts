@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   encodeBase64Json,
   executeX402,
+  fetchRequest,
   humanTokenAmount,
+  isAdminBypassResponse,
   paymentRequirements,
   quoteX402,
   selectAcceptance,
@@ -36,7 +38,10 @@ const quote: X402Quote = {
   accept: requirements.accepts[0],
 };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  document.cookie = "hyr_csrf=; Max-Age=0; Path=/";
+});
 
 describe("paymentRequirements", () => {
   it("reads the canonical Payment-Required header", async () => {
@@ -95,7 +100,7 @@ describe("quote and replay", () => {
   });
 
   it("replays with canonical and legacy payment headers and an identical body", async () => {
-    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     await executeX402(quote, "signed-payload");
     expect(fetchMock).toHaveBeenCalledWith(
@@ -109,6 +114,41 @@ describe("quote and replay", () => {
         }),
       }),
     );
+  });
+
+  it("binds same-origin x402 requests to the browser session CSRF token", async () => {
+    document.cookie = "hyr_csrf=hyr_csrf_test; Path=/";
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRequest(quote.request);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/dns/lookup",
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-CSRF-Token": "hyr_csrf_test" }),
+      }),
+    );
+  });
+
+  it("never sends the session CSRF token to another origin", async () => {
+    document.cookie = "hyr_csrf=hyr_csrf_secret; Path=/";
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchRequest({ ...quote.request, url: "https://example.net/paid" });
+
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>;
+    expect(headers["X-CSRF-Token"]).toBeUndefined();
+  });
+
+  it("recognizes the explicit Admin waiver response mode", () => {
+    expect(
+      isAdminBypassResponse(
+        new Response("{}", { headers: { "X-Hyrule-Payment-Mode": "admin-bypass" } }),
+      ),
+    ).toBe(true);
+    expect(isAdminBypassResponse(new Response("{}"))).toBe(false);
   });
 });
 

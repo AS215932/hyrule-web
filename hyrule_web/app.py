@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -14,7 +15,7 @@ from contextlib import asynccontextmanager
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import httpx
 import structlog
@@ -104,7 +105,7 @@ async def response_policy(
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     elif path.startswith("/static/"):
         response.headers["Cache-Control"] = "public, max-age=86400, must-revalidate"
-    elif path.startswith("/api/"):
+    elif path.startswith("/api/") or path.startswith("/dashboard/admin"):
         response.headers["Cache-Control"] = "no-store"
     elif response.headers.get("content-type", "").startswith("text/html") or path in {
         "/llms.txt",
@@ -1043,6 +1044,19 @@ async def page_toolbox(request: Request) -> Response:
             for tool in tool_catalog["tools"]
         )
     )
+    admin_access = False
+    admin_waiver_enabled: bool | None = None
+    if request.cookies.get("hyr_sess"):
+        me_response = await _api_request(request, "/v1/me")
+        if me_response is not None and me_response.status_code == 200:
+            me_body = me_response.json()
+            admin_access = isinstance(me_body, dict) and bool(me_body.get("is_admin"))
+            if admin_access:
+                overview_response = await _api_request(request, "/v1/admin/overview")
+                overview = _response_payload(overview_response)
+                waiver = overview.get("waivers")
+                if isinstance(waiver, dict):
+                    admin_waiver_enabled = bool(waiver.get("enabled"))
     return _render(
         request,
         "toolbox.html",
@@ -1051,6 +1065,8 @@ async def page_toolbox(request: Request) -> Response:
         catalog_status=tool_catalog["status"],
         execution_enabled=execution_enabled,
         networks=networks,
+        admin_access=admin_access,
+        admin_waiver_enabled=admin_waiver_enabled,
     )
 
 
@@ -1738,6 +1754,370 @@ async def page_dashboard(request: Request) -> Response:
     )
 
 
+def _admin_notice_url(message: str, *, tone: str = "ok", path: str = "/dashboard/admin") -> str:
+    separator = "&" if "?" in path else "?"
+    return path + separator + urllib.parse.urlencode({"notice": message[:300], "tone": tone})
+
+
+def _admin_notice_redirect(
+    message: str, *, tone: str = "ok", path: str = "/dashboard/admin"
+) -> Response:
+    return RedirectResponse(_admin_notice_url(message, tone=tone, path=path), status_code=303)
+
+
+async def _admin_page_identity(request: Request) -> tuple[dict[str, Any] | None, Response | None]:
+    """Resolve a browser Admin without leaking the dashboard to other sessions."""
+    response = await _api_request(request, "/v1/me")
+    if response is None:
+        return None, _render(
+            request,
+            "admin_access.html",
+            status_code=503,
+            title="Administration unavailable",
+            message="The account service could not confirm this Admin session.",
+        )
+    if response.status_code == 401:
+        next_path = urllib.parse.quote(request.url.path, safe="")
+        return None, RedirectResponse(f"/login?next={next_path}", status_code=303)
+    if response.status_code != 200:
+        return None, _render(
+            request,
+            "admin_access.html",
+            status_code=503,
+            title="Administration unavailable",
+            message="The account service could not confirm this Admin session.",
+        )
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict) or not body.get("is_admin"):
+        return None, _render(
+            request,
+            "admin_access.html",
+            status_code=403,
+            title="Administrator access required",
+            message="This area is available only to enabled Hyrule Cloud administrators.",
+        )
+    return body, None
+
+
+def _require_admin_form_csrf(request: Request, submitted: str) -> str:
+    """Validate the double-submit value before a server-side Admin mutation."""
+    cookie = request.cookies.get("hyr_csrf")
+    if not cookie or not submitted or not secrets.compare_digest(cookie, submitted):
+        raise HTTPException(status_code=403, detail="CSRF validation failed")
+    return submitted
+
+
+def _response_payload(response: httpx.Response | None) -> dict[str, Any]:
+    if response is None or response.status_code != 200:
+        return {}
+    try:
+        body = response.json()
+    except ValueError:
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+@app.get("/dashboard/admin", response_class=HTMLResponse)
+async def page_admin_dashboard(
+    request: Request,
+    window: Literal["24h", "7d", "30d"] = "24h",
+    q: str = "",
+    notice: str = "",
+    tone: str = "ok",
+) -> Response:
+    """Private, source-backed operating view for Hyrule Cloud administrators."""
+    _require_auth_ui()
+    me, gate = await _admin_page_identity(request)
+    if gate is not None:
+        return gate
+
+    query = q.strip()[:128]
+    encoded_query = urllib.parse.quote(query, safe="")
+    paths = {
+        "overview": f"/v1/admin/overview?window={window}",
+        "accounts": f"/v1/admin/accounts?limit=50&q={encoded_query}"
+        if query
+        else "/v1/admin/accounts?limit=50",
+        "vms": f"/v1/admin/vms?limit=50&q={encoded_query}" if query else "/v1/admin/vms?limit=50",
+        "domains": f"/v1/admin/domains?limit=50&q={encoded_query}"
+        if query
+        else "/v1/admin/domains?limit=50",
+        "payments": "/v1/admin/payment-events?limit=40",
+        "refunds": "/v1/admin/refunds?limit=40",
+        "jobs": "/v1/admin/jobs?limit=40",
+        "operations": "/v1/admin/operations?limit=40",
+        "audit": "/v1/admin/audit?limit=60",
+    }
+    fetched = await asyncio.gather(*(_api_request(request, path) for path in paths.values()))
+    responses = dict(zip(paths, fetched, strict=True))
+    payloads = {name: _response_payload(response) for name, response in responses.items()}
+    source_errors = [
+        f"{name} ({response.status_code if response is not None else 'unreachable'})"
+        for name, response in responses.items()
+        if response is None or response.status_code != 200
+    ]
+
+    return _render(
+        request,
+        "admin_dashboard.html",
+        me=me,
+        overview=payloads["overview"],
+        accounts=payloads["accounts"].get("items", []),
+        vms=payloads["vms"].get("items", []),
+        domains=payloads["domains"].get("items", []),
+        payment_events=payloads["payments"].get("items", []),
+        refunds=payloads["refunds"].get("items", []),
+        jobs=payloads["jobs"].get("items", []),
+        operations=payloads["operations"].get("items", []),
+        audit_events=payloads["audit"].get("items", []),
+        source_errors=source_errors,
+        csrf_token=request.cookies.get("hyr_csrf", ""),
+        window=window,
+        query=query,
+        notice=notice[:300],
+        notice_tone="error" if tone == "error" else "ok",
+    )
+
+
+@app.get("/dashboard/admin/step-up", response_class=HTMLResponse)
+async def page_admin_step_up(request: Request, next: str = "/dashboard/admin") -> Response:
+    _require_auth_ui()
+    me, gate = await _admin_page_identity(request)
+    if gate is not None:
+        return gate
+    csrf_token = request.cookies.get("hyr_csrf", "")
+    return _render(
+        request,
+        "admin_step_up.html",
+        me=me,
+        csrf_token=csrf_token,
+        next_path=_safe_next_path(next, fallback="/dashboard/admin"),
+        error=(
+            None
+            if csrf_token
+            else "This session predates Admin CSRF protection. Log out and sign in again."
+        ),
+    )
+
+
+@app.post("/dashboard/admin/step-up", response_class=HTMLResponse)
+async def admin_step_up(
+    request: Request,
+    password: Annotated[str, Form()],
+    csrf_token: Annotated[str, Form()],
+    next: Annotated[str, Form()] = "/dashboard/admin",
+) -> Response:
+    _require_auth_ui()
+    me, gate = await _admin_page_identity(request)
+    if gate is not None:
+        return gate
+    token = _require_admin_form_csrf(request, csrf_token)
+    next_path = _safe_next_path(next, fallback="/dashboard/admin")
+    response = await _api_request(
+        request,
+        "/v1/admin/step-up",
+        method="POST",
+        json={"password": password},
+        extra_headers={"X-CSRF-Token": token},
+    )
+    if response is not None and response.status_code == 200:
+        return _admin_notice_redirect(
+            "Sensitive Admin tools unlocked for this session.", path=next_path
+        )
+    return _render(
+        request,
+        "admin_step_up.html",
+        status_code=401 if response is not None and response.status_code == 401 else 400,
+        me=me,
+        csrf_token=token,
+        next_path=next_path,
+        error=_backend_detail(response, "Admin verification failed."),
+    )
+
+
+async def _admin_action(
+    request: Request,
+    *,
+    path: str,
+    payload: dict[str, Any],
+    csrf_token: str,
+    success: str,
+) -> Response:
+    _require_auth_ui()
+    token = _require_admin_form_csrf(request, csrf_token)
+    response = await _api_request(
+        request,
+        path,
+        method="POST",
+        json=payload,
+        extra_headers={"X-CSRF-Token": token},
+    )
+    if response is not None and 200 <= response.status_code < 300:
+        return _admin_notice_redirect(success)
+    if response is not None and response.status_code == 401:
+        return RedirectResponse("/login?next=%2Fdashboard%2Fadmin", status_code=303)
+    detail = _backend_detail(response, "The Admin operation could not be completed.")
+    if response is not None and response.status_code == 403 and detail == "admin_step_up_required":
+        return _admin_notice_redirect(
+            "Confirm your password, then repeat the requested operation.",
+            tone="error",
+            path="/dashboard/admin/step-up?next=%2Fdashboard%2Fadmin",
+        )
+    return _admin_notice_redirect(detail, tone="error")
+
+
+@app.post("/dashboard/admin/accounts/{account_id}/{action}")
+async def admin_account_action(
+    request: Request,
+    account_id: str,
+    action: Literal["disable", "enable", "promote", "demote", "revoke-sessions", "revoke-keys"],
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    endpoint = "role" if action in {"promote", "demote"} else action
+    payload: dict[str, Any] = {"reason": reason}
+    if action in {"promote", "demote"}:
+        payload["is_admin"] = action == "promote"
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/accounts/{urllib.parse.quote(account_id, safe='')}/{endpoint}",
+        payload=payload,
+        csrf_token=csrf_token,
+        success=f"Account {account_id}: {action.replace('-', ' ')} accepted.",
+    )
+
+
+@app.post("/dashboard/admin/vms/{vm_id}/actions/{action}")
+async def admin_vm_action(
+    request: Request,
+    vm_id: str,
+    action: Literal["start", "reboot", "shutdown", "suspend", "destroy"],
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    return await _admin_action(
+        request,
+        path=(
+            f"/v1/admin/vms/{urllib.parse.quote(vm_id, safe='')}/actions/"
+            f"{urllib.parse.quote(action, safe='')}"
+        ),
+        payload={"reason": reason},
+        csrf_token=csrf_token,
+        success=f"VM {vm_id}: {action} accepted.",
+    )
+
+
+@app.post("/dashboard/admin/vms/{vm_id}/transfer")
+async def admin_vm_transfer(
+    request: Request,
+    vm_id: str,
+    target_account_id: Annotated[str, Form(min_length=11, max_length=11)],
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/vms/{urllib.parse.quote(vm_id, safe='')}/transfer",
+        payload={"target_account_id": target_account_id.strip().upper(), "reason": reason},
+        csrf_token=csrf_token,
+        success=f"VM {vm_id} ownership transferred.",
+    )
+
+
+@app.post("/dashboard/admin/domains/{fqdn}/transfer")
+async def admin_domain_transfer(
+    request: Request,
+    fqdn: str,
+    target_account_id: Annotated[str, Form(min_length=11, max_length=11)],
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    domain = fqdn.strip().lower().rstrip(".")
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/domains/{urllib.parse.quote(domain, safe='')}/transfer",
+        payload={"target_account_id": target_account_id.strip().upper(), "reason": reason},
+        csrf_token=csrf_token,
+        success=f"Domain {domain} ownership transferred.",
+    )
+
+
+@app.post("/dashboard/admin/domains/{fqdn}/reconcile")
+async def admin_domain_reconcile(
+    request: Request,
+    fqdn: str,
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    domain = fqdn.strip().lower().rstrip(".")
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/domains/{urllib.parse.quote(domain, safe='')}/reconcile",
+        payload={"reason": reason},
+        csrf_token=csrf_token,
+        success=f"Domain {domain} reconciliation queued.",
+    )
+
+
+@app.post("/dashboard/admin/jobs/{job_id}/retry")
+async def admin_job_retry(
+    request: Request,
+    job_id: str,
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/jobs/{urllib.parse.quote(job_id, safe='')}/retry",
+        payload={"reason": reason},
+        csrf_token=csrf_token,
+        success=f"Job {job_id} queued for retry.",
+    )
+
+
+@app.post("/dashboard/admin/operations/{operation_id}/retry")
+async def admin_operation_retry(
+    request: Request,
+    operation_id: str,
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+) -> Response:
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/operations/{urllib.parse.quote(operation_id, safe='')}/retry",
+        payload={"reason": reason},
+        csrf_token=csrf_token,
+        success=f"Admin operation {operation_id} queued for retry.",
+    )
+
+
+@app.post("/dashboard/admin/refunds/{event_id}/resolve")
+async def admin_refund_resolve(
+    request: Request,
+    event_id: str,
+    status: Annotated[Literal["resolved", "rejected"], Form()],
+    reason: Annotated[str, Form(min_length=3, max_length=1000)],
+    csrf_token: Annotated[str, Form()],
+    external_reference: Annotated[str | None, Form()] = None,
+    transaction_hash: Annotated[str | None, Form()] = None,
+) -> Response:
+    return await _admin_action(
+        request,
+        path=f"/v1/admin/refunds/{urllib.parse.quote(event_id, safe='')}/resolve",
+        payload={
+            "status": status,
+            "reason": reason,
+            "external_reference": (external_reference or "").strip() or None,
+            "transaction_hash": (transaction_hash or "").strip() or None,
+        },
+        csrf_token=csrf_token,
+        success=f"Refund obligation {event_id} marked {status}.",
+    )
+
+
 # Block A1: dashboard mutation handlers — all server-side, all redirect back
 # to /dashboard on completion so the browser's history stays clean and the
 # user always lands on a fresh table read.
@@ -2200,9 +2580,9 @@ async def proxy_api(request: Request, path: str) -> Response:
             "accept",
             "x-payment",
             "x-payment-signature",
-            "x-dev-bypass",
             "payment-signature",
             "x-payment-required",
+            "x-csrf-token",
             "idempotency-key",
             "if-match",
             # Block A0: Bearer auth for hyr_vm_ management tokens (and

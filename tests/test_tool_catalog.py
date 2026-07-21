@@ -144,6 +144,21 @@ def test_toolbox_renders_enabled_openapi_and_webmcp_entry(client: TestClient) ->
     assert "https://hyrule.host/toolbox" in client.get("/sitemap.xml").text
 
 
+def test_toolbox_explains_enabled_admin_waiver_without_claiming_settlement(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/me").mock(
+        return_value=httpx.Response(200, json={"account_id": "ACCT_ADMIN1", "is_admin": True})
+    )
+    mocked_api.get("/v1/admin/overview").mock(
+        return_value=httpx.Response(200, json={"waivers": {"enabled": True}})
+    )
+    response = client.get("/toolbox", headers={"Cookie": "hyr_sess=admin"})
+    assert response.status_code == 200
+    assert "Eligible x402 diagnostics run with Admin access" in response.text
+    assert "Supplying a real payment signature still performs a real settlement" in response.text
+
+
 def test_toolbox_fails_closed_without_fresh_discovery(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:

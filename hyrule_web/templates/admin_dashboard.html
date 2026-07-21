@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Administration — Hyrule Cloud{% endblock %}
+{% block meta_description %}Private Hyrule Cloud administration dashboard.{% endblock %}
+{% block head_meta %}<meta name="robots" content="noindex, nofollow, noarchive">{% endblock %}
+{% block structured_data %}{% endblock %}
+
+{% block content %}
+{% set account_metrics = overview.get('accounts', {}) %}
+{% set resource_metrics = overview.get('resources', {}) %}
+{% set payment_metrics = overview.get('payments', {}) %}
+{% set waiver_config = overview.get('waivers', {}) %}
+{% set operation_metrics = overview.get('operations', {}) %}
+
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs">
+                <a href="/">~</a><span class="sep">/</span>
+                <a href="/dashboard">dashboard</a><span class="sep">/</span>
+                <span class="here">administration</span>
+            </div>
+            <span class="panel-label">private control plane</span>
+            <h1>Administration.</h1>
+            <p class="hero-blurb">
+                Live operating state, billing evidence, and audited tools for
+                <code>{{ me.account_id }}</code>.
+            </p>
+        </div>
+        <div class="hero-side-card">
+            <a href="/dashboard/admin/step-up" class="btn btn-secondary btn-xs">Confirm password</a>
+            <a href="/dashboard/admin?window={{ window }}{% if query %}&amp;q={{ query|urlencode }}{% endif %}" class="btn btn-ghost btn-xs">Refresh data</a>
+        </div>
+    </div>
+</section>
+
+<section class="container mt-4">
+    <nav class="mini-card flex flex-wrap items-center gap-2 p-2" aria-label="Dashboard views">
+        <a href="/dashboard" class="btn btn-ghost btn-sm">VPS &amp; domains</a>
+        <a href="/dashboard/admin" class="btn btn-primary btn-sm" aria-current="page">Administration</a>
+    </nav>
+</section>
+
+{% if notice %}
+<section class="container mt-4">
+    <div class="payment-status payment-{{ 'error' if notice_tone == 'error' else 'ok' }}" role="status">{{ notice }}</div>
+</section>
+{% endif %}
+
+{% if not csrf_token %}
+<section class="container mt-4">
+    <div class="payment-status payment-error" role="alert">
+        This session cannot authorize Admin changes. Log out and sign in again to issue a CSRF-bound session.
+    </div>
+</section>
+{% endif %}
+
+{% if source_errors %}
+<section class="container mt-4">
+    <div class="payment-status payment-warn" role="alert">
+        Some live sources did not load: {{ source_errors|join(', ') }}. Missing values are shown as unavailable, not zero.
+    </div>
+</section>
+{% endif %}
+
+{% if waiver_config and not waiver_config.get('enabled') %}
+<section class="container mt-4">
+    <div class="payment-status payment-warn" role="alert">
+        Admin x402 waivers are disabled. Set <code>HYRULE_ADMIN_PAYMENT_BYPASS_ENABLED=true</code>
+        on Hyrule Cloud and restart the API before relying on no-payment access.
+    </div>
+</section>
+{% endif %}
+
+<section class="container page-section">
+    <form method="get" action="/dashboard/admin" class="mini-card grid gap-3 p-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+        <label for="admin-search">
+            <span class="panel-label">Resource lookup</span>
+            <input id="admin-search" name="q" type="search" value="{{ query }}"
+                   placeholder="Account ID, VM ID, hostname, or domain" class="mt-2 w-full p-2 font-mono">
+        </label>
+        <label for="admin-window">
+            <span class="panel-label">Payment window</span>
+            <select id="admin-window" name="window" class="mt-2 p-2 font-mono">
+                {% for option in ['24h', '7d', '30d'] %}
+                <option value="{{ option }}" {% if window == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button class="btn btn-secondary btn-sm" type="submit">Apply</button>
+    </form>
+
+    <div class="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <article class="mini-card p-5">
+            <span class="panel-label">Enabled accounts</span>
+            <strong class="mt-2 block font-mono text-3xl">{{ account_metrics.get('enabled', '—') }}</strong>
+            <small class="text-text-soft">{{ account_metrics.get('disabled', '—') }} disabled · {{ account_metrics.get('admins', '—') }} Admin</small>
+        </article>
+        <article class="mini-card p-5">
+            <span class="panel-label">Running VMs</span>
+            <strong class="mt-2 block font-mono text-3xl">{{ resource_metrics.get('running_vms', '—') }}</strong>
+            <small class="text-text-soft">of {{ resource_metrics.get('vms', '—') }} VMs · {{ resource_metrics.get('domains', '—') }} domains · {{ resource_metrics.get('mailboxes', '—') }} mailboxes</small>
+        </article>
+        <article class="mini-card p-5">
+            <span class="panel-label">Settled revenue · {{ window }}</span>
+            <strong class="mt-2 block font-mono text-3xl">${{ payment_metrics.get('revenue_usd', '—') }}</strong>
+            <small class="text-text-soft">{{ payment_metrics.get('settled_count', '—') }} settled payment events</small>
+        </article>
+        <article class="mini-card border border-accent/20 p-5">
+            <span class="panel-label">Admin-waived retail · {{ window }}</span>
+            <strong class="mt-2 block font-mono text-3xl">${{ payment_metrics.get('admin_waived_retail_usd', '—') }}</strong>
+            <small class="text-text-soft">{{ payment_metrics.get('admin_waiver_count', '—') }} bypass events · excluded from revenue{% if waiver_config %} · {{ waiver_config.get('diagnostic_limit_per_minute', '—') }}/min diagnostic · {{ waiver_config.get('real_cost_limit_per_hour', '—') }}/hour real cost{% endif %}</small>
+        </article>
+        <article class="mini-card p-5">
+            <span class="panel-label">Refund obligations · {{ window }}</span>
+            <strong class="mt-2 block font-mono text-3xl">{{ payment_metrics.get('refund_owed_count', '—') }}</strong>
+            <small class="text-text-soft">Review and record external resolution below</small>
+        </article>
+        <article class="mini-card p-5">
+            <span class="panel-label">Failed domain jobs</span>
+            <strong class="mt-2 block font-mono text-3xl">{{ operation_metrics.get('failed_jobs', '—') }}</strong>
+            <small class="text-text-soft">Current failed queue, independent of payment window</small>
+        </article>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-text-soft">
+        <span>Source: Hyrule Cloud control database via <code>/v1/admin/*</code>.</span>
+        <span>Snapshot {{ overview.get('generated_at', 'unavailable') }}</span>
+    </div>
+    <details class="mini-card mt-3 p-4 text-sm text-text-soft">
+        <summary><strong>Metric definitions</strong></summary>
+        <p class="mt-3">Settled revenue sums successful real-payment ledger events in the selected window. Admin-waived retail sums the catalog value of <code>admin_bypass</code> ledger events and is never counted as revenue. Running VMs include ready and running states. Refund obligations count unresolved <code>refund_owed</code> events created in the window.</p>
+    </details>
+</section>
+
+<section class="container page-section" id="accounts">
+    <div class="section-heading">
+        <div><span class="panel-label">identity &amp; access</span><h2>Accounts</h2></div>
+        <small class="text-text-soft">Latest {{ accounts|length }}{% if query %} matching “{{ query }}”{% endif %}</small>
+    </div>
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto">
+        <table class="w-full min-w-[940px] border-collapse font-mono text-sm">
+            <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">account</th><th class="px-3 py-2.5">role</th><th class="px-3 py-2.5">state</th><th class="px-3 py-2.5">created</th><th class="px-3 py-2.5">last login</th><th class="px-3 py-2.5">tools</th></tr></thead>
+            <tbody>
+            {% for account in accounts %}
+                <tr class="border-t border-white/[0.06] align-top">
+                    <td class="px-3 py-3"><code>{{ account.account_id }}</code></td>
+                    <td class="px-3 py-3">{{ 'Admin' if account.is_admin else 'Customer' }}</td>
+                    <td class="px-3 py-3"><span class="status-pill">{{ 'disabled' if account.disabled else 'enabled' }}</span>{% if account.disabled_reason %}<small class="mt-1 block max-w-[220px] text-text-soft">{{ account.disabled_reason }}</small>{% endif %}</td>
+                    <td class="px-3 py-3">{{ account.created_at[:16] if account.created_at else '—' }}</td>
+                    <td class="px-3 py-3">{{ account.last_login_at[:16] if account.last_login_at else 'never' }}</td>
+                    <td class="px-3 py-3">
+                        <details><summary class="btn btn-secondary btn-xs">Actions</summary>
+                            <div class="mt-3 grid min-w-[280px] gap-2">
+                                <form method="post" action="/dashboard/admin/accounts/{{ account.account_id }}/{{ 'enable' if account.disabled else 'disable' }}" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Reason" class="p-2">
+                                    <button class="btn btn-ghost btn-xs" type="submit">{{ 'Enable account' if account.disabled else 'Disable + suspend resources' }}</button>
+                                </form>
+                                <form method="post" action="/dashboard/admin/accounts/{{ account.account_id }}/{{ 'demote' if account.is_admin else 'promote' }}" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Reason" class="p-2">
+                                    <button class="btn btn-ghost btn-xs" type="submit">{{ 'Demote from Admin' if account.is_admin else 'Promote to Admin' }}</button>
+                                </form>
+                                <form method="post" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Reason" class="p-2">
+                                    <div class="flex gap-2">
+                                        <button class="btn btn-ghost btn-xs" type="submit" formaction="/dashboard/admin/accounts/{{ account.account_id }}/revoke-sessions">Revoke sessions</button>
+                                        <button class="btn btn-ghost btn-xs" type="submit" formaction="/dashboard/admin/accounts/{{ account.account_id }}/revoke-keys">Revoke API keys</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </details>
+                    </td>
+                </tr>
+            {% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-text-soft">No accounts returned by the live source.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </div></div>
+</section>
+
+<section class="container page-section" id="vms">
+    <div class="section-heading"><div><span class="panel-label">compute fleet</span><h2>VMs</h2></div><small class="text-text-soft">Latest {{ vms|length }}</small></div>
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto">
+        <table class="w-full min-w-[1100px] border-collapse font-mono text-sm">
+            <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">VM</th><th class="px-3 py-2.5">owner</th><th class="px-3 py-2.5">state</th><th class="px-3 py-2.5">resources</th><th class="px-3 py-2.5">billing</th><th class="px-3 py-2.5">expires</th><th class="px-3 py-2.5">tools</th></tr></thead>
+            <tbody>{% for vm in vms %}
+                <tr class="border-t border-white/[0.06] align-top">
+                    <td class="px-3 py-3"><code>{{ vm.vm_id }}</code><small class="mt-1 block text-text-soft">{{ vm.hostname or vm.ipv6 or 'not provisioned' }}</small></td>
+                    <td class="px-3 py-3"><code>{{ vm.owner_account_id or 'anonymous' }}</code></td>
+                    <td class="px-3 py-3"><span class="status-pill">{{ vm.status }}</span>{% if vm.suspension_reason %}<small class="mt-1 block text-text-soft">{{ vm.suspension_reason }}</small>{% endif %}</td>
+                    <td class="px-3 py-3">{{ vm.vcpu or '—' }}C / {{ vm.memory_mb or '—' }}M / {{ vm.disk_gb or '—' }}G<small class="mt-1 block text-text-soft">{{ vm.os or '—' }} · {{ vm.size or '—' }}</small></td>
+                    <td class="px-3 py-3"><strong>{{ vm.billing_mode or 'paid' }}</strong><small class="mt-1 block text-text-soft">charged ${{ vm.charged_usd or '0' }} · retail ${{ vm.retail_usd or vm.charged_usd or '0' }}</small></td>
+                    <td class="px-3 py-3">{{ vm.expires_at[:16] if vm.expires_at else '—' }}</td>
+                    <td class="px-3 py-3">
+                        <details><summary class="btn btn-secondary btn-xs">Actions</summary>
+                            <div class="mt-3 grid min-w-[300px] gap-3">
+                                <form method="post" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Operational reason" class="p-2">
+                                    <div class="flex flex-wrap gap-1">
+                                        {% for action in ['start', 'reboot', 'shutdown', 'suspend'] %}<button class="btn btn-ghost btn-xs" type="submit" formaction="/dashboard/admin/vms/{{ vm.vm_id }}/actions/{{ action }}">{{ action }}</button>{% endfor %}
+                                        <button class="btn btn-ghost btn-xs" type="submit" formaction="/dashboard/admin/vms/{{ vm.vm_id }}/actions/destroy" onclick="return confirm('Permanently destroy {{ vm.vm_id }}?')">destroy</button>
+                                    </div>
+                                </form>
+                                <form method="post" action="/dashboard/admin/vms/{{ vm.vm_id }}/transfer" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="target_account_id" required minlength="11" maxlength="11" placeholder="Target account ID" class="p-2 font-mono">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Transfer reason" class="p-2">
+                                    <button class="btn btn-ghost btn-xs" type="submit">Transfer VM + attached domain</button>
+                                </form>
+                            </div>
+                        </details>
+                    </td>
+                </tr>
+            {% else %}<tr><td colspan="7" class="px-3 py-6 text-center text-text-soft">No VMs returned by the live source.</td></tr>{% endfor %}</tbody>
+        </table>
+    </div></div>
+</section>
+
+<section class="container page-section" id="domains">
+    <div class="section-heading"><div><span class="panel-label">registrar &amp; DNS</span><h2>Domains</h2></div><small class="text-text-soft">Domains stay live when an account is suspended</small></div>
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto">
+        <table class="w-full min-w-[1040px] border-collapse font-mono text-sm">
+            <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">domain</th><th class="px-3 py-2.5">owner</th><th class="px-3 py-2.5">state</th><th class="px-3 py-2.5">nameservers</th><th class="px-3 py-2.5">DNSSEC</th><th class="px-3 py-2.5">linked VM</th><th class="px-3 py-2.5">tools</th></tr></thead>
+            <tbody>{% for domain in domains %}
+                <tr class="border-t border-white/[0.06] align-top">
+                    <td class="px-3 py-3"><code>{{ domain.domain }}</code><small class="mt-1 block text-text-soft">expires {{ domain.expires_at[:10] if domain.expires_at else '—' }}</small></td>
+                    <td class="px-3 py-3"><code>{{ domain.owner_account_id or 'anonymous' }}</code></td>
+                    <td class="px-3 py-3"><span class="status-pill">{{ domain.status }}</span><small class="mt-1 block text-text-soft">provider {{ domain.provider_status or '—' }}</small></td>
+                    <td class="px-3 py-3">{{ domain.nameserver_mode }}<small class="mt-1 block max-w-[260px] break-all text-text-soft">{{ domain.nameservers|join(', ') }}</small></td>
+                    <td class="px-3 py-3">{{ domain.dnssec_mode }} / {{ domain.dnssec_status }}</td>
+                    <td class="px-3 py-3"><code>{{ domain.linked_vm_id or '—' }}</code></td>
+                    <td class="px-3 py-3">
+                        <details><summary class="btn btn-secondary btn-xs">Actions</summary>
+                            <div class="mt-3 grid min-w-[300px] gap-3">
+                                <form method="post" action="/dashboard/admin/domains/{{ domain.domain }}/reconcile" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Reconciliation reason" class="p-2">
+                                    <button class="btn btn-ghost btn-xs" type="submit">Queue provider reconciliation</button>
+                                </form>
+                                <form method="post" action="/dashboard/admin/domains/{{ domain.domain }}/transfer" class="grid gap-2">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input name="target_account_id" required minlength="11" maxlength="11" placeholder="Target account ID" class="p-2 font-mono">
+                                    <input name="reason" required minlength="3" maxlength="1000" placeholder="Transfer reason" class="p-2">
+                                    <button class="btn btn-ghost btn-xs" type="submit">Transfer domain + attached VM</button>
+                                </form>
+                            </div>
+                        </details>
+                    </td>
+                </tr>
+            {% else %}<tr><td colspan="7" class="px-3 py-6 text-center text-text-soft">No domains returned by the live source.</td></tr>{% endfor %}</tbody>
+        </table>
+    </div></div>
+</section>
+
+<section class="container page-section" id="billing">
+    <div class="section-heading"><div><span class="panel-label">billing ledger</span><h2>Payments &amp; Admin waivers</h2></div><small class="text-text-soft">Latest {{ payment_events|length }} immutable events</small></div>
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto">
+        <table class="w-full min-w-[940px] border-collapse font-mono text-sm">
+            <thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">time</th><th class="px-3 py-2.5">event</th><th class="px-3 py-2.5">resource</th><th class="px-3 py-2.5">amount</th><th class="px-3 py-2.5">network</th><th class="px-3 py-2.5">actor / tx</th></tr></thead>
+            <tbody>{% for event in payment_events %}<tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3">{{ event.created_at[:16] if event.created_at else '—' }}</td><td class="px-3 py-3"><span class="status-pill">{{ event.event_type }}</span></td><td class="px-3 py-3"><code>{{ event.method }} {{ event.resource_path }}</code><small class="mt-1 block text-text-soft">{{ event.service_group }}</small></td><td class="px-3 py-3">${{ event.amount_usd }}</td><td class="px-3 py-3">{{ event.network }} / {{ event.asset }}</td><td class="px-3 py-3"><code>{{ event.actor_account_id or event.payer_wallet or '—' }}</code><small class="mt-1 block max-w-[260px] break-all text-text-soft">{{ event.tx_hash or event.error or '—' }}</small></td></tr>{% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-text-soft">No payment events returned by the live source.</td></tr>{% endfor %}</tbody>
+        </table>
+    </div></div>
+</section>
+
+<section class="container page-section" id="refunds">
+    <div class="section-heading"><div><span class="panel-label">external obligations</span><h2>Refunds</h2></div><small class="text-text-soft">Resolution records evidence external settlement; they do not send funds</small></div>
+    <div class="grid gap-3">
+    {% for refund in refunds %}
+        <article class="mini-card grid gap-4 p-5 lg:grid-cols-[1fr_1.2fr]">
+            <div><span class="status-pill">{{ refund.resolution.status if refund.resolution else 'owed' }}</span><h3 class="mt-2 font-mono">${{ refund.amount_usd }} {{ refund.asset }}</h3><p class="mt-2 text-sm text-text-soft"><code>{{ refund.event_id }}</code><br>{{ refund.network }} · {{ refund.payer_wallet or 'payer unavailable' }}<br>{{ refund.reason or 'No reason recorded' }}</p></div>
+            {% if refund.resolution %}
+            <dl class="text-sm"><dt class="panel-label">Resolution</dt><dd class="mt-2">{{ refund.resolution.external_reference or refund.resolution.transaction_hash or 'Recorded without external reference' }}</dd><dd class="mt-1 text-text-soft">{{ refund.resolution.resolved_at }} · {{ refund.resolution.actor_account_id }}</dd></dl>
+            {% else %}
+            <form method="post" action="/dashboard/admin/refunds/{{ refund.event_id }}/resolve" class="grid gap-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="grid gap-2 md:grid-cols-2"><select name="status" required class="p-2"><option value="resolved">Resolved externally</option><option value="rejected">Rejected</option></select><input name="external_reference" maxlength="256" placeholder="External reference" class="p-2"></div>
+                <input name="transaction_hash" maxlength="128" placeholder="Refund transaction hash (optional)" class="p-2 font-mono">
+                <input name="reason" required minlength="3" maxlength="1000" placeholder="Resolution reason" class="p-2">
+                <button class="btn btn-secondary btn-xs" type="submit">Record resolution</button>
+            </form>
+            {% endif %}
+        </article>
+    {% else %}<div class="mini-card p-6 text-center text-text-soft">No refund obligations returned by the live source.</div>{% endfor %}
+    </div>
+</section>
+
+<section class="container page-section" id="jobs">
+    <div class="grid gap-5 lg:grid-cols-2">
+        <div>
+            <div class="section-heading"><div><span class="panel-label">work queues</span><h2>Jobs</h2></div></div>
+            <div class="grid gap-2">{% for job in jobs %}<article class="mini-card p-4"><div class="flex flex-wrap items-start justify-between gap-2"><div><strong>{{ job.kind }}</strong><small class="mt-1 block font-mono text-text-soft">{{ job.source }} · {{ job.job_id }} · {{ job.resource_id or job.target or '—' }}</small></div><span class="status-pill">{{ job.status }}</span></div>{% if job.last_error %}<p class="mt-2 text-sm text-error">{{ job.last_error }}</p>{% endif %}{% if job.status == 'failed' and job.source == 'domain' %}<form method="post" action="/dashboard/admin/jobs/{{ job.job_id }}/retry" class="mt-3 flex gap-2"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" required minlength="3" maxlength="1000" placeholder="Retry reason" class="min-w-0 flex-1 p-2"><button class="btn btn-ghost btn-xs" type="submit">Retry</button></form>{% endif %}</article>{% else %}<div class="mini-card p-5 text-text-soft">No jobs returned.</div>{% endfor %}</div>
+        </div>
+        <div>
+            <div class="section-heading"><div><span class="panel-label">account orchestration</span><h2>Admin operations</h2></div></div>
+            <div class="grid gap-2">{% for operation in operations %}<article class="mini-card p-4"><div class="flex flex-wrap items-start justify-between gap-2"><div><strong>{{ operation.kind }}</strong><small class="mt-1 block font-mono text-text-soft">{{ operation.operation_id }} · {{ operation.account_id }}</small></div><span class="status-pill">{{ operation.status }}</span></div>{% if operation.error %}<p class="mt-2 text-sm text-error">{{ operation.error }}</p>{% endif %}{% if operation.status == 'failed' %}<form method="post" action="/dashboard/admin/operations/{{ operation.operation_id }}/retry" class="mt-3 flex gap-2"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input name="reason" required minlength="3" maxlength="1000" placeholder="Retry reason" class="min-w-0 flex-1 p-2"><button class="btn btn-ghost btn-xs" type="submit">Retry</button></form>{% endif %}</article>{% else %}<div class="mini-card p-5 text-text-soft">No Admin operations returned.</div>{% endfor %}</div>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section" id="audit">
+    <div class="section-heading"><div><span class="panel-label">immutable accountability</span><h2>Admin audit trail</h2></div><small class="text-text-soft">Latest {{ audit_events|length }}</small></div>
+    <div class="mini-card overflow-hidden p-0"><div class="overflow-x-auto"><table class="w-full min-w-[900px] border-collapse font-mono text-sm"><thead><tr class="bg-white/[0.04] text-left"><th class="px-3 py-2.5">time</th><th class="px-3 py-2.5">actor</th><th class="px-3 py-2.5">action</th><th class="px-3 py-2.5">target</th><th class="px-3 py-2.5">reason</th><th class="px-3 py-2.5">result</th></tr></thead><tbody>{% for event in audit_events %}<tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3">{{ event.created_at[:16] if event.created_at else '—' }}</td><td class="px-3 py-3"><code>{{ event.actor_account_id }}</code></td><td class="px-3 py-3">{{ event.action }}</td><td class="px-3 py-3">{{ event.target_type or '—' }}<small class="mt-1 block text-text-soft">{{ event.target_id or '—' }}</small></td><td class="px-3 py-3 max-w-[320px]">{{ event.reason or '—' }}</td><td class="px-3 py-3"><span class="status-pill">{{ 'ok' if event.succeeded else 'failed' }}</span></td></tr>{% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-text-soft">No audit events returned by the live source.</td></tr>{% endfor %}</tbody></table></div></div>
+</section>
+{% endblock %}
