@@ -259,6 +259,13 @@ _MAIL_PRODUCTS_CACHE: dict[str, Any] = {
 }
 _MAIL_PRODUCTS_TTL_SECONDS = 60
 _MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS = 5
+_MAIL_PRICING_CACHE: dict[str, Any] = {
+    "value": None,
+    "expires_at": 0.0,
+    "retry_at": 0.0,
+}
+_MAIL_PRICING_TTL_SECONDS = 60
+_MAIL_PRICING_NEGATIVE_TTL_SECONDS = 5
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -884,6 +891,8 @@ def _mail_catalog_available(catalog: dict[str, Any]) -> bool:
 
 
 def _available_mail_product(catalog: dict[str, Any], product_id: str) -> dict[str, Any] | None:
+    if catalog.get("available") is not True:
+        return None
     products = catalog.get("products")
     if not isinstance(products, list):
         return None
@@ -918,15 +927,18 @@ async def _refresh_mail_products(request: Request) -> dict[str, Any]:
             "catalog_status": "unavailable",
         }
     data = await _fetch_api(request, "/v1/mail/products")
+    observed_at = time.time()
     if isinstance(data, dict) and isinstance(data.get("products"), list):
         normalized = {**data, "available": _mail_catalog_available(data)}
         _MAIL_PRODUCTS_CACHE.update(
             value=normalized,
-            expires_at=now + _MAIL_PRODUCTS_TTL_SECONDS,
+            expires_at=observed_at + _MAIL_PRODUCTS_TTL_SECONDS,
             retry_at=0.0,
         )
         return {**normalized, "catalog_status": "live"}
-    _MAIL_PRODUCTS_CACHE["retry_at"] = now + _MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS
+    _MAIL_PRODUCTS_CACHE["retry_at"] = (
+        observed_at + _MAIL_PRODUCTS_NEGATIVE_TTL_SECONDS
+    )
     if isinstance(cached, dict):
         return {**cached, "available": False, "catalog_status": "stale"}
     return {
@@ -935,6 +947,49 @@ async def _refresh_mail_products(request: Request) -> dict[str, Any]:
         "terms_version": None,
         "catalog_status": "unavailable",
     }
+
+
+def _mail_send_price(pricing: dict[str, Any]) -> str | None:
+    if pricing.get("pricing_status") != "live":
+        return None
+    raw = pricing.get("outbound_message_usd")
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return None
+    if not value.is_finite() or value < 0:
+        return None
+    return raw
+
+
+async def _refresh_mail_pricing(request: Request) -> dict[str, Any]:
+    now = time.time()
+    cached = _MAIL_PRICING_CACHE.get("value")
+    if isinstance(cached, dict) and now < float(_MAIL_PRICING_CACHE["expires_at"]):
+        return {**cached, "pricing_status": "live"}
+    if now < float(_MAIL_PRICING_CACHE.get("retry_at", 0.0)):
+        if isinstance(cached, dict):
+            return {**cached, "pricing_status": "stale"}
+        return {"pricing_status": "unavailable"}
+
+    data = await _fetch_api(request, "/v1/mail/pricing")
+    observed_at = time.time()
+    if isinstance(data, dict):
+        normalized = {**data, "pricing_status": "live"}
+        if _mail_send_price(normalized) is not None:
+            _MAIL_PRICING_CACHE.update(
+                value=data,
+                expires_at=observed_at + _MAIL_PRICING_TTL_SECONDS,
+                retry_at=0.0,
+            )
+            return normalized
+
+    _MAIL_PRICING_CACHE["retry_at"] = observed_at + _MAIL_PRICING_NEGATIVE_TTL_SECONDS
+    if isinstance(cached, dict):
+        return {**cached, "pricing_status": "stale"}
+    return {"pricing_status": "unavailable"}
 
 
 def _live_vm_tiers(products: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -1130,6 +1185,7 @@ async def page_services(request: Request) -> Response:
     )
     proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
     mail = await _refresh_mail_products(request)
+    mail_pricing = await _refresh_mail_pricing(request)
     return _render(
         request,
         "services.html",
@@ -1141,6 +1197,7 @@ async def page_services(request: Request) -> Response:
         proxy_prices=proxy_prices,
         mail=mail,
         hosted_mail_product=_available_mail_product(mail, "agent-mail-hosted"),
+        outbound_mail_price=_mail_send_price(mail_pricing),
     )
 
 
@@ -1149,11 +1206,16 @@ async def page_agent_mail(request: Request) -> Response:
     """API-only agent identity offer, availability sourced from live backend."""
     await _refresh_runtime(request)
     products = await _refresh_mail_products(request)
+    pricing = await _refresh_mail_pricing(request)
     return _render(
         request,
         "agent_mail.html",
         mail=products,
         hosted_mail_product=_available_mail_product(products, "agent-mail-hosted"),
+        domain_bundle_product=_available_mail_product(
+            products, "agent-mail-domain-bundle"
+        ),
+        outbound_mail_price=_mail_send_price(pricing),
         campaign_launch=CAMPAIGN_LAUNCH,
     )
 
@@ -1185,6 +1247,11 @@ async def _render_journey(request: Request, slug: str) -> Response:
         journey=journey,
         journeys=JOURNEYS,
         mail=mail,
+        domain_bundle_product=(
+            _available_mail_product(mail, "agent-mail-domain-bundle")
+            if mail is not None
+            else None
+        ),
         campaign_launch=CAMPAIGN_LAUNCH,
     )
 

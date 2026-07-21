@@ -30,7 +30,7 @@
         </div>
         <aside class="hero-side-card">
             <span class="panel-label">launch state</span>
-            {% if journey.slug == 'agent-email-domain-deliverability' and mail and mail.available and mail.catalog_status == 'live' %}
+            {% if journey.slug == 'agent-email-domain-deliverability' and domain_bundle_product %}
             <strong class="availability availability-live">Catalog available</strong>
             <p>The live catalog reports every launch gate open; the redacted public canary is still required before this result block changes.</p>
             {% else %}

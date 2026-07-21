@@ -207,7 +207,7 @@
         <div>
             {% if hosted_mail_product and mail.catalog_status == 'live' %}
             <span class="panel-label">live catalog confirms availability</span>
-            <h3>${{ hosted_mail_product.price_usd }} / 30 days + $0.01 per accepted outbound</h3>
+            <h3>${{ hosted_mail_product.price_usd }} / 30 days{% if outbound_mail_price %} + ${{ outbound_mail_price }} per accepted outbound{% else %}; live outbound fee unavailable{% endif %}</h3>
             {% else %}
             <span class="panel-label">launch gated · hosted activation unavailable</span>
             <h3>Hosted mailbox not currently offered</h3>

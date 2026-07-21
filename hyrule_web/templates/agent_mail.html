@@ -62,13 +62,13 @@
             <span class="num">02</span>
             <h3>Domain + mailbox</h3>
             <p>Combine a live one-year registrar quote with the mailbox activation. One x402 settlement returns one shared capability token.</p>
-            <p class="campaign-price">live domain quote + $1.00</p>
+            <p class="campaign-price">{% if domain_bundle_product %}live domain quote + ${{ domain_bundle_product.price_usd }}{% else %}Not currently offered{% endif %}</p>
         </article>
         <article class="feature-card">
             <span class="num">03</span>
             <h3>Conversation sends</h3>
             <p>One recipient, text plus sanitized HTML, five new recipients/day, twenty outbound/day. Replies to known inbound correspondents are supported.</p>
-            <p class="campaign-price">$0.01 <small>/ accepted outbound</small></p>
+            <p class="campaign-price">{% if outbound_mail_price %}${{ outbound_mail_price }} <small>/ accepted outbound</small>{% else %}Live send fee unavailable{% endif %}</p>
         </article>
     </div>
 </section>

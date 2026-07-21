@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 
 from hyrule_web.app import (
     _CATALOG_CACHE,
+    _MAIL_PRICING_CACHE,
     _MAIL_PRODUCTS_CACHE,
     _PRICING_CACHE,
     _PRODUCTS_CACHE,
@@ -248,6 +249,20 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                             "constraints": ["API-only submission and retrieval"],
                         }
                     ],
+                },
+            )
+        )
+        rx.get("/v1/mail/pricing").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "activation_usd": "1.00",
+                    "outbound_message_usd": "0.01",
+                    "inbound_usd": "0.00",
+                    "storage_gb": 1,
+                    "active_days": 30,
+                    "grace_days": 7,
+                    "auto_renew": False,
                 },
             )
         )
@@ -608,6 +623,9 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _TOOL_CATALOG_CACHE["successful_at"] = 0.0
     _PRICING_CACHE["value"] = None
     _PRICING_CACHE["expires_at"] = 0.0
+    _MAIL_PRICING_CACHE["value"] = None
+    _MAIL_PRICING_CACHE["expires_at"] = 0.0
+    _MAIL_PRICING_CACHE["retry_at"] = 0.0
     _MAIL_PRODUCTS_CACHE["value"] = None
     _MAIL_PRODUCTS_CACHE["expires_at"] = 0.0
     _MAIL_PRODUCTS_CACHE["retry_at"] = 0.0
