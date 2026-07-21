@@ -21,6 +21,26 @@
 </section>
 
 <section class="container page-section toolbox-bench">
+    {% if admin_access %}
+    <div class="mini-card mb-4 border {% if admin_waiver_enabled == false %}border-warn/30{% else %}border-ok/30{% endif %} p-4" role="status">
+        <span class="panel-label">Admin session</span>
+        {% if admin_waiver_enabled == true %}
+        <p class="mt-2 text-text-soft">
+            Eligible x402 diagnostics run with Admin access and record their retail value without
+            charging a wallet. Supplying a real payment signature still performs a real settlement.
+        </p>
+        {% elif admin_waiver_enabled == false %}
+        <p class="mt-2 text-text-soft">
+            Admin payment waivers are disabled in the Cloud configuration. Diagnostics continue to
+            use the normal x402 wallet flow.
+        </p>
+        {% else %}
+        <p class="mt-2 text-text-soft">
+            Admin waiver readiness could not be confirmed. The live x402 response remains authoritative.
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
     {% if catalog_status == 'live' %}
     <div class="catalog-state catalog-state-live" role="status"><span class="status-dot status-operational"></span> Live enabled catalog · {% if execution_enabled %}exact price confirmed before signing{% else %}payment-network discovery unavailable, so execution is paused{% endif %}</div>
     {% elif catalog_status == 'stale' %}

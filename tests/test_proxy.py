@@ -57,6 +57,24 @@ def test_proxy_forwards_allowlisted_header(
     assert seen["content-type"] == "application/json"
 
 
+def test_proxy_forwards_csrf_but_drops_legacy_dev_bypass(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    route = mocked_api.post("/v1/pay").mock(return_value=httpx.Response(200))
+    response = client.post(
+        "/api/pay",
+        headers={
+            "X-CSRF-Token": "hyr_csrf_test",
+            "X-DEV-BYPASS": "must-not-reach-cloud",
+        },
+        json={},
+    )
+    assert response.status_code == 200
+    seen = route.calls.last.request.headers
+    assert seen["x-csrf-token"] == "hyr_csrf_test"
+    assert "x-dev-bypass" not in seen
+
+
 def test_proxy_drops_hop_by_hop_and_unknown_headers(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
