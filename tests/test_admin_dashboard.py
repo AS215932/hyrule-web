@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
@@ -219,4 +220,43 @@ def test_admin_password_step_up_uses_same_session_csrf(
     assert route.calls.last.request.headers["x-csrf-token"] == "hyr_csrf_test"
     assert json.loads(route.calls.last.request.content) == {
         "password": "correct horse battery staple"
+    }
+
+
+@pytest.mark.parametrize(
+    ("form_path", "api_path"),
+    [
+        (
+            "/dashboard/admin/vms/vm_admin/transfer",
+            "/v1/admin/vms/vm_admin/transfer",
+        ),
+        (
+            "/dashboard/admin/domains/example.dev/transfer",
+            "/v1/admin/domains/example.dev/transfer",
+        ),
+    ],
+)
+def test_admin_transfer_normalizes_variable_length_account_ids(
+    client: TestClient,
+    mocked_api: respx.MockRouter,
+    form_path: str,
+    api_path: str,
+) -> None:
+    route = mocked_api.post(api_path).mock(return_value=httpx.Response(200, json={}))
+
+    response = client.post(
+        form_path,
+        headers={"Cookie": "hyr_sess=admin; hyr_csrf=hyr_csrf_test"},
+        data={
+            "target_account_id": "  acct_new1  ",
+            "reason": "customer-approved transfer",
+            "csrf_token": "hyr_csrf_test",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert json.loads(route.calls.last.request.content) == {
+        "target_account_id": "ACCT_NEW1",
+        "reason": "customer-approved transfer",
     }

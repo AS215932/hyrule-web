@@ -1049,8 +1049,8 @@ async def page_toolbox(request: Request) -> Response:
     if request.cookies.get("hyr_sess"):
         me_response = await _api_request(request, "/v1/me")
         if me_response is not None and me_response.status_code == 200:
-            me_body = me_response.json()
-            admin_access = isinstance(me_body, dict) and bool(me_body.get("is_admin"))
+            me_body = _response_payload(me_response)
+            admin_access = bool(me_body.get("is_admin"))
             if admin_access:
                 overview_response = await _api_request(request, "/v1/admin/overview")
                 overview = _response_payload(overview_response)
@@ -2014,14 +2014,17 @@ async def admin_vm_action(
 async def admin_vm_transfer(
     request: Request,
     vm_id: str,
-    target_account_id: Annotated[str, Form(min_length=11, max_length=11)],
+    target_account_id: Annotated[str, Form(min_length=1, max_length=128)],
     reason: Annotated[str, Form(min_length=3, max_length=1000)],
     csrf_token: Annotated[str, Form()],
 ) -> Response:
+    target = target_account_id.strip().upper()
+    if not target:
+        raise HTTPException(status_code=422, detail="Target account ID is required")
     return await _admin_action(
         request,
         path=f"/v1/admin/vms/{urllib.parse.quote(vm_id, safe='')}/transfer",
-        payload={"target_account_id": target_account_id.strip().upper(), "reason": reason},
+        payload={"target_account_id": target, "reason": reason},
         csrf_token=csrf_token,
         success=f"VM {vm_id} ownership transferred.",
     )
@@ -2031,15 +2034,18 @@ async def admin_vm_transfer(
 async def admin_domain_transfer(
     request: Request,
     fqdn: str,
-    target_account_id: Annotated[str, Form(min_length=11, max_length=11)],
+    target_account_id: Annotated[str, Form(min_length=1, max_length=128)],
     reason: Annotated[str, Form(min_length=3, max_length=1000)],
     csrf_token: Annotated[str, Form()],
 ) -> Response:
     domain = fqdn.strip().lower().rstrip(".")
+    target = target_account_id.strip().upper()
+    if not target:
+        raise HTTPException(status_code=422, detail="Target account ID is required")
     return await _admin_action(
         request,
         path=f"/v1/admin/domains/{urllib.parse.quote(domain, safe='')}/transfer",
-        payload={"target_account_id": target_account_id.strip().upper(), "reason": reason},
+        payload={"target_account_id": target, "reason": reason},
         csrf_token=csrf_token,
         success=f"Domain {domain} ownership transferred.",
     )

@@ -159,6 +159,25 @@ def test_toolbox_explains_enabled_admin_waiver_without_claiming_settlement(
     assert "Supplying a real payment signature still performs a real settlement" in response.text
 
 
+def test_toolbox_ignores_malformed_optional_identity_response(
+    client: TestClient,
+    mocked_api: respx.MockRouter,
+) -> None:
+    mocked_api.get("/v1/me").mock(
+        return_value=httpx.Response(
+            200,
+            content=b'{"account_id":',
+            headers={"content-type": "application/json"},
+        )
+    )
+
+    response = client.get("/toolbox", headers={"Cookie": "hyr_sess=admin"})
+
+    assert response.status_code == 200
+    assert "Runnable diagnostics" in response.text
+    assert "Eligible x402 diagnostics run with Admin access" not in response.text
+
+
 def test_toolbox_fails_closed_without_fresh_discovery(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
