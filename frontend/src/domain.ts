@@ -81,6 +81,25 @@ export function domainOrderPayload(
   return body;
 }
 
+export function domainRegistrationPayload(
+  domain: string,
+  quoteId: string,
+  maxPriceUsd: string,
+  clientOrderId: string,
+): Record<string, unknown> {
+  if (!domain || !quoteId) throw new Error("The reviewed domain quote is incomplete.");
+  if (!/^\d+(?:\.\d{1,6})?$/.test(maxPriceUsd)) {
+    throw new Error("The reviewed domain price is invalid.");
+  }
+  return {
+    domain,
+    client_order_id: clientOrderId,
+    accept_terms: true,
+    quote_id: quoteId,
+    max_price_usd: maxPriceUsd,
+  };
+}
+
 function renderNative(container: HTMLElement, order: DomainOrder): void {
   const payment = order.payment;
   container.replaceChildren();
@@ -136,6 +155,10 @@ async function pollOrder(orderId: string, statusElement: HTMLElement | null): Pr
 
 export async function setupCheckout(container: HTMLElement): Promise<void> {
   const quoteId = container.dataset.quoteId || "";
+  const domain = container.dataset.domain || "";
+  const action = container.dataset.action || "";
+  const maxPriceUsd = container.dataset.maxPriceUsd || "";
+  const marketplaceEnabled = container.dataset.marketplaceEnabled === "true";
   const termsVersion = container.dataset.termsVersion || "";
   const payButton = document.getElementById("domain-pay") as HTMLButtonElement | null;
   const statusElement = document.getElementById("domain-payment-status");
@@ -171,8 +194,14 @@ export async function setupCheckout(container: HTMLElement): Promise<void> {
       if (!terms?.checked) throw new Error("Accept the domain terms before paying.");
       const selectedMethod = method();
       if (!selectedMethod) throw new Error("No payment method is currently available.");
-      const body = domainOrderPayload(quoteId, selectedMethod, termsVersion, refundInput?.value);
-      const idempotencyKey = storedKey(`${quoteId}:${selectedMethod}`);
+      const marketplaceRegistration =
+        selectedMethod === "usdc" && action === "register" && marketplaceEnabled;
+      const idempotencyKey = marketplaceRegistration
+        ? storedKey(`registration:${domain}:${quoteId}`)
+        : storedKey(`${quoteId}:${selectedMethod}`);
+      const body = marketplaceRegistration
+        ? domainRegistrationPayload(domain, quoteId, maxPriceUsd, idempotencyKey)
+        : domainOrderPayload(quoteId, selectedMethod, termsVersion, refundInput?.value);
       if (selectedMethod === "usdc") {
         const network = chainSelect
           ? networks.get(chainSelect.value)
@@ -184,9 +213,9 @@ export async function setupCheckout(container: HTMLElement): Promise<void> {
           network,
           button: payButton,
           statusEl: statusElement,
-          orderPath: "/api/domains/orders",
+          orderPath: marketplaceRegistration ? "/api/domains/registrations" : "/api/domains/orders",
           body,
-          headers: { "Idempotency-Key": idempotencyKey },
+          headers: marketplaceRegistration ? undefined : { "Idempotency-Key": idempotencyKey },
           onSuccess: orderRedirect,
         });
         return;

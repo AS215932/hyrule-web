@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { domainOrderPayload, setupCheckout, setupTransfer } from "./domain";
+import {
+  domainOrderPayload,
+  domainRegistrationPayload,
+  setupCheckout,
+  setupTransfer,
+} from "./domain";
+import type { EvmPayOptions } from "./types";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -32,7 +38,75 @@ describe("domain order payload", () => {
   });
 });
 
+describe("wallet-owned registration payload", () => {
+  it("binds the reviewed quote, total cap, and stable client order ID", () => {
+    expect(
+      domainRegistrationPayload("example.dev", "dq_reviewed", "13.00", "client-order-1234567890"),
+    ).toEqual({
+      domain: "example.dev",
+      client_order_id: "client-order-1234567890",
+      accept_terms: true,
+      quote_id: "dq_reviewed",
+      max_price_usd: "13.00",
+    });
+  });
+});
+
 describe("domain checkout controls", () => {
+  it("uses the public x402 registration endpoint without an account", async () => {
+    document.body.innerHTML = `
+      <div id="domain-checkout"
+           data-quote-id="dq_public"
+           data-domain="example.dev"
+           data-action="register"
+           data-max-price-usd="13.00"
+           data-marketplace-enabled="true"
+           data-terms-version="v1">
+        <input name="domain-payment-method" type="radio" value="usdc" checked>
+        <div id="domain-refund-wrap"></div>
+        <div id="domain-chain-wrap"></div>
+        <select id="domain-chain"><option value="base">Base</option></select>
+        <input id="domain-terms" type="checkbox" checked>
+        <button id="domain-pay" type="button">Pay and place order</button>
+        <div id="domain-payment-status"></div>
+      </div>
+    `;
+    const network = {
+      key: "base",
+      display_name: "Base",
+      family: "evm",
+      asset: "USDC",
+      caip2: "eip155:8453",
+      chain_id: 8453,
+      token_address: "0xUSDC",
+      token_decimals: 6,
+      eip712_domain: { name: "USD Coin", version: "2" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ networks: [network] }), { status: 200 })),
+    );
+    const payWithEvm = vi.fn(async (options: EvmPayOptions) => {
+      void options;
+    });
+    window.HyrulePayments = { payWithEvm };
+
+    await setupCheckout(document.getElementById("domain-checkout") as HTMLElement);
+    (document.getElementById("domain-pay") as HTMLButtonElement).click();
+
+    await vi.waitFor(() => expect(payWithEvm).toHaveBeenCalledOnce());
+    const options = payWithEvm.mock.calls[0]?.[0];
+    expect(options?.orderPath).toBe("/api/domains/registrations");
+    expect(options?.headers).toBeUndefined();
+    expect(options?.body).toMatchObject({
+      domain: "example.dev",
+      quote_id: "dq_public",
+      accept_terms: true,
+      max_price_usd: "13.00",
+    });
+    expect(String(options?.body.client_order_id)).toHaveLength(36);
+  });
+
   it("wires native checkout before the EVM network catalog resolves", async () => {
     document.body.innerHTML = `
       <div id="domain-checkout" data-quote-id="dq_pending_catalog" data-terms-version="v1">

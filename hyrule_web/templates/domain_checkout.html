@@ -34,17 +34,20 @@
         <div class="wallet-card" id="domain-checkout"
              data-quote-id="{{ quote.quote_id }}"
              data-domain="{{ quote.domain }}"
+             data-action="{{ quote.action }}"
+             data-max-price-usd="{{ quote.price.total_usd }}"
+             data-marketplace-enabled="{{ 'true' if marketplace_enabled else 'false' }}"
              data-terms-version="{{ quote.terms_version }}">
             <span class="panel-label justify-center">amount due</span>
             <div class="wallet-amount">pay <em>${{ quote.price.total_usd }}</em></div>
-            {% if not authenticated %}
-            <div class="payment-status payment-warn">Domain orders belong to an account. Log in or create an account before paying.</div>
             {% set return_to = "/domains/checkout/" ~ quote.quote_id %}
+            {% if not authenticated and (quote.action != "register" or not marketplace_enabled or networks | length == 0) %}
+            <div class="payment-status payment-warn">{% if quote.action == "register" %}Wallet-first checkout is temporarily unavailable. Log in or create an account before paying.{% else %}Renewals belong to an existing account. Log in before paying.{% endif %}</div>
             <div class="mt-3 flex gap-2"><a class="btn btn-primary" href="/login?next={{ return_to | urlencode }}">Log in</a><a class="btn btn-secondary" href="/signup?next={{ return_to | urlencode }}">Sign up</a></div>
             {% else %}
-            {% set has_usdc = networks | length > 0 %}
-            {% set has_btc = "BTC" in native %}
-            {% set has_xmr = "XMR" in native %}
+            {% set has_usdc = networks | length > 0 and (authenticated or marketplace_enabled) %}
+            {% set has_btc = authenticated and "BTC" in native %}
+            {% set has_xmr = authenticated and "XMR" in native %}
             {% if has_usdc or has_btc or has_xmr %}
             <fieldset class="form-section mb-2.5 border-0 p-0 text-left">
                 <span class="panel-label mb-1.5 block">payment method</span>
@@ -63,6 +66,12 @@
                 <input id="domain-refund-address" class="w-full p-2 font-mono" placeholder="Required for BTC/XMR">
                 <small>Used only if this paid order becomes a manual refund obligation.</small>
             </div>
+            {% if quote.action == "register" %}
+            <div class="payment-status payment-warn">The wallet that pays with USDC becomes the domain owner. A management session is created only after settlement.</div>
+            {% if not authenticated %}
+            <p class="mt-2 text-left text-[0.82em] text-text-soft">Bitcoin and Monero checkout remain account-only. <a href="/login?next={{ return_to | urlencode }}">Log in</a> to use them.</p>
+            {% endif %}
+            {% endif %}
             <label class="my-3 block text-left text-[0.85em]"><input id="domain-terms" type="checkbox" class="mr-1" required> I accept the <a href="/terms">domain terms</a>, including Hyrule's registrant role and manual renewal.</label>
             <button id="domain-pay" type="button" class="btn btn-primary btn-lg btn-block">Pay and place order</button>
             <div id="domain-payment-status" class="payment-status"></div>
@@ -77,4 +86,4 @@
 </section>
 {% endblock %}
 
-{% block scripts %}{% if quote and authenticated %}{{ vite_asset('domain') }}{% endif %}{% endblock %}
+{% block scripts %}{% if quote and (authenticated or (quote.action == "register" and marketplace_enabled)) %}{{ vite_asset('domain') }}{% endif %}{% endblock %}
