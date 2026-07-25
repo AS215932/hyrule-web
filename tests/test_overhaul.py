@@ -41,7 +41,10 @@ def test_index_advertises_all_four_pillars(client: TestClient) -> None:
     # Entry prices come from enabled-only OpenAPI (conftest).
     assert "$0.20/day" in body  # compute min
     assert "$0.001/req" in body  # intel min
-    assert "priced by TLD" in body  # disabled x402 domain order is not invented
+    # No payable domain operation in the enabled catalog: neither a price nor a
+    # purchasable-sounding label may be invented for the deferred product.
+    assert "not yet launched" in body
+    assert "priced by TLD" not in body
     # Agent purchase flow replaces the old BCP14/RFC role-play.
     assert "Discover. Pay. Provision." in body
     assert "MUST NOT" not in body

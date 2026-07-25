@@ -6,11 +6,15 @@
 {% set native_methods = native or [] %}
 {% set compute_min = (x402_resources | selectattr('group', 'equalto', 'compute') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
 {% set intel_min = (x402_resources | selectattr('group', 'equalto', 'intel') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
-{% set domains_min = (x402_resources | selectattr('group', 'equalto', 'domains') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
+{% set domain_rows = x402_resources | selectattr('group', 'equalto', 'domains') | list %}
+{% set domains_min = (domain_rows | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
 {% set proxy_min = (x402_resources | selectattr('group', 'equalto', 'proxy') | selectattr('min_price') | map(attribute='min_price') | map('float') | list) %}
 {% set compute_label = ('$%.2f/day' | format(compute_min | min)) if compute_min else 'live quote' %}
 {% set intel_label = ('$%.3f/req' | format(intel_min | min)) if intel_min else 'live quote' %}
-{% set domains_label = ('$%.2f+' | format(domains_min | min)) if domains_min else 'priced by TLD' %}
+{# Domains are only priced here when the enabled OpenAPI catalog actually has a
+   payable domain operation. With none enabled the product is deferred, so the
+   label says so rather than implying a purchasable price. #}
+{% set domains_label = ('$%.2f+' | format(domains_min | min)) if domains_min else ('priced by TLD' if domain_rows else 'not yet launched') %}
 {% set proxy_label = ('$%.2f/req' | format(proxy_min | min)) if proxy_min else 'live quote' %}
 
 <section class="container hero">
@@ -23,7 +27,7 @@
 
     <h1 class="rfc-title">Full-Stack Infrastructure for Autonomous Agents</h1>
 
-    <p class="rfc-abstract text-center">Agents can discover a service, satisfy x402, and receive infrastructure in one machine-readable flow. Provision compute, register domains, run network intelligence, or relay egress directly through the API. VM requests return a public status URL and a save-once management credential.</p>
+    <p class="rfc-abstract text-center">Agents can discover a service, satisfy x402, and receive infrastructure in one machine-readable flow. Provision compute, {% if domain_rows %}register domains, {% endif %}run network intelligence, or relay egress directly through the API. VM requests return a public status URL and a save-once management credential.</p>
 
     <div class="hero-actions justify-center mt-6">
         <a href="/agents" class="btn btn-primary btn-lg">Integrate an agent <span aria-hidden="true">→</span></a>
@@ -79,7 +83,7 @@
         <article class="pillar-card">
             <span class="sec">03</span>
             <h3>Domains &amp; DNS</h3>
-            <p>Domain registration and authoritative DNS record management complete the path from agent-built application to a globally resolvable service.</p>
+            <p>{% if domain_rows %}Domain registration and authoritative DNS record management complete the path from agent-built application to a globally resolvable service.{% else %}Domain registration and managed DNS are deferred from the launch catalog. Every VM still gets an automatic <code>deploy.hyrule.host</code> name.{% endif %}</p>
             <span class="from"><a href="/services#domains">details →</a> <b>{{ domains_label }}</b></span>
         </article>
         <article class="pillar-card">

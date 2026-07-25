@@ -152,15 +152,18 @@
             <span class="panel-label">2.3 domains &amp; dns</span>
             <h2>Names for the things you deploy.</h2>
         </div>
-        <div class="heading-side">Every VM gets a free subdomain automatically. For persistent deployments, register a real domain at checkout or via the API — registration through Openprovider, DNS served by AS215932's authoritative nameservers.</div>
+        <div class="heading-side">Every VM gets a free subdomain automatically.{% if domain_rows %} For persistent deployments, register a real domain at checkout or via the API — registration through Openprovider, DNS served by AS215932's authoritative nameservers.{% else %} Registration of your own domain is not part of the launch catalog yet; it appears here as soon as the enabled OpenAPI catalog advertises a payable domain operation.{% endif %}</div>
     </div>
     <div class="figure">
         <div class="dotlead"><span class="no">a.</span><span>Auto subdomain — <code>&lt;id&gt;.deploy.hyrule.host</code>, AAAA to your VM</span><span class="dl"></span><span class="v">free</span></div>
         {% for r in domain_rows %}
         <div class="dotlead mt-2"><span class="no">{{ loop.cycle('b.', 'c.', 'd.') }}</span><span>{{ r.description }} — <code>{{ r.method }} {{ r.path }}</code></span><span class="dl"></span><span class="v">{{ r.price_display }}</span></div>
         {% endfor %}
-        <div class="dotlead mt-2"><span class="no">＋</span><span>DNS zone + record management on registered domains</span><span class="dl"></span><span class="v">included</span></div>
-        <span class="figcap"><b>Table 3.</b> Domains &amp; DNS — registration price varies by TLD</span>
+        {% if not domain_rows %}
+        <div class="dotlead mt-2"><span class="no">b.</span><span>Domain registration, transfer, and renewal — not currently confirmed by the enabled OpenAPI catalog</span><span class="dl"></span><span class="v">not yet launched</span></div>
+        {% endif %}
+        <div class="dotlead mt-2"><span class="no">＋</span><span>DNS zone + record management on registered domains</span><span class="dl"></span><span class="v">{% if domain_rows %}included{% else %}with registration{% endif %}</span></div>
+        <span class="figcap"><b>Table 3.</b> Domains &amp; DNS — {% if domain_rows %}registration price varies by TLD{% else %}registration is deferred from the launch catalog{% endif %}</span>
     </div>
 </section>
 

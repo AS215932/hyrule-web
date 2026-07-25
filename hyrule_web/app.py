@@ -33,7 +33,13 @@ from markupsafe import Markup
 
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
 from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
-from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
+from .seo import (
+    CLOUD_OPENAPI_URL,
+    CLOUD_X402_MANIFEST_URL,
+    ROBOTS_TXT,
+    build_llms_txt,
+    render_sitemap_xml,
+)
 
 # Newline-delimited JSON to stdout per AS215932's application logging
 # contract (hyrule-infra/docs/application-logging.md). systemd-journald
@@ -86,7 +92,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await app.state.http.aclose()
 
 
-app = FastAPI(title="Hyrule Cloud", docs_url=None, redoc_url=None, lifespan=lifespan)
+# openapi_url=None: this app serves HTML pages, so a generated OpenAPI document
+# here described `/`, `/services`, `/order`… under the title "Hyrule Cloud" —
+# indistinguishable from the real agent API's schema and worse than a 404 for an
+# agent doing standard discovery. /openapi.json now redirects to the canonical
+# document instead (see `openapi_json_redirect`). /docs and /redoc stay off.
+app = FastAPI(
+    title="Hyrule Cloud",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    lifespan=lifespan,
+)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
@@ -381,6 +398,10 @@ async def refresh_service_status_for_pages(
             "/robots.txt",
             "/sitemap.xml",
             "/llms.txt",
+            # Machine discovery URIs: pure redirects to the canonical API host,
+            # no template to decorate with a status pill.
+            "/openapi.json",
+            "/.well-known/x402.json",
         }
     )
     if request.method == "GET" and not excluded:
@@ -801,6 +822,22 @@ async def _refresh_tool_catalog(request: Request) -> dict[str, Any]:
     return {"status": "unavailable", "fetched_at": None, "tools": []}
 
 
+def _group_is_payable(tool_catalog: dict[str, Any], group: str) -> bool:
+    """True only when FRESH discovery confirms a payable operation in `group`.
+
+    Fail-closed on a stale or unavailable catalog: an unknown state must never
+    be rendered as "this product is for sale". This is how copy learns that the
+    domain product is still deferred — `/v1/domains/*` answers 503 and never
+    appears in the API's enabled-only OpenAPI document.
+    """
+    if tool_catalog.get("status") != "live":
+        return False
+    tools = tool_catalog.get("tools")
+    if not isinstance(tools, list):
+        return False
+    return any(isinstance(tool, dict) and tool.get("group") == group for tool in tools)
+
+
 async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
     return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
 
@@ -995,9 +1032,7 @@ async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     tool_catalog = await _refresh_tool_catalog(request)
-    proxy_enabled = tool_catalog["status"] == "live" and any(
-        isinstance(tool, dict) and tool.get("group") == "proxy" for tool in tool_catalog["tools"]
-    )
+    proxy_enabled = _group_is_payable(tool_catalog, "proxy")
     proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
     return _render(
         request,
@@ -2179,7 +2214,40 @@ async def llms(request: Request) -> str:
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
         tools=tool_catalog.get("tools"),
+        domains_live=_group_is_payable(tool_catalog, "domains"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Agent discovery — the brand origin must not dead-end
+#
+# hyrule.host is where agents land first (SEO, llms.txt, schema.org) but every
+# machine-readable contract is authored on cloud.hyrule.host. Redirecting (302,
+# not 301) keeps a single source of truth that is always fresh and leaves us
+# free to serve a brand-origin document later without fighting cached
+# permanent redirects.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/.well-known/x402.json", include_in_schema=False)
+async def well_known_x402() -> RedirectResponse:
+    """Send x402 discovery at the brand origin to the canonical manifest.
+
+    llms.txt used to point agents at this path; before this redirect existed it
+    answered 404 here while cloud.hyrule.host served the real manifest, so a
+    conforming agent stopped at discovery.
+    """
+    return RedirectResponse(url=CLOUD_X402_MANIFEST_URL, status_code=302)
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def openapi_json_redirect() -> RedirectResponse:
+    """Point OpenAPI discovery at the real agent API.
+
+    This app publishes no schema of its own (`openapi_url=None`); the website's
+    page routes are not a payable API surface.
+    """
+    return RedirectResponse(url=CLOUD_OPENAPI_URL, status_code=302)
 
 
 # ---------------------------------------------------------------------------
