@@ -97,22 +97,31 @@ describe("signX402Quote", () => {
     const encoded = await signX402Quote(quote, network, provider);
     const envelope = JSON.parse(atob(encoded)) as {
       x402Version: number;
-      scheme: string;
-      network: string;
+      accepted: Record<string, unknown>;
       payload: {
         authorization: { from: string; to: string; value: string };
         signature: string;
       };
     };
+    // v2 shape: scheme/network live in `accepted`, echoed from the quote. A
+    // v1-shaped envelope stamped v2 is rejected as a malformed payment header.
     expect(envelope).toMatchObject({
       x402Version: 2,
-      scheme: "exact",
-      network: "eip155:8453",
+      accepted: {
+        scheme: "exact",
+        network: "eip155:8453",
+        amount: "1500000",
+        asset: network.token_address,
+        payTo: "0xPayee",
+        maxTimeoutSeconds: 300,
+      },
       payload: {
         authorization: { from: "0xAgent", to: "0xPayee", value: "1500000" },
         signature: "0xSignature",
       },
     });
+    expect(envelope).not.toHaveProperty("scheme");
+    expect(envelope).not.toHaveProperty("network");
     const signCall = request.mock.calls.find(([input]) => input.method === "eth_signTypedData_v4");
     const typedData = JSON.parse(String(signCall?.[0].params?.[1])) as {
       domain: { name: string; version: string };

@@ -113,16 +113,25 @@ describe("quote and replay", () => {
 });
 
 describe("agent-signed payment validation", () => {
+  const accepted = {
+    scheme: "exact",
+    network: "eip155:8453",
+    amount: "1000",
+    asset: "0xUSDC",
+    payTo: "0xPayee",
+    maxTimeoutSeconds: 300,
+  };
+
   function payment(overrides: Record<string, unknown> = {}): string {
+    const { accepted: acceptedOverrides, ...envelope } = overrides;
     return encodeBase64Json({
       x402Version: 2,
-      scheme: "exact",
-      network: "eip155:8453",
+      accepted: { ...accepted, ...(acceptedOverrides as object | undefined) },
       payload: {
         authorization: { from: "0xAgent", to: "0xPayee", value: "1000" },
         signature: "0xsig",
       },
-      ...overrides,
+      ...envelope,
     });
   }
 
@@ -130,10 +139,27 @@ describe("agent-signed payment validation", () => {
     expect(() => validateSignedPayment(quote, payment())).not.toThrow();
   });
 
+  it("rejects a v1-shaped envelope stamped as v2", () => {
+    expect(() =>
+      validateSignedPayment(
+        quote,
+        encodeBase64Json({
+          x402Version: 2,
+          scheme: "exact",
+          network: "eip155:8453",
+          payload: {
+            authorization: { from: "0xAgent", to: "0xPayee", value: "1000" },
+            signature: "0xsig",
+          },
+        }),
+      ),
+    ).toThrow(/accepted/);
+  });
+
   it("rejects network, payee, and amount substitution", () => {
-    expect(() => validateSignedPayment(quote, payment({ network: "eip155:137" }))).toThrow(
-      /network/,
-    );
+    expect(() =>
+      validateSignedPayment(quote, payment({ accepted: { network: "eip155:137" } })),
+    ).toThrow(/network/);
     expect(() =>
       validateSignedPayment(
         quote,
@@ -159,17 +185,17 @@ describe("agent-signed payment validation", () => {
   });
 
   it("rejects an incomplete or mismatched payment envelope", () => {
-    expect(() => validateSignedPayment(quote, payment({ scheme: "upto" }))).toThrow(/scheme/);
+    expect(() => validateSignedPayment(quote, payment({ accepted: { scheme: "upto" } }))).toThrow(
+      /scheme/,
+    );
+    expect(() => validateSignedPayment(quote, payment({ accepted: { amount: "999" } }))).toThrow(
+      /amount/,
+    );
     expect(() =>
       validateSignedPayment(
         quote,
-        encodeBase64Json({
-          x402Version: 2,
-          scheme: "exact",
-          network: "eip155:8453",
-          payload: {
-            authorization: { from: "0xAgent", to: "0xPayee", value: "1000" },
-          },
+        payment({
+          payload: { authorization: { from: "0xAgent", to: "0xPayee", value: "1000" } },
         }),
       ),
     ).toThrow(/signature/);

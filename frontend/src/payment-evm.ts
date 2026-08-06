@@ -20,6 +20,7 @@ import type {
   TransferWithAuthorizationTypedData,
 } from "./types";
 import {
+  acceptedRequirements,
   encodeBase64Json,
   executeX402,
   quoteX402,
@@ -207,8 +208,9 @@ export async function signX402Quote(
   })) as string;
   return encodeBase64Json({
     x402Version: 2,
-    scheme: accept.scheme || "exact",
-    network: accept.network,
+    // v2 puts scheme/network/amount in `accepted` (the quoted requirements
+    // entry being fulfilled), not at the top level of the envelope.
+    accepted: acceptedRequirements(accept),
     payload: {
       authorization: {
         from,
