@@ -936,6 +936,35 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
     return None
 
 
+# GET /v1/vm/{id}/status carries TWO status vocabularies, and they are not
+# interchangeable:
+#   status              VMStatus: provisioning|ready|running|suspended|failed|destroyed
+#   launch_proof_status accepted|payment_required|provisioning|provisioned|failed|rolled_back
+# The templates were written against the launch-proof words but read `status`,
+# so a finished VM (`ready`) matched nothing and the page sat on "Building your
+# VM." forever. Normalize once here; templates consume `state`.
+_VM_LIFECYCLE_TO_DISPLAY = {
+    "ready": "provisioned",
+    "running": "provisioned",
+    # A suspended VM still has connection details worth showing, and is
+    # terminal for polling purposes.
+    "suspended": "provisioned",
+    "failed": "failed",
+    "destroyed": "failed",
+    "provisioning": "provisioning",
+}
+
+
+def vm_display_state(vm: dict[str, Any] | None) -> str:
+    """Collapse both API status vocabularies into one display state."""
+    if not vm:
+        return "provisioning"
+    proof = vm.get("launch_proof_status")
+    if proof:
+        return str(proof)
+    return _VM_LIFECYCLE_TO_DISPLAY.get(str(vm.get("status") or ""), "provisioning")
+
+
 async def _fetch_vm_status(request: Request, vm_id: str) -> dict[str, Any] | None:
     """Fetch the launch-proof status for a single VM."""
     return await _fetch_api(request, f"/v1/vm/{vm_id}/status")
@@ -1504,6 +1533,7 @@ async def page_status(request: Request, vm_id: str) -> Response:
         "status.html",
         vm_id=vm_id,
         vm=data,
+        state=vm_display_state(data),
         management_token=management_token,
     )
 

@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { initManagementAccess, initStatus, renderStatus } from "./status";
-import type { VmStatus } from "./types";
+import { displayState, initManagementAccess, initStatus, renderStatus } from "./status";
+import type { LaunchProofStatus, VmStatus } from "./types";
 
-function makeVm(status: VmStatus["status"], extra: Partial<VmStatus> = {}): VmStatus {
-  return { status, ...extra };
+// The launch-proof words belong on `launch_proof_status`. They are NOT valid
+// values of `status`, which carries VMStatus — conflating the two is what left
+// finished VMs rendering the provisioning spinner forever.
+function makeVm(state: LaunchProofStatus, extra: Partial<VmStatus> = {}): VmStatus {
+  return { launch_proof_status: state, ...extra };
 }
 
 beforeEach(() => {
@@ -33,10 +36,10 @@ describe("renderStatus", () => {
     expect(html).toContain("Most builds finish in under 60 seconds");
   });
 
-  it("renders provisioned with FQDN, IPv6, and SSH command", () => {
+  it("renders provisioned with hostname, IPv6, and SSH command", () => {
     const html = renderStatus(
       makeVm("provisioned", {
-        fqdn: "vm-abc.deploy.hyrule.host",
+        hostname: "vm-abc.deploy.hyrule.host",
         ipv6: "2a0c:b641::1",
         profile: "md",
         resources: { vcpu: 3, ram_mb: 5120, disk_gb: 30 },
@@ -88,13 +91,56 @@ describe("renderStatus", () => {
     const html = renderStatus({ status: "unknown" as VmStatus["status"] });
     expect(html).toContain("PROVISIONING");
   });
+
+  // Regression: a paid VM finished provisioning and the API reported
+  // status:"ready", which matched no case and rendered the spinner forever.
+  it("renders a live ready VM as provisioned, not as building", () => {
+    const html = renderStatus({
+      status: "ready",
+      launch_proof_status: "provisioned",
+      hostname: "4ab37305.deploy.hyrule.host",
+      ipv6: "2a0c:b641:b51:392f::2",
+    });
+    expect(html).toContain("PROVISIONED");
+    expect(html).not.toContain("Most builds finish in under 60 seconds");
+    expect(html).toContain("ssh root@4ab37305.deploy.hyrule.host");
+    expect(html).toContain("2a0c:b641:b51:392f::2");
+  });
+
+  it("renders a ready VM even when launch_proof_status is absent", () => {
+    const html = renderStatus({ status: "ready", hostname: "h.deploy.hyrule.host" });
+    expect(html).toContain("PROVISIONED");
+    expect(html).toContain("ssh root@h.deploy.hyrule.host");
+  });
+});
+
+describe("displayState", () => {
+  it("prefers launch_proof_status over the lifecycle status", () => {
+    expect(displayState({ status: "ready", launch_proof_status: "rolled_back" })).toBe(
+      "rolled_back",
+    );
+  });
+
+  it("maps every VMStatus value to a display state", () => {
+    expect(displayState({ status: "ready" })).toBe("provisioned");
+    expect(displayState({ status: "running" })).toBe("provisioned");
+    expect(displayState({ status: "suspended" })).toBe("provisioned");
+    expect(displayState({ status: "failed" })).toBe("failed");
+    expect(displayState({ status: "destroyed" })).toBe("failed");
+    expect(displayState({ status: "provisioning" })).toBe("provisioning");
+  });
+
+  it("stays on the non-terminal state for unknown or empty payloads", () => {
+    expect(displayState({})).toBe("provisioning");
+    expect(displayState({ status: "surprise" as VmStatus["status"] })).toBe("provisioning");
+  });
 });
 
 describe("initStatus", () => {
   it("polls the API and renders the returned status", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeVm("provisioned", { fqdn: "test.host", ipv6: "::1" }),
+      json: async () => makeVm("provisioned", { hostname: "test.host", ipv6: "::1" }),
     });
     vi.stubGlobal("fetch", mockFetch);
 
@@ -111,7 +157,7 @@ describe("initStatus", () => {
   it("stops polling once the VM reaches a terminal state", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeVm("provisioned", { fqdn: "t.host" }),
+      json: async () => makeVm("provisioned", { hostname: "t.host" }),
     });
     vi.stubGlobal("fetch", mockFetch);
 
@@ -169,7 +215,7 @@ describe("initStatus", () => {
   it("copies text to clipboard when copy buttons are clicked", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeVm("provisioned", { fqdn: "copy.test", ipv6: "::1" }),
+      json: async () => makeVm("provisioned", { hostname: "copy.test", ipv6: "::1" }),
     });
     vi.stubGlobal("fetch", mockFetch);
     const writeText = vi.fn().mockResolvedValue(undefined);

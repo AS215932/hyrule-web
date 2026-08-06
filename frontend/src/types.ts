@@ -1,13 +1,44 @@
 // Shared frontend types (issue #14 TS migration).
 
+/** GET /v1/vm/{id}/status — VMPublicStatusResponse.
+ *
+ * The API carries TWO status vocabularies and they are not interchangeable:
+ *  - `status` is VMStatus: provisioning|ready|running|suspended|failed|destroyed
+ *  - `launch_proof_status` is the customer-facing launch-proof contract:
+ *    accepted|payment_required|provisioning|provisioned|failed|rolled_back
+ *
+ * This type previously declared `status` with the launch-proof vocabulary, so
+ * a live `ready` matched nothing and the page sat on "Building your VM…"
+ * forever. Use `displayState()` rather than reading either field directly.
+ */
+export type VmLifecycleStatus =
+  | "provisioning"
+  | "ready"
+  | "running"
+  | "suspended"
+  | "failed"
+  | "destroyed";
+
+export type LaunchProofStatus =
+  | "accepted"
+  | "payment_required"
+  | "provisioning"
+  | "provisioned"
+  | "failed"
+  | "rolled_back";
+
 export interface VmStatus {
-  status: "payment_required" | "provisioning" | "provisioned" | "failed" | "rolled_back";
+  status?: VmLifecycleStatus;
+  launch_proof_status?: LaunchProofStatus;
   payment_status?: string;
   dns_aaaa_verified?: boolean;
   ssh_smoke_status?: string;
   rollback_available?: boolean;
-  fqdn?: string;
+  /** The API field is `hostname`. `fqdn` has never existed on this response. */
+  hostname?: string;
   ipv6?: string;
+  ipv6_prefix?: string;
+  expires_at?: string;
   profile?: string;
   resources?: { vcpu: number; ram_mb: number; disk_gb: number };
   operator_message?: string;

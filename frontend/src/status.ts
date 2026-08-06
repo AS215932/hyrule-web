@@ -6,9 +6,39 @@
  * provisioned → failed → rolled_back) with customer-safe copy.
  */
 
-import type { VmStatus } from "./types";
+import type { LaunchProofStatus, VmStatus } from "./types";
 
 const POLL_INTERVAL_MS = 2000;
+
+/** Collapse the API's two status vocabularies into one display state.
+ *
+ * `launch_proof_status` is the customer-facing contract and is authoritative
+ * when present. Otherwise map VMStatus, whose values (`ready`, `running`, …)
+ * are NOT launch-proof values — reading `status` as if they were is what left
+ * a finished VM rendering "Building your VM…" indefinitely.
+ */
+export function displayState(vm: VmStatus): LaunchProofStatus {
+  if (vm.launch_proof_status) return vm.launch_proof_status;
+  // `suspended` maps to provisioned deliberately: such a VM still has
+  // connection details worth showing, and treating it as non-terminal would
+  // poll forever.
+  switch (vm.status) {
+    case "ready":
+    case "running":
+    case "suspended":
+      return "provisioned";
+    case "failed":
+    case "destroyed":
+      return "failed";
+    default:
+      return "provisioning";
+  }
+}
+
+/** True once the state cannot change without user action — stop polling. */
+export function isTerminalState(state: LaunchProofStatus): boolean {
+  return state === "provisioned" || state === "failed" || state === "rolled_back";
+}
 
 function escapeHtml(text: string): string {
   const div = document.createElement("div");
@@ -47,7 +77,9 @@ function renderProvisioning(): string {
 }
 
 function renderProvisioned(vm: VmStatus): string {
-  const fqdn = vm.fqdn ?? "—";
+  // The API field is `hostname`; this used to read a `fqdn` that the response
+  // has never carried, so the ready card showed "—" for host and ssh.
+  const fqdn = vm.hostname ?? "—";
   const ipv6 = vm.ipv6 ?? "—";
   const ssh = fqdn !== "—" ? `ssh root@${fqdn}` : "—";
   const resources = vm.resources
@@ -103,11 +135,9 @@ function renderRolledBack(vm: VmStatus): string {
 }
 
 export function renderStatus(vm: VmStatus): string {
-  switch (vm.status) {
+  switch (displayState(vm)) {
     case "payment_required":
       return renderPaymentRequired();
-    case "provisioning":
-      return renderProvisioning();
     case "provisioned":
       return renderProvisioned(vm);
     case "failed":
@@ -152,20 +182,17 @@ export function initStatus(card: HTMLElement): () => void {
         const data = (await resp.json()) as VmStatus;
         const container = document.createElement("div");
         container.innerHTML = renderStatus(data).trim();
+        const state = displayState(data);
         const replacement = container.firstElementChild;
         if (replacement instanceof HTMLElement) {
           replacement.id = "status-card";
           replacement.dataset.vmId = vmId;
-          replacement.dataset.status = data.status;
+          replacement.dataset.status = state;
           card.replaceWith(replacement);
           card = replacement;
         }
         attachCopyHandlers(card);
-        if (
-          data.status === "provisioned" ||
-          data.status === "failed" ||
-          data.status === "rolled_back"
-        ) {
+        if (isTerminalState(state)) {
           stop();
           return;
         }

@@ -3,10 +3,12 @@
 {% block head %}{{ vite_asset('status') }}{% endblock %}
 
 {% block content %}
-{% set is_provisioned = vm and vm.status == 'provisioned' %}
-{% set is_failed = vm and vm.status == 'failed' %}
-{% set is_rolled_back = vm and vm.status == 'rolled_back' %}
-{% set is_payment_required = vm and vm.status == 'payment_required' %}
+{# `state` comes from vm_display_state(); see _status_partial.html. #}
+{% set state = state or 'provisioning' %}
+{% set is_provisioned = state == 'provisioned' %}
+{% set is_failed = state == 'failed' %}
+{% set is_rolled_back = state == 'rolled_back' %}
+{% set is_payment_required = state == 'payment_required' %}
 {% set is_terminal = is_provisioned or is_failed or is_rolled_back %}
 
 {% if is_provisioned %}
@@ -78,7 +80,7 @@
                 <span class="terminal-tag">online</span>
             </div>
             <div class="terminal-body">
-                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn }}</span></div>
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.hostname }}</span></div>
                 <div class="t-line"><span class="prompt">✓</span><span class="output">authenticating with your public key</span></div>
             </div>
         </div>

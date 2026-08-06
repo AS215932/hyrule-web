@@ -15,28 +15,58 @@ import httpx
 import respx
 from fastapi.testclient import TestClient
 
+# These fixtures mirror the REAL GET /v1/vm/{id}/status contract
+# (VMPublicStatusResponse). They previously used `status: "provisioned"` and
+# `fqdn`, neither of which the API ever emits — so the suite passed while
+# production sat on "Building your VM." forever. `status` is VMStatus
+# (provisioning|ready|running|suspended|failed|destroyed); the launch-proof
+# words live in `launch_proof_status`; the host field is `hostname`.
 _VM_PROVISIONED = {
-    "status": "provisioned",
-    "fqdn": "test.deploy.hyrule.host",
+    "status": "ready",
+    "launch_proof_status": "provisioned",
+    "hostname": "test.deploy.hyrule.host",
+    "ipv6": "2a0c:b641::1",
+}
+
+# A VM that has been running a while: `status` moves on to "running" and must
+# still display as provisioned.
+_VM_RUNNING = {
+    "status": "running",
+    "launch_proof_status": "provisioned",
+    "hostname": "test.deploy.hyrule.host",
+    "ipv6": "2a0c:b641::1",
+}
+
+# Older API builds omit launch_proof_status entirely; the lifecycle status
+# alone must still resolve to a terminal display state.
+_VM_READY_NO_PROOF = {
+    "status": "ready",
+    "hostname": "test.deploy.hyrule.host",
     "ipv6": "2a0c:b641::1",
 }
 
 _VM_PROVISIONING = {
     "status": "provisioning",
+    "launch_proof_status": "provisioning",
 }
 
 _VM_PAYMENT_REQUIRED = {
-    "status": "payment_required",
+    "status": "provisioning",
+    "launch_proof_status": "payment_required",
     "payment_status": "pending",
 }
 
 _VM_FAILED = {
     "status": "failed",
+    "launch_proof_status": "failed",
     "customer_message": "Disk image corrupt.",
 }
 
+# `rolled_back` exists only in the launch-proof vocabulary — VMStatus has no
+# such value, so this state is reachable only via launch_proof_status.
 _VM_ROLLED_BACK = {
-    "status": "rolled_back",
+    "status": "failed",
+    "launch_proof_status": "rolled_back",
     "customer_message": "Payment timeout. Refund issued.",
     "rollback_available": True,
 }
@@ -232,3 +262,92 @@ def test_status_page_ignores_malformed_token_query(
     assert r.status_code == 200
     assert "save this once" not in r.text.lower()
     assert "not-a-real-token" not in r.text
+
+
+# --- Status vocabulary regression (a paid, ready VM must not read as building) ---
+
+# Captured verbatim from production for a VM that had finished provisioning
+# while the page still showed "Building your VM. Most builds finish in under
+# 60 seconds." Nothing here is hand-written.
+_VM_LIVE_READY = {
+    "vm_id": "vm_UuhXLRUdceH7d29UZERbEU",
+    "status": "ready",
+    "ipv6": "2a0c:b641:b51:392f::2",
+    "ipv6_prefix": "2a0c:b641:b51:392f::/64",
+    "hostname": "4ab37305.deploy.hyrule.host",
+    "expires_at": "2026-08-20T19:56:54.374634Z",
+    "profile": "md",
+    "resources": {"vcpu": 2, "ram_mb": 4096, "disk_gb": 20},
+    "launch_proof_status": "provisioned",
+    "payment_status": "paid",
+    "dns_aaaa_verified": True,
+    "ssh_smoke_status": "passed",
+    "dns_resolution_status": "passed",
+    "rollback_available": False,
+    "operator_message": None,
+    "customer_message": "Your VM is ready.",
+}
+
+
+def test_live_ready_vm_renders_as_provisioned(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """The real production payload must render the ready card, with the
+    connection details a buyer needs — not the provisioning spinner."""
+    mocked_api.get("/v1/vm/vm-live/status").mock(
+        return_value=httpx.Response(200, json=_VM_LIVE_READY),
+    )
+    r = client.get("/order/status/vm-live")
+    assert r.status_code == 200
+    assert "PROVISIONED" in r.text
+    assert "Building your VM" not in r.text
+    assert "4ab37305.deploy.hyrule.host" in r.text
+    assert "ssh root@4ab37305.deploy.hyrule.host" in r.text
+    assert "2a0c:b641:b51:392f::2" in r.text
+    # The card must advertise a terminal state so the poller stops.
+    assert 'data-status="provisioned"' in r.text
+
+
+def test_running_vm_still_renders_as_provisioned(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/v1/vm/vm-run/status").mock(
+        return_value=httpx.Response(200, json=_VM_RUNNING),
+    )
+    r = client.get("/order/status/vm-run")
+    assert r.status_code == 200
+    assert "PROVISIONED" in r.text
+    assert "Building your VM" not in r.text
+
+
+def test_ready_without_launch_proof_status_still_resolves(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Fallback path: map VMStatus when launch_proof_status is absent."""
+    mocked_api.get("/v1/vm/vm-old/status").mock(
+        return_value=httpx.Response(200, json=_VM_READY_NO_PROOF),
+    )
+    r = client.get("/order/status/vm-old")
+    assert r.status_code == 200
+    assert "PROVISIONED" in r.text
+    assert "ssh root@test.deploy.hyrule.host" in r.text
+
+
+def test_vm_display_state_mapping() -> None:
+    from hyrule_web.app import vm_display_state
+
+    # launch_proof_status wins when present.
+    assert vm_display_state({"status": "ready", "launch_proof_status": "rolled_back"}) == (
+        "rolled_back"
+    )
+    # VMStatus fallback.
+    assert vm_display_state({"status": "ready"}) == "provisioned"
+    assert vm_display_state({"status": "running"}) == "provisioned"
+    assert vm_display_state({"status": "suspended"}) == "provisioned"
+    assert vm_display_state({"status": "failed"}) == "failed"
+    assert vm_display_state({"status": "destroyed"}) == "failed"
+    assert vm_display_state({"status": "provisioning"}) == "provisioning"
+    # Unknown / missing payloads stay on the safe non-terminal state.
+    assert vm_display_state({"status": "something_new"}) == "provisioning"
+    assert vm_display_state(None) == "provisioning"
+    assert vm_display_state({}) == "provisioning"
