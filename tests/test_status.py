@@ -120,16 +120,17 @@ def test_status_page_with_backend_error(
     assert r.status_code == 200
 
 
-# --- Block A0 management-URL banner ---
+# --- Block A0 management-token banner ---
 
 
 def test_status_page_renders_management_banner_when_token_query_present(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    """Block A0: when the post-order redirect carries ?token=hyr_vm_...,
-    the status page renders the save-once management URL banner with
-    the exact canonical URL — `cloud.` subdomain prefix, `www.` stripped
-    from the request host, and the token URL-encoded."""
+    """When the post-order redirect carries ?token=hyr_vm_..., the status
+    page renders the save-once banner containing the bare token — not a
+    URL. The API's own management_url is built from its request base_url,
+    which behind the proxy is the internal overlay address, so no URL is
+    surfaced to the buyer at all."""
     mocked_api.get("/v1/vm/vm-abc/status").mock(
         return_value=httpx.Response(200, json=_VM_PROVISIONED),
     )
@@ -142,12 +143,34 @@ def test_status_page_renders_management_banner_when_token_query_present(
     assert "save once" in body.lower()
     # The banner offers a copy button + download link.
     assert "download" in body.lower()
-    # Exact URL shape: scheme://cloud.<stripped-host>/v1/vm/<id>?token=<urlencoded>
-    expected = (
-        "http://cloud.example.com/v1/vm/vm-abc"
-        "?token=hyr_vm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    assert "hyr_vm_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" in body
+    # The credential is the token alone: no endpoint URL is rendered.
+    assert "/v1/vm/vm-abc?token=" not in body
+    assert "cloud.example.com" not in body
+
+
+def test_status_page_never_leaks_the_internal_api_address(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Regression: the banner used to render the API's management_url,
+    which behind the proxy resolves to the internal overlay address and
+    port. A buyer must never see infrastructure detail."""
+    mocked_api.get("/v1/vm/vm-abc/status").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                **_VM_PROVISIONED,
+                "management_url": "http://[2a0c:b641:b50:2::20]:8402/v1/vm/vm-abc?token=hyr_vm_x",
+            },
+        ),
     )
-    assert expected in body
+    r = client.get("/order/status/vm-abc?token=hyr_vm_cccccccccccccccccccccccccccccccc")
+    assert r.status_code == 200
+    # The VM's own IPv6 is shown legitimately, so assert on the API's
+    # internal overlay endpoint specifically, not the shared /48 prefix.
+    assert "2a0c:b641:b50:2::20" not in r.text
+    assert ":8402" not in r.text
+    assert "management_url" not in r.text
 
 
 def test_status_page_renders_management_banner_even_when_api_404s(
@@ -193,7 +216,7 @@ def test_status_page_session_storage_fallback_uses_same_origin_api_proxy(
     assert r.status_code == 200
     assert 'data-vm-id="vm-abc"' in r.text
     assert "/assets/status-" in r.text
-    assert "data-management-url=" not in r.text
+    assert "data-management-token=" not in r.text
 
 
 def test_status_page_ignores_malformed_token_query(

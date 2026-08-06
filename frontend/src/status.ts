@@ -192,34 +192,33 @@ export function initManagementAccess(): void {
   const root = document.querySelector<HTMLElement>("#management-access");
   if (!root) return;
   const vmId = root.dataset.vmId ?? "";
-  let managementUrl = root.dataset.managementUrl ?? "";
+  // The bare token, never a URL. The API's `management_url` is built from its
+  // own request base_url, which behind the proxy is the internal overlay
+  // address — so rendering it leaked infrastructure detail and handed the
+  // buyer a link they cannot use.
+  let managementToken = root.dataset.managementToken ?? "";
 
-  if (!managementUrl && vmId) {
+  if (!managementToken && vmId) {
     try {
       const saved = JSON.parse(sessionStorage.getItem(`hyr_vm_mgmt:${vmId}`) ?? "null") as {
         token?: string;
-        url?: string;
       } | null;
-      if (saved?.token?.startsWith("hyr_vm_")) {
-        managementUrl =
-          saved.url ??
-          `/api/v1/vm/${encodeURIComponent(vmId)}?token=${encodeURIComponent(saved.token)}`;
-      }
+      if (saved?.token?.startsWith("hyr_vm_")) managementToken = saved.token;
     } catch {
-      managementUrl = "";
+      managementToken = "";
     }
   }
 
-  if (managementUrl && !root.querySelector(".management-card")) {
+  if (managementToken && !root.querySelector(".management-card")) {
     root.innerHTML = `
       <div class="mini-card management-card">
         <span class="panel-label">Save once</span>
-        <h3>VM management URL</h3>
+        <h3>VM management token</h3>
         <p>This credential is required to reboot, extend, inspect, or destroy an order that is not attached to an account. Save it now.</p>
         <div class="credential-row">
-          <code id="mgmt-url">${escapeHtml(managementUrl)}</code>
-          <button type="button" class="btn btn-secondary btn-xs" data-copy="${escapeHtml(managementUrl)}">Copy</button>
-          <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,${encodeURIComponent(managementUrl)}" download="hyrule-${escapeHtml(vmId)}-management-url.txt">Download .txt</a>
+          <code id="mgmt-token">${escapeHtml(managementToken)}</code>
+          <button type="button" class="btn btn-secondary btn-xs" data-copy="${escapeHtml(managementToken)}">Copy</button>
+          <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,${encodeURIComponent(managementToken)}" download="hyrule-${escapeHtml(vmId)}-management-token.txt">Download .txt</a>
         </div>
       </div>`;
   }

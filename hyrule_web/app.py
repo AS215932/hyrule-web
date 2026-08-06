@@ -1491,27 +1491,20 @@ async def page_status(request: Request, vm_id: str) -> Response:
     # legacy /v1/vm/{id} is now management-gated and would 404 here.
     data = await _fetch_vm_status(request, vm_id)
     # If the URL carries ?token=hyr_vm_..., the user just landed from a
-    # fresh anon order. Surface the management URL banner exactly once.
+    # fresh anon order. Surface the management token banner exactly once.
+    # We show the bare token, not a URL: the API builds its `management_url`
+    # from the request base_url, which behind the proxy is the internal
+    # overlay address (http://[2a0c:...]:8402/...) — useless to a buyer and a
+    # needless disclosure. The token is the actual credential; where to send
+    # it is documented.
     token = request.query_params.get("token")
-    management_url = None
-    if token and token.startswith("hyr_vm_"):
-        scheme = request.url.scheme
-        host = request.headers.get("host", "")
-        # Routed via Caddy on proxy → api:8402. The cloud subdomain serves
-        # the api directly so the management URL is the canonical form an
-        # agent or curl would use. Token is URL-encoded — current tokens are
-        # `hyr_vm_<32 base62>` (no reserved chars), but encoding now keeps the
-        # URL well-formed if the token shape ever picks up `&`, `?`, or `=`.
-        management_url = (
-            f"{scheme}://cloud.{host.removeprefix('www.')}/v1/vm/{vm_id}"
-            f"?token={urllib.parse.quote(token, safe='')}"
-        )
+    management_token = token if token and token.startswith("hyr_vm_") else None
     return _render(
         request,
         "status.html",
         vm_id=vm_id,
         vm=data,
-        management_url=management_url,
+        management_token=management_token,
     )
 
 

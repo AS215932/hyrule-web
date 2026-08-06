@@ -188,15 +188,44 @@ describe("initStatus", () => {
 describe("initManagementAccess", () => {
   it("restores a save-once management credential from session storage", () => {
     document.body.innerHTML = '<section id="management-access" data-vm-id="vm-test"></section>';
+    sessionStorage.setItem("hyr_vm_mgmt:vm-test", JSON.stringify({ token: "hyr_vm_secret" }));
+
+    initManagementAccess();
+
+    expect(document.body.textContent).toContain("VM management token");
+    expect(document.body.textContent).toContain("hyr_vm_secret");
+    sessionStorage.clear();
+  });
+
+  it("shows the bare token and never a URL, even if a stale url was stashed", () => {
+    document.body.innerHTML = '<section id="management-access" data-vm-id="vm-test"></section>';
+    // Bundles cached from before the token-only change stashed the API's
+    // management_url, which carries the internal overlay address.
     sessionStorage.setItem(
       "hyr_vm_mgmt:vm-test",
-      JSON.stringify({ token: "hyr_vm_secret", url: "https://cloud.hyrule.host/v1/vm/vm-test" }),
+      JSON.stringify({
+        token: "hyr_vm_secret",
+        url: "http://[2a0c:b641:b50:2::20]:8402/v1/vm/vm-test?token=hyr_vm_secret",
+      }),
     );
 
     initManagementAccess();
 
-    expect(document.body.textContent).toContain("VM management URL");
-    expect(document.body.textContent).toContain("https://cloud.hyrule.host/v1/vm/vm-test");
+    const rendered = document.body.textContent ?? "";
+    expect(rendered).toContain("hyr_vm_secret");
+    expect(rendered).not.toContain("2a0c:b641");
+    expect(rendered).not.toContain("8402");
+    expect(rendered).not.toContain("/v1/vm/");
+    sessionStorage.clear();
+  });
+
+  it("renders the server-provided token from the dataset", () => {
+    document.body.innerHTML =
+      '<section id="management-access" data-vm-id="vm-test" data-management-token="hyr_vm_from_server"></section>';
+
+    initManagementAccess();
+
+    expect(document.body.textContent).toContain("hyr_vm_from_server");
     sessionStorage.clear();
   });
 });

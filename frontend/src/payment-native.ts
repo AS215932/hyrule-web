@@ -128,17 +128,17 @@ interface IntentBody {
   expires_at?: string;
   vm_id?: string;
   management_token?: string;
-  management_url?: string;
 }
 
 function stashManagementToken(intentBody: IntentBody): void {
   if (intentBody && intentBody.vm_id && intentBody.management_token) {
     try {
+      // Token only — see the note in payment-evm.ts: the API's
+      // `management_url` carries the internal overlay address.
       sessionStorage.setItem(
         "hyr_vm_mgmt:" + intentBody.vm_id,
         JSON.stringify({
           token: intentBody.management_token,
-          url: intentBody.management_url || null,
           issued: Date.now(),
         }),
       );
