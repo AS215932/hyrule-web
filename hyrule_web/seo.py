@@ -11,7 +11,6 @@ payable operation for it (see `build_llms_txt(domains_live=...)`).
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import date
 from typing import Any
 from xml.sax.saxutils import escape
 
@@ -28,6 +27,7 @@ SITE_BASE_URL = "https://hyrule.host"
 CLOUD_BASE_URL = "https://cloud.hyrule.host"
 CLOUD_OPENAPI_URL = f"{CLOUD_BASE_URL}/openapi.json"
 CLOUD_X402_MANIFEST_URL = f"{CLOUD_BASE_URL}/.well-known/x402.json"
+CLOUD_AGENT_CARD_URL = f"{CLOUD_BASE_URL}/.well-known/agent-card.json"
 
 ROBOTS_TXT = """\
 User-agent: *
@@ -286,12 +286,27 @@ def _render_payment_section(
     return "\n".join(lines)
 
 
+# Block G: rendered only behind Settings.enable_llms_announce. The MCP registry
+# entry and ClawHub skill listings are prepared but NOT published yet — turning
+# the flag on before they exist would send agents to registry lookups that 404.
+_ANNOUNCE_SECTION = f"""\
+## Agent integrations
+
+- Agent card (A2A discovery): {CLOUD_AGENT_CARD_URL}
+  (mirrored at {SITE_BASE_URL}/.well-known/agent-card.json)
+- MCP registry: `host.hyrule/hyrule-cloud`
+- ClawHub skills: https://clawhub.ai/skills/hyrule-cloud (umbrella; per-service
+  skills such as `hyrule-network-intel` are listed from the same publisher).
+"""
+
+
 def build_llms_txt(
     networks: Iterable[dict[str, Any]] | None = None,
     native: Iterable[str] | None = None,
     diagnostics_live: bool = True,
     tools: Iterable[dict[str, Any]] | None = None,
     domains_live: bool = False,
+    announce: bool = False,
 ) -> str:
     """Compose llms.txt from the live config snapshot.
 
@@ -302,6 +317,8 @@ def build_llms_txt(
     `domains_live` must come from the enabled x402 catalog (a payable
     `/v1/domains/*` operation in the API's OpenAPI document) and defaults to
     False so an unknown state never markets the deferred domain product.
+    `announce` (Settings.enable_llms_announce) appends the registry/skills
+    section and defaults to False until those listings are published.
     """
     network_list = list(networks) if networks is not None else None
     text = (
@@ -322,6 +339,8 @@ def build_llms_txt(
         section = _render_tools_section(tools)
         if section:
             text += "\n" + section
+    if announce:
+        text += "\n" + _ANNOUNCE_SECTION
     return text
 
 
@@ -341,6 +360,9 @@ _SITEMAP_EXCLUDE = {
     # for agents resolving a well-known path, not pages to index here.
     "/openapi.json",
     "/.well-known/x402.json",
+    # Mirrored agent card + IndexNow key file: machine artifacts, not pages.
+    "/.well-known/agent-card.json",
+    "/indexnow.txt",
 }
 
 
@@ -367,11 +389,14 @@ def iter_sitemap_paths(app: FastAPI) -> list[str]:
 
 
 def render_sitemap_xml(app: FastAPI) -> str:
-    today = date.today().isoformat()
+    # No <lastmod>: stamping every URL with date.today() made the document
+    # change byte-wise daily, which defeated the seo-agent's sha256-gated
+    # IndexNow pinger (an unchanged URL set looked "changed" every day).
+    # Sitemaps are valid without it; the render is deterministic for a given
+    # route table.
     urls = "\n".join(
         f"  <url>\n"
         f"    <loc>{escape(SITE_BASE_URL + path)}</loc>\n"
-        f"    <lastmod>{today}</lastmod>\n"
         f"  </url>"
         for path in iter_sitemap_paths(app)
     )

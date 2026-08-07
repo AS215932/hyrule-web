@@ -23,6 +23,7 @@ import respx
 from fastapi.testclient import TestClient
 
 from hyrule_web.app import (
+    _AGENT_CARD_CACHE,
     _CATALOG_CACHE,
     _PRICING_CACHE,
     _PRODUCTS_CACHE,
@@ -309,6 +310,21 @@ def mocked_api() -> Iterator[respx.MockRouter]:
                 },
             )
         )
+        # Agent-discovery wave: canonical agent card authored on the API host
+        # (added there in a parallel PR — this default mirrors the live-cloud
+        # state; fail-closed tests override with a 404/error).
+        rx.get("/.well-known/agent-card.json").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "protocolVersion": "0.3.0",
+                    "name": "Hyrule Cloud",
+                    "description": "x402 machine-payable infrastructure on AS215932",
+                    "url": "https://cloud.hyrule.host",
+                    "preferredTransport": "HTTP+JSON",
+                },
+            )
+        )
         # Legacy manifest fixture plus live proxy-route pricing. Public operation
         # discovery now comes from the enabled-only OpenAPI fixture below.
         rx.get("/.well-known/x402.json").mock(
@@ -587,5 +603,7 @@ def client(mocked_api: respx.MockRouter) -> Iterator[TestClient]:
     _TOOL_CATALOG_CACHE["successful_at"] = 0.0
     _PRICING_CACHE["value"] = None
     _PRICING_CACHE["expires_at"] = 0.0
+    _AGENT_CARD_CACHE["value"] = None
+    _AGENT_CARD_CACHE["expires_at"] = 0.0
     with TestClient(app) as c:
         yield c

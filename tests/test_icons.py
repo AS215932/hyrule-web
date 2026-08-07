@@ -7,6 +7,8 @@ themselves live under hyrule_web/static/ and are also reachable via /static.
 
 from __future__ import annotations
 
+import struct
+
 from fastapi.testclient import TestClient
 
 
@@ -40,3 +42,14 @@ def test_icons_reachable_via_static_mount(client: TestClient) -> None:
     for path in ("/static/favicon.ico", "/static/favicon-32.png",
                  "/static/apple-touch-icon.png", "/static/site.webmanifest"):
         assert client.get(path).status_code == 200
+
+
+def test_og_card_asset_is_a_1200x630_png(client: TestClient) -> None:
+    """base.html's og:image/twitter:image point at this asset; 1200x630 is the
+    summary_large_image aspect every major scraper crops to."""
+    r = client.get("/static/og-card.png")
+    assert r.status_code == 200
+    assert "image/png" in r.headers["content-type"]
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+    width, height = struct.unpack(">II", r.content[16:24])
+    assert (width, height) == (1200, 630)
