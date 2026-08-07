@@ -3,10 +3,12 @@
 {% block head %}{{ vite_asset('status') }}{% endblock %}
 
 {% block content %}
-{% set is_provisioned = vm and vm.status == 'provisioned' %}
-{% set is_failed = vm and vm.status == 'failed' %}
-{% set is_rolled_back = vm and vm.status == 'rolled_back' %}
-{% set is_payment_required = vm and vm.status == 'payment_required' %}
+{# `state` comes from vm_display_state(); see _status_partial.html. #}
+{% set state = state or 'provisioning' %}
+{% set is_provisioned = state == 'provisioned' %}
+{% set is_failed = state == 'failed' %}
+{% set is_rolled_back = state == 'rolled_back' %}
+{% set is_payment_required = state == 'payment_required' %}
 {% set is_terminal = is_provisioned or is_failed or is_rolled_back %}
 
 {% if is_provisioned %}
@@ -27,16 +29,16 @@
 {% endif %}
 
 <section id="management-access" class="container management-access"
-         data-vm-id="{{ vm_id }}"{% if management_url %} data-management-url="{{ management_url }}"{% endif %}>
-    {% if management_url %}
+         data-vm-id="{{ vm_id }}"{% if management_token %} data-management-token="{{ management_token }}"{% endif %}>
+    {% if management_token %}
     <div class="mini-card management-card">
         <span class="panel-label">Save once</span>
-        <h3>VM management URL</h3>
+        <h3>VM management token</h3>
         <p>This credential is required to reboot, extend, inspect, or destroy an order that is not attached to an account. Save it now.</p>
         <div class="credential-row">
-            <code id="mgmt-url">{{ management_url }}</code>
-            <button type="button" class="btn btn-secondary btn-xs" data-copy="{{ management_url }}">Copy</button>
-            <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,{{ management_url | urlencode }}" download="hyrule-{{ vm_id }}-management-url.txt">Download .txt</a>
+            <code id="mgmt-token">{{ management_token }}</code>
+            <button type="button" class="btn btn-secondary btn-xs" data-copy="{{ management_token }}">Copy</button>
+            <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,{{ management_token | urlencode }}" download="hyrule-{{ vm_id }}-management-token.txt">Download .txt</a>
         </div>
     </div>
     {% endif %}
@@ -78,7 +80,7 @@
                 <span class="terminal-tag">online</span>
             </div>
             <div class="terminal-body">
-                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.fqdn }}</span></div>
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@{{ vm.hostname }}</span></div>
                 <div class="t-line"><span class="prompt">✓</span><span class="output">authenticating with your public key</span></div>
             </div>
         </div>

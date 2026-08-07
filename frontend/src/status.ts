@@ -6,9 +6,39 @@
  * provisioned → failed → rolled_back) with customer-safe copy.
  */
 
-import type { VmStatus } from "./types";
+import type { LaunchProofStatus, VmStatus } from "./types";
 
 const POLL_INTERVAL_MS = 2000;
+
+/** Collapse the API's two status vocabularies into one display state.
+ *
+ * `launch_proof_status` is the customer-facing contract and is authoritative
+ * when present. Otherwise map VMStatus, whose values (`ready`, `running`, …)
+ * are NOT launch-proof values — reading `status` as if they were is what left
+ * a finished VM rendering "Building your VM…" indefinitely.
+ */
+export function displayState(vm: VmStatus): LaunchProofStatus {
+  if (vm.launch_proof_status) return vm.launch_proof_status;
+  // `suspended` maps to provisioned deliberately: such a VM still has
+  // connection details worth showing, and treating it as non-terminal would
+  // poll forever.
+  switch (vm.status) {
+    case "ready":
+    case "running":
+    case "suspended":
+      return "provisioned";
+    case "failed":
+    case "destroyed":
+      return "failed";
+    default:
+      return "provisioning";
+  }
+}
+
+/** True once the state cannot change without user action — stop polling. */
+export function isTerminalState(state: LaunchProofStatus): boolean {
+  return state === "provisioned" || state === "failed" || state === "rolled_back";
+}
 
 function escapeHtml(text: string): string {
   const div = document.createElement("div");
@@ -47,7 +77,9 @@ function renderProvisioning(): string {
 }
 
 function renderProvisioned(vm: VmStatus): string {
-  const fqdn = vm.fqdn ?? "—";
+  // The API field is `hostname`; this used to read a `fqdn` that the response
+  // has never carried, so the ready card showed "—" for host and ssh.
+  const fqdn = vm.hostname ?? "—";
   const ipv6 = vm.ipv6 ?? "—";
   const ssh = fqdn !== "—" ? `ssh root@${fqdn}` : "—";
   const resources = vm.resources
@@ -103,11 +135,9 @@ function renderRolledBack(vm: VmStatus): string {
 }
 
 export function renderStatus(vm: VmStatus): string {
-  switch (vm.status) {
+  switch (displayState(vm)) {
     case "payment_required":
       return renderPaymentRequired();
-    case "provisioning":
-      return renderProvisioning();
     case "provisioned":
       return renderProvisioned(vm);
     case "failed":
@@ -152,20 +182,17 @@ export function initStatus(card: HTMLElement): () => void {
         const data = (await resp.json()) as VmStatus;
         const container = document.createElement("div");
         container.innerHTML = renderStatus(data).trim();
+        const state = displayState(data);
         const replacement = container.firstElementChild;
         if (replacement instanceof HTMLElement) {
           replacement.id = "status-card";
           replacement.dataset.vmId = vmId;
-          replacement.dataset.status = data.status;
+          replacement.dataset.status = state;
           card.replaceWith(replacement);
           card = replacement;
         }
         attachCopyHandlers(card);
-        if (
-          data.status === "provisioned" ||
-          data.status === "failed" ||
-          data.status === "rolled_back"
-        ) {
+        if (isTerminalState(state)) {
           stop();
           return;
         }
@@ -192,34 +219,33 @@ export function initManagementAccess(): void {
   const root = document.querySelector<HTMLElement>("#management-access");
   if (!root) return;
   const vmId = root.dataset.vmId ?? "";
-  let managementUrl = root.dataset.managementUrl ?? "";
+  // The bare token, never a URL. The API's `management_url` is built from its
+  // own request base_url, which behind the proxy is the internal overlay
+  // address — so rendering it leaked infrastructure detail and handed the
+  // buyer a link they cannot use.
+  let managementToken = root.dataset.managementToken ?? "";
 
-  if (!managementUrl && vmId) {
+  if (!managementToken && vmId) {
     try {
       const saved = JSON.parse(sessionStorage.getItem(`hyr_vm_mgmt:${vmId}`) ?? "null") as {
         token?: string;
-        url?: string;
       } | null;
-      if (saved?.token?.startsWith("hyr_vm_")) {
-        managementUrl =
-          saved.url ??
-          `/api/v1/vm/${encodeURIComponent(vmId)}?token=${encodeURIComponent(saved.token)}`;
-      }
+      if (saved?.token?.startsWith("hyr_vm_")) managementToken = saved.token;
     } catch {
-      managementUrl = "";
+      managementToken = "";
     }
   }
 
-  if (managementUrl && !root.querySelector(".management-card")) {
+  if (managementToken && !root.querySelector(".management-card")) {
     root.innerHTML = `
       <div class="mini-card management-card">
         <span class="panel-label">Save once</span>
-        <h3>VM management URL</h3>
+        <h3>VM management token</h3>
         <p>This credential is required to reboot, extend, inspect, or destroy an order that is not attached to an account. Save it now.</p>
         <div class="credential-row">
-          <code id="mgmt-url">${escapeHtml(managementUrl)}</code>
-          <button type="button" class="btn btn-secondary btn-xs" data-copy="${escapeHtml(managementUrl)}">Copy</button>
-          <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,${encodeURIComponent(managementUrl)}" download="hyrule-${escapeHtml(vmId)}-management-url.txt">Download .txt</a>
+          <code id="mgmt-token">${escapeHtml(managementToken)}</code>
+          <button type="button" class="btn btn-secondary btn-xs" data-copy="${escapeHtml(managementToken)}">Copy</button>
+          <a class="btn btn-ghost btn-xs" href="data:text/plain;charset=utf-8,${encodeURIComponent(managementToken)}" download="hyrule-${escapeHtml(vmId)}-management-token.txt">Download .txt</a>
         </div>
       </div>`;
   }
