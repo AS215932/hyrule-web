@@ -5,9 +5,11 @@ from __future__ import annotations
 from xml.etree import ElementTree as ET
 
 import httpx
+import pytest
 import respx
 from fastapi.testclient import TestClient
 
+import hyrule_web.app as webapp
 from hyrule_web.seo import LLMS_TXT, ROBOTS_TXT
 
 
@@ -90,6 +92,34 @@ def test_sitemap_xml_excludes_api_partials_and_dynamic_routes(client: TestClient
     assert "/partials/" not in body
     assert "/order/status/" not in body  # dynamic per-user
     assert "/order/review" not in body  # POST-only
+
+
+def test_sitemap_xml_has_no_lastmod_and_is_byte_stable(client: TestClient) -> None:
+    """The seo-agent gates IndexNow pings on the sitemap's sha256; a daily
+    <lastmod> stamp made an unchanged URL set look changed every day."""
+    first = client.get("/sitemap.xml").text
+    second = client.get("/sitemap.xml").text
+    assert "lastmod" not in first
+    assert first == second
+
+
+def test_llms_txt_announce_section_is_off_by_default(client: TestClient) -> None:
+    """Block G: MCP registry + ClawHub listings aren't published yet."""
+    text = client.get("/llms.txt").text
+    assert "## Agent integrations" not in text
+    assert "host.hyrule/hyrule-cloud" not in text
+    assert "clawhub" not in text.lower()
+
+
+def test_llms_txt_announce_section_renders_when_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(webapp.settings, "enable_llms_announce", True)
+    text = client.get("/llms.txt").text
+    assert "## Agent integrations" in text
+    assert "https://cloud.hyrule.host/.well-known/agent-card.json" in text
+    assert "host.hyrule/hyrule-cloud" in text
+    assert "clawhub.ai" in text
 
 
 def test_sitemap_xml_includes_known_public_paths(client: TestClient) -> None:

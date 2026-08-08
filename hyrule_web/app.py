@@ -266,6 +266,12 @@ _TOOL_CATALOG_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
+# Agent-discovery wave: mirror of the canonical agent card authored on
+# cloud.hyrule.host (see `well_known_agent_card` for why this one is mirrored
+# rather than redirected). Stale-on-error via _refresh_cached; fail-closed to
+# 503 when nothing has ever been fetched.
+_AGENT_CARD_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_AGENT_CARD_TTL_SECONDS = 300
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -402,6 +408,10 @@ async def refresh_service_status_for_pages(
             # no template to decorate with a status pill.
             "/openapi.json",
             "/.well-known/x402.json",
+            # Machine artifacts with no status pill either — crawler traffic on
+            # these must not fan out into backend status fetches.
+            "/.well-known/agent-card.json",
+            "/indexnow.txt",
         }
     )
     if request.method == "GET" and not excluded:
@@ -2140,6 +2150,19 @@ async def robots() -> str:
     return ROBOTS_TXT
 
 
+@app.get("/indexnow.txt", include_in_schema=False)
+async def indexnow_key() -> PlainTextResponse:
+    """IndexNow key file for the seo-agent's change-gated pinger.
+
+    Mirrors hyrule-cloud's agent-seo-verification gate: an unset key answers
+    404 rather than serving an empty/placeholder body a search engine would
+    then fail to validate the ping against.
+    """
+    if not settings.indexnow_key:
+        return PlainTextResponse("IndexNow is not configured", status_code=404)
+    return PlainTextResponse(settings.indexnow_key)
+
+
 # Serve the brand icons at the well-known root paths too (browsers and crawlers
 # request /favicon.ico directly, not just the <link>-referenced /static path).
 # Brand marks change rarely, so cache for a week; no `immutable` because the URL
@@ -2238,6 +2261,9 @@ async def llms(request: Request) -> str:
         diagnostics_live=network_fresh and catalog_fresh,
         tools=tool_catalog.get("tools"),
         domains_live=_group_is_payable(tool_catalog, "domains"),
+        # Block G: registry/skills listings aren't published yet — the section
+        # stays off until HYRULE_WEB_ENABLE_LLMS_ANNOUNCE flips it on.
+        announce=settings.enable_llms_announce,
     )
 
 
@@ -2271,6 +2297,29 @@ async def openapi_json_redirect() -> RedirectResponse:
     page routes are not a payable API surface.
     """
     return RedirectResponse(url=CLOUD_OPENAPI_URL, status_code=302)
+
+
+@app.get("/.well-known/agent-card.json", include_in_schema=False)
+async def well_known_agent_card(request: Request) -> Response:
+    """Mirror the canonical agent card authored on cloud.hyrule.host.
+
+    Unlike x402.json/openapi.json this is a MIRROR, not a redirect: the card's
+    url fields already point at the API host, so the body is host-independent
+    and some A2A clients don't follow cross-origin redirects on well-known
+    paths. Fail-closed: until the backend has served the card at least once
+    (it is being added in a parallel PR), answer 503 rather than fabricating
+    a discovery document here.
+    """
+    card = await _refresh_cached(
+        request, _AGENT_CARD_CACHE, _AGENT_CARD_TTL_SECONDS, "/.well-known/agent-card.json"
+    )
+    if card is None:
+        return Response(
+            content='{"error": "agent card unavailable"}',
+            status_code=503,
+            media_type="application/json",
+        )
+    return Response(content=json.dumps(card), media_type="application/json")
 
 
 # ---------------------------------------------------------------------------

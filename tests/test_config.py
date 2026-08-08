@@ -18,6 +18,10 @@ def test_settings_defaults() -> None:
     assert s.host == "0.0.0.0"
     assert s.port == 8080
     assert s.debug is False
+    # Agent-discovery wave: both gates default OFF (Block G — nothing is
+    # advertised or served until the operator flips it on).
+    assert s.indexnow_key == ""
+    assert s.enable_llms_announce is False
 
 
 @pytest.mark.parametrize(
@@ -27,6 +31,8 @@ def test_settings_defaults() -> None:
         ("HYRULE_WEB_HOST", "::", "host", "::"),
         ("HYRULE_WEB_PORT", "9090", "port", 9090),
         ("HYRULE_WEB_DEBUG", "true", "debug", True),
+        ("HYRULE_WEB_INDEXNOW_KEY", "0f8fad5bd9cb", "indexnow_key", "0f8fad5bd9cb"),
+        ("HYRULE_WEB_ENABLE_LLMS_ANNOUNCE", "true", "enable_llms_announce", True),
     ],
 )
 def test_settings_env_override(

@@ -64,6 +64,17 @@ class Settings(BaseSettings):
     # functional for humans while WebMCP remains feature-detected and dormant.
     webmcp_origin_trial_token: str = ""
 
+    # Agent-discovery wave: IndexNow key served verbatim at /indexnow.txt
+    # (HYRULE_WEB_INDEXNOW_KEY). Empty keeps the route a 404 — search engines
+    # must never see a placeholder key they would then fail to validate.
+    indexnow_key: str = ""
+
+    # Block G: llms.txt "announce" section (agent card mirror, MCP registry
+    # name, ClawHub skills). Those registries are not published yet, so the
+    # section defaults OFF; flip HYRULE_WEB_ENABLE_LLMS_ANNOUNCE=true only
+    # once the listings are actually live.
+    enable_llms_announce: bool = False
+
     model_config = {"env_prefix": "HYRULE_WEB_"}
 
 
