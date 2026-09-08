@@ -9,7 +9,7 @@
 {% set is_failed = state == 'failed' %}
 {% set is_rolled_back = state == 'rolled_back' %}
 {% set is_payment_required = state == 'payment_required' %}
-{% set is_terminal = is_provisioned or is_failed or is_rolled_back or (lifecycle_notice and state != 'deleting') %}
+{% set is_terminal = is_provisioned or is_failed or is_rolled_back or (lifecycle_notice and state not in ['deleting', 'retaining', 'restoring']) %}
 
 {% if lifecycle_notice %}
 {% set hero_title = lifecycle_notice[1] %}

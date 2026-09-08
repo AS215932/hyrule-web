@@ -964,6 +964,12 @@ _VM_LIFECYCLE_TO_DISPLAY = {
 }
 
 _VM_LIFECYCLE_COPY = {
+    "retaining": ("RETENTION PENDING", "VM retention is being verified.",
+                  "Contact support for recovery."),
+    "retained": ("DATA RETAINED", "Your VM is retained for recovery.",
+                 "Contact support to restore your VM."),
+    "restoring": ("RECOVERY IN PROGRESS", "Your VM is being recovered.",
+                  "This page will update as recovery progresses."),
     "expired": ("EXPIRED", "Your VM has expired.",
                 "Renew before the grace period ends to avoid deletion."),
     "deletion_eligible": ("GRACE PERIOD ENDED", "The grace period has ended.",
@@ -987,6 +993,8 @@ def vm_display_state(vm: dict[str, Any] | None) -> str:
         return "destroyed"
     if expiry_state == "deleting":
         return "deleting"
+    if expiry_state in ("retaining", "retained", "restoring"):
+        return str(expiry_state)
     if vm.get("status") == "failed":
         return "rolled_back" if vm.get("launch_proof_status") == "rolled_back" else "failed"
     if expiry_state in ("expired", "deletion_eligible"):
@@ -1015,6 +1023,13 @@ def vm_expiry_dates(vm: dict[str, Any] | None) -> dict[str, str | None]:
     expiry = data.get("expiry")
     return {
         "expires_at": format_date(data.get("expires_at")),
+        "retained_until": (
+            format_date(expiry.get("retained_until"))
+            if isinstance(expiry, dict)
+            and expiry.get("state") in ("retaining", "retained", "restoring")
+            and data.get("status") != "destroyed"
+            else None
+        ),
         "grace_ends_at": (
             format_date(expiry.get("grace_ends_at"))
             if isinstance(expiry, dict)

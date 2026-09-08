@@ -27,6 +27,9 @@ describe("renderStatus", () => {
     ["ready", "expired", "EXPIRED"],
     ["suspended", "deletion_eligible", "GRACE PERIOD ENDED"],
     ["failed", "deleting", "DELETION STARTED"],
+    ["suspended", "retaining", "RETENTION PENDING"],
+    ["suspended", "retained", "DATA RETAINED"],
+    ["suspended", "restoring", "RECOVERY IN PROGRESS"],
     ["destroyed", "destroyed", "DESTROYED"],
   ] as const)("renders runtime %s and expiry %s truthfully", (status, expiry, label) => {
     const html = renderStatus({
@@ -35,14 +38,23 @@ describe("renderStatus", () => {
       customer_message: "Your VM is ready.",
       hostname: "test.host",
       expires_at: "2026-09-08T12:00:00+02:00",
-      expiry: { state: expiry, grace_ends_at: "2026-09-10T10:00:00Z" },
+      expiry: {
+        state: expiry,
+        grace_ends_at: "2026-09-10T10:00:00Z",
+        retained_until: "2026-10-08T10:00:00Z",
+      },
     });
     expect(html).toContain(label);
     expect(html).toContain("2026-09-08 10:00 UTC");
-    if (expiry === "deleting" || expiry === "destroyed") {
+    if (["deleting", "destroyed", "retaining", "retained", "restoring"].includes(expiry)) {
       expect(html).not.toContain("Grace period ends");
     } else {
       expect(html).toContain("2026-09-10 10:00 UTC");
+    }
+    if (["retaining", "retained", "restoring"].includes(expiry)) {
+      expect(html).toContain("Minimum retention until");
+      expect(html).toContain("2026-10-08 10:00 UTC");
+      expect(html).toContain("not a scheduled deletion date");
     }
     expect(html).not.toContain("PROVISIONED");
     expect(html).not.toContain("Your VM is ready.");
@@ -173,6 +185,38 @@ describe("displayState", () => {
 });
 
 describe("initStatus", () => {
+  it("polls active recovery quickly and hides connections until the VM is ready", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<span class="stp"><span class="num">4</span><span data-status-step></span></span><div id="status-connections" hidden></div>',
+    );
+    const states: VmStatus[] = [
+      { status: "suspended", expiry: { state: "retaining" } },
+      { status: "suspended", expiry: { state: "restoring" } },
+      { status: "suspended", expiry: { state: "retained" } },
+      { status: "ready", hostname: "recovered.hyrule.host", expiry: { state: "active" } },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => states.shift() })),
+    );
+    const stop = initStatus(document.getElementById("status-card")!);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("retaining");
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("restoring");
+    expect(document.getElementById("status-connections")?.textContent).not.toContain("ssh root@");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("retained");
+    expect(document.getElementById("status-connections")?.textContent).not.toContain("ssh root@");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.getElementById("status-connections")?.textContent).toContain(
+      "ssh root@recovered.hyrule.host",
+    );
+    stop();
+  });
+
   it("restores initially empty connections on renewal and updates the whole stepper", async () => {
     document.body.insertAdjacentHTML(
       "beforeend",

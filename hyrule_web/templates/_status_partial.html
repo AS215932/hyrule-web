@@ -56,12 +56,16 @@
         <div class="progress-bar"><div class="progress-fill"></div></div>
     </div>
     {% endif %}
-    {% if (is_provisioned or lifecycle_notice) and (expiry_dates.expires_at or expiry_dates.grace_ends_at) %}
+    {% if (is_provisioned or lifecycle_notice) and (expiry_dates.expires_at or expiry_dates.grace_ends_at or expiry_dates.retained_until) %}
     <div class="kv-block mt-4">
         {% if expiry_dates.expires_at %}<div class="kv"><span class="k">Term expires</span><span class="v">{{ expiry_dates.expires_at }}</span></div>{% endif %}
         {% if expiry_dates.grace_ends_at %}
         <div class="kv"><span class="k">Grace period ends</span><span class="v">{{ expiry_dates.grace_ends_at }}</span></div>
         <p class="text-text-soft mt-2">After this deadline, the VM is eligible for deletion. Recovery is not guaranteed.</p>
+        {% endif %}
+        {% if expiry_dates.retained_until %}
+        <div class="kv"><span class="k">Minimum retention until</span><span class="v">{{ expiry_dates.retained_until }}</span></div>
+        <p class="text-text-soft mt-2">Contact support for recovery. This is not a scheduled deletion date.</p>
         {% endif %}
     </div>
     {% endif %}

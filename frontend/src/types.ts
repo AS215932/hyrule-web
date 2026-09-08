@@ -34,10 +34,14 @@ export interface VmStatus {
       | "expired"
       | "deletion_eligible"
       | "deleting"
+      | "retaining"
+      | "retained"
+      | "restoring"
       | "destroyed"
       | "not_set"
       | "not_applicable";
     grace_ends_at?: string | null;
+    retained_until?: string | null;
     observed_at?: string;
     deletion_eligible?: boolean;
     message?: string;

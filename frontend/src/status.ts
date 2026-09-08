@@ -15,10 +15,28 @@ export type DisplayState =
   | "expired"
   | "deletion_eligible"
   | "deleting"
+  | "retaining"
+  | "retained"
+  | "restoring"
   | "suspended"
   | "destroyed";
 
 const lifecycleCopy = {
+  retaining: [
+    "RETENTION PENDING",
+    "VM retention is being verified.",
+    "Contact support for recovery.",
+  ],
+  retained: [
+    "DATA RETAINED",
+    "Your VM is retained for recovery.",
+    "Contact support to restore your VM.",
+  ],
+  restoring: [
+    "RECOVERY IN PROGRESS",
+    "Your VM is being recovered.",
+    "This page will update as recovery progresses.",
+  ],
   expired: [
     "EXPIRED",
     "Your VM has expired.",
@@ -82,10 +100,16 @@ function renderExpiry(vm: VmStatus): string {
     ["active", "expired", "deletion_eligible"].includes(vm.expiry?.state ?? "")
       ? vm.expiry?.grace_ends_at
       : null;
-  if (!vm.expires_at && !grace) return "";
+  const retained =
+    vm.status !== "destroyed" &&
+    ["retaining", "retained", "restoring"].includes(vm.expiry?.state ?? "")
+      ? vm.expiry?.retained_until
+      : null;
+  if (!vm.expires_at && !grace && !retained) return "";
   return `<div class="kv-block mt-4">
     ${vm.expires_at ? `<div class="kv"><span class="k">Term expires</span><span class="v">${escapeHtml(dateText(vm.expires_at))}</span></div>` : ""}
     ${grace ? `<div class="kv"><span class="k">Grace period ends</span><span class="v">${escapeHtml(dateText(grace))}</span></div><p class="text-text-soft mt-2">After this deadline, the VM is eligible for deletion. Recovery is not guaranteed.</p>` : ""}
+    ${retained ? `<div class="kv"><span class="k">Minimum retention until</span><span class="v">${escapeHtml(dateText(retained))}</span></div><p class="text-text-soft mt-2">Contact support for recovery. This is not a scheduled deletion date.</p>` : ""}
   </div>`;
 }
 
@@ -99,6 +123,12 @@ function renderExpiry(vm: VmStatus): string {
 export function displayState(vm: VmStatus): DisplayState {
   if (vm.status === "destroyed" || vm.expiry?.state === "destroyed") return "destroyed";
   if (vm.expiry?.state === "deleting") return "deleting";
+  if (
+    vm.expiry?.state === "retaining" ||
+    vm.expiry?.state === "retained" ||
+    vm.expiry?.state === "restoring"
+  )
+    return vm.expiry.state;
   if (vm.status === "failed")
     return vm.launch_proof_status === "rolled_back" ? "rolled_back" : "failed";
   if (vm.expiry?.state === "expired" || vm.expiry?.state === "deletion_eligible")
@@ -310,6 +340,8 @@ export function initStatus(card: HTMLElement): () => void {
           const wrapper = step.closest(".stp");
           const done =
             state !== "deleting" &&
+            state !== "retaining" &&
+            state !== "restoring" &&
             state !== "provisioning" &&
             state !== "accepted" &&
             state !== "payment_required";
@@ -332,7 +364,11 @@ export function initStatus(card: HTMLElement): () => void {
           return;
         }
         interval =
-          state === "provisioning" || state === "accepted" || state === "payment_required"
+          state === "provisioning" ||
+          state === "accepted" ||
+          state === "payment_required" ||
+          state === "retaining" ||
+          state === "restoring"
             ? POLL_INTERVAL_MS
             : LIFECYCLE_POLL_INTERVAL_MS;
       }
