@@ -101,6 +101,8 @@ def test_lifecycle_status_is_visible_without_javascript(
     assert "Your VM is ready." not in response.text
     assert "ssh root@test.deploy.hyrule.host" not in response.text
     assert "support@hyrule.host" in response.text
+    assert 'id="status-connections"' in response.text
+    assert 'hidden style="display: none"' in response.text
 
 
 def test_expiry_dates_do_not_invent_deadlines_or_render_invalid_input():

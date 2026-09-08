@@ -173,6 +173,42 @@ describe("displayState", () => {
 });
 
 describe("initStatus", () => {
+  it("restores initially empty connections on renewal and updates the whole stepper", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<span class="stp done"><span class="num">✓</span><span data-status-step>expired</span></span><div id="status-connections" hidden style="display: none"></div>',
+    );
+    const states: VmStatus[] = [
+      { status: "suspended", expiry: { state: "expired" } },
+      { status: "ready", hostname: "renewed.deploy.hyrule.host", expiry: { state: "active" } },
+      { status: "suspended", expiry: { state: "deletion_eligible" } },
+      { status: "suspended", expiry: { state: "deleting" } },
+      { status: "destroyed" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => states.shift() })),
+    );
+    initStatus(document.getElementById("status-card")!);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.getElementById("status-connections")?.innerHTML).toBe("");
+    await vi.advanceTimersByTimeAsync(60000);
+    const details = document.getElementById("status-connections")!;
+    expect(details.hidden).toBe(false);
+    expect(details.textContent).toContain("ssh root@renewed.deploy.hyrule.host");
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("running");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(details.hidden).toBe(true);
+    expect(details.innerHTML).toBe("");
+    expect(document.querySelector(".stp")?.classList.contains("done")).toBe(true);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(true);
+    expect(document.querySelector(".num")?.textContent).toBe("4");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector(".stp")?.classList.contains("done")).toBe(true);
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(false);
+    expect(document.querySelector(".num")?.textContent).toBe("✓");
+  });
   it("refreshes an open provisioned page through expiry, renewal and destruction", async () => {
     document.body.insertAdjacentHTML(
       "beforeend",

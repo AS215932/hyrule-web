@@ -75,8 +75,8 @@
 
     {% include "_status_partial.html" %}
 
-    {% if is_provisioned %}
-    <div id="status-connections" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+    <div id="status-connections" class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2"{% if not is_provisioned %} hidden style="display: none"{% endif %}>
+        {% if is_provisioned %}
         <div class="terminal">
             <div class="terminal-bar">
                 <span class="terminal-title">SSH</span>
@@ -91,7 +91,7 @@
             <h4>Management</h4>
             <p>Lifecycle mutations require the save-once management URL or an account that owns this VM. The public status URL intentionally cannot reboot, extend, snapshot, or destroy it.</p>
         </div>
+        {% endif %}
     </div>
-    {% endif %}
 </section>
 {% endblock %}

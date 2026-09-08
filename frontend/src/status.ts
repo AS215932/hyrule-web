@@ -278,12 +278,46 @@ export function initStatus(card: HTMLElement): () => void {
         if (details) {
           details.hidden = state !== "provisioned";
           details.style.display = state === "provisioned" ? "" : "none";
+          details.innerHTML =
+            state === "provisioned"
+              ? `
+            <div class="terminal">
+              <div class="terminal-bar"><span class="terminal-title">SSH</span><span class="terminal-tag">online</span></div>
+              <div class="terminal-body">
+                <div class="t-line"><span class="prompt">$</span><span class="output">ssh root@${escapeHtml(data.hostname ?? "")}</span></div>
+                <div class="t-line"><span class="prompt">✓</span><span class="output">authenticating with your public key</span></div>
+              </div>
+            </div>
+            <div class="mini-card p-[18px]">
+              <h4>Management</h4>
+              <p>Lifecycle mutations require the save-once management URL or an account that owns this VM. The public status URL intentionally cannot reboot, extend, snapshot, or destroy it.</p>
+            </div>`
+              : "";
         }
         const [title, description] = pageCopy(state);
         if (heading) heading.textContent = title;
         if (blurb) blurb.textContent = description;
         const step = document.querySelector<HTMLElement>("[data-status-step]");
-        if (step) step.textContent = state.replaceAll("_", " ");
+        if (step) {
+          step.textContent =
+            state === "provisioned"
+              ? "running"
+              : state === "payment_required"
+                ? "payment"
+                : state === "accepted"
+                  ? "provisioning"
+                  : state.replaceAll("_", " ");
+          const wrapper = step.closest(".stp");
+          const done =
+            state !== "deleting" &&
+            state !== "provisioning" &&
+            state !== "accepted" &&
+            state !== "payment_required";
+          wrapper?.classList.toggle("done", done);
+          wrapper?.classList.toggle("active", !done);
+          const number = wrapper?.querySelector(".num");
+          if (number) number.textContent = done ? "✓" : "4";
+        }
         const replacement = container.firstElementChild;
         if (replacement instanceof HTMLElement) {
           replacement.id = "status-card";
