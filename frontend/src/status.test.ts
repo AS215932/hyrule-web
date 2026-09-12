@@ -22,6 +22,54 @@ afterEach(() => {
 });
 
 describe("renderStatus", () => {
+  it.each([
+    ["suspended", "active", "SUSPENDED"],
+    ["ready", "expired", "EXPIRED"],
+    ["suspended", "deletion_eligible", "GRACE PERIOD ENDED"],
+    ["failed", "deleting", "DELETION STARTED"],
+    ["suspended", "retaining", "RETENTION PENDING"],
+    ["suspended", "retained", "DATA RETAINED"],
+    ["suspended", "restoring", "RECOVERY IN PROGRESS"],
+    ["destroyed", "destroyed", "DESTROYED"],
+  ] as const)("renders runtime %s and expiry %s truthfully", (status, expiry, label) => {
+    const html = renderStatus({
+      status,
+      launch_proof_status: "provisioned",
+      customer_message: "Your VM is ready.",
+      hostname: "test.host",
+      expires_at: "2026-09-08T12:00:00+02:00",
+      expiry: {
+        state: expiry,
+        grace_ends_at: "2026-09-10T10:00:00Z",
+        retained_until: "2026-10-08T10:00:00Z",
+      },
+    });
+    expect(html).toContain(label);
+    expect(html).toContain("2026-09-08 10:00 UTC");
+    if (["deleting", "destroyed", "retaining", "retained", "restoring"].includes(expiry)) {
+      expect(html).not.toContain("Grace period ends");
+    } else {
+      expect(html).toContain("2026-09-10 10:00 UTC");
+    }
+    if (["retaining", "retained", "restoring"].includes(expiry)) {
+      expect(html).toContain("Minimum retention until");
+      expect(html).toContain("2026-10-08 10:00 UTC");
+      expect(html).toContain("not a scheduled deletion date");
+    }
+    expect(html).not.toContain("PROVISIONED");
+    expect(html).not.toContain("Your VM is ready.");
+    expect(html).not.toContain("ssh root@");
+  });
+
+  it("handles absent and invalid expiry dates without inventing a grace period", () => {
+    expect(renderStatus({ status: "suspended" })).not.toContain("Grace period ends");
+    const html = renderStatus({ status: "ready", expires_at: "invalid" });
+    expect(html).toContain("Unavailable");
+    expect(html).not.toContain("Grace period ends");
+    expect(renderStatus({ status: "ready", expires_at: "2026-09-08T10:00:00" })).toContain(
+      "2026-09-08 10:00 UTC",
+    );
+  });
   it("renders payment_required with pay action", () => {
     const html = renderStatus(makeVm("payment_required"));
     expect(html).toContain("PAYMENT REQUIRED");
@@ -124,9 +172,9 @@ describe("displayState", () => {
   it("maps every VMStatus value to a display state", () => {
     expect(displayState({ status: "ready" })).toBe("provisioned");
     expect(displayState({ status: "running" })).toBe("provisioned");
-    expect(displayState({ status: "suspended" })).toBe("provisioned");
+    expect(displayState({ status: "suspended" })).toBe("suspended");
     expect(displayState({ status: "failed" })).toBe("failed");
-    expect(displayState({ status: "destroyed" })).toBe("failed");
+    expect(displayState({ status: "destroyed" })).toBe("destroyed");
     expect(displayState({ status: "provisioning" })).toBe("provisioning");
   });
 
@@ -137,6 +185,106 @@ describe("displayState", () => {
 });
 
 describe("initStatus", () => {
+  it("polls active recovery quickly and hides connections until the VM is ready", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<span class="stp"><span class="num">4</span><span data-status-step></span></span><div id="status-connections" hidden></div>',
+    );
+    const states: VmStatus[] = [
+      { status: "suspended", expiry: { state: "retaining" } },
+      { status: "suspended", expiry: { state: "restoring" } },
+      { status: "suspended", expiry: { state: "retained" } },
+      { status: "ready", hostname: "recovered.hyrule.host", expiry: { state: "active" } },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => states.shift() })),
+    );
+    const stop = initStatus(document.getElementById("status-card")!);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("retaining");
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(true);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("restoring");
+    expect(document.getElementById("status-connections")?.textContent).not.toContain("ssh root@");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("retained");
+    expect(document.getElementById("status-connections")?.textContent).not.toContain("ssh root@");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.getElementById("status-connections")?.textContent).toContain(
+      "ssh root@recovered.hyrule.host",
+    );
+    stop();
+  });
+
+  it("restores initially empty connections on renewal and updates the whole stepper", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<span class="stp done"><span class="num">✓</span><span data-status-step>expired</span></span><div id="status-connections" hidden style="display: none"></div>',
+    );
+    const states: VmStatus[] = [
+      { status: "suspended", expiry: { state: "expired" } },
+      { status: "ready", hostname: "renewed.deploy.hyrule.host", expiry: { state: "active" } },
+      { status: "suspended", expiry: { state: "deletion_eligible" } },
+      { status: "suspended", expiry: { state: "deleting" } },
+      { status: "destroyed" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => ({ ok: true, json: async () => states.shift() })),
+    );
+    initStatus(document.getElementById("status-card")!);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(document.getElementById("status-connections")?.innerHTML).toBe("");
+    await vi.advanceTimersByTimeAsync(60000);
+    const details = document.getElementById("status-connections")!;
+    expect(details.hidden).toBe(false);
+    expect(details.textContent).toContain("ssh root@renewed.deploy.hyrule.host");
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("running");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(details.hidden).toBe(true);
+    expect(details.innerHTML).toBe("");
+    expect(document.querySelector(".stp")?.classList.contains("done")).toBe(true);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(true);
+    expect(document.querySelector(".num")?.textContent).toBe("4");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector(".stp")?.classList.contains("done")).toBe(true);
+    expect(document.querySelector(".stp")?.classList.contains("active")).toBe(false);
+    expect(document.querySelector(".num")?.textContent).toBe("✓");
+  });
+  it("refreshes an open provisioned page through expiry, renewal and destruction", async () => {
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<h1 data-status-title>Your VM is online.</h1><p data-status-blurb></p><span data-status-step>running</span><div id="status-connections">SSH online</div>',
+    );
+    const states: VmStatus[] = [
+      { status: "ready", launch_proof_status: "provisioned" },
+      { status: "suspended", launch_proof_status: "provisioned", expiry: { state: "expired" } },
+      { status: "ready", launch_proof_status: "provisioned", expiry: { state: "active" } },
+      { status: "destroyed", launch_proof_status: "provisioned" },
+    ];
+    const fetcher = vi
+      .fn()
+      .mockImplementation(async () => ({ ok: true, json: async () => states.shift() }));
+    vi.stubGlobal("fetch", fetcher);
+    const stop = initStatus(document.getElementById("status-card")!);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector("[data-status-title]")?.textContent).toContain("expired");
+    expect(document.getElementById("status-connections")?.hidden).toBe(true);
+    expect(document.querySelector("[data-status-step]")?.textContent).toBe("expired");
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector("[data-status-title]")?.textContent).toContain("online");
+    expect(document.getElementById("status-connections")?.hidden).toBe(false);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(document.querySelector("[data-status-title]")?.textContent).toContain("destroyed");
+    expect(document.getElementById("status-connections")?.hidden).toBe(true);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    stop();
+  });
   it("polls the API and renders the returned status", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -157,7 +305,7 @@ describe("initStatus", () => {
   it("stops polling once the VM reaches a terminal state", async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeVm("provisioned", { hostname: "t.host" }),
+      json: async () => makeVm("failed", { hostname: "t.host" }),
     });
     vi.stubGlobal("fetch", mockFetch);
 

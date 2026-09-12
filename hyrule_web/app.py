@@ -11,6 +11,7 @@ import time
 import urllib.parse
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
@@ -956,12 +957,29 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
 _VM_LIFECYCLE_TO_DISPLAY = {
     "ready": "provisioned",
     "running": "provisioned",
-    # A suspended VM still has connection details worth showing, and is
-    # terminal for polling purposes.
-    "suspended": "provisioned",
+    "suspended": "suspended",
     "failed": "failed",
-    "destroyed": "failed",
+    "destroyed": "destroyed",
     "provisioning": "provisioning",
+}
+
+_VM_LIFECYCLE_COPY = {
+    "retaining": ("RETENTION PENDING", "VM retention is being verified.",
+                  "Contact support for recovery."),
+    "retained": ("DATA RETAINED", "Your VM is retained for recovery.",
+                 "Contact support to restore your VM."),
+    "restoring": ("RECOVERY IN PROGRESS", "Your VM is being recovered.",
+                  "This page will update as recovery progresses."),
+    "expired": ("EXPIRED", "Your VM has expired.",
+                "Renew before the grace period ends to avoid deletion."),
+    "deletion_eligible": ("GRACE PERIOD ENDED", "The grace period has ended.",
+                          "This VM is eligible for deletion. "
+                          "Contact support immediately for recovery options."),
+    "deleting": ("DELETION STARTED", "VM deletion has started.",
+                 "Contact support for the remaining recovery options."),
+    "suspended": ("SUSPENDED", "Your VM is suspended.",
+                  "Check the expiry information below and contact support for recovery."),
+    "destroyed": ("DESTROYED", "Your VM is destroyed.", "Contact support if you need assistance."),
 }
 
 
@@ -969,10 +987,57 @@ def vm_display_state(vm: dict[str, Any] | None) -> str:
     """Collapse both API status vocabularies into one display state."""
     if not vm:
         return "provisioning"
+    expiry = vm.get("expiry")
+    expiry_state = expiry.get("state") if isinstance(expiry, dict) else None
+    if vm.get("status") == "destroyed" or expiry_state == "destroyed":
+        return "destroyed"
+    if expiry_state == "deleting":
+        return "deleting"
+    if expiry_state in ("retaining", "retained", "restoring"):
+        return str(expiry_state)
+    if vm.get("status") == "failed":
+        return "rolled_back" if vm.get("launch_proof_status") == "rolled_back" else "failed"
+    if expiry_state in ("expired", "deletion_eligible"):
+        return str(expiry_state)
+    if vm.get("status") == "suspended":
+        return "suspended"
     proof = vm.get("launch_proof_status")
     if proof:
         return str(proof)
     return _VM_LIFECYCLE_TO_DISPLAY.get(str(vm.get("status") or ""), "provisioning")
+
+
+def vm_expiry_dates(vm: dict[str, Any] | None) -> dict[str, str | None]:
+    def format_date(value: Any) -> str | None:
+        if not value:
+            return None
+        try:
+            date = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=UTC)
+            return date.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        except (ValueError, OverflowError):
+            return "Unavailable"
+
+    data = vm or {}
+    expiry = data.get("expiry")
+    return {
+        "expires_at": format_date(data.get("expires_at")),
+        "retained_until": (
+            format_date(expiry.get("retained_until"))
+            if isinstance(expiry, dict)
+            and expiry.get("state") in ("retaining", "retained", "restoring")
+            and data.get("status") != "destroyed"
+            else None
+        ),
+        "grace_ends_at": (
+            format_date(expiry.get("grace_ends_at"))
+            if isinstance(expiry, dict)
+            and expiry.get("state") in ("active", "expired", "deletion_eligible")
+            and data.get("status") not in ("failed", "destroyed")
+            else None
+        ),
+    }
 
 
 async def _fetch_vm_status(request: Request, vm_id: str) -> dict[str, Any] | None:
@@ -1544,6 +1609,8 @@ async def page_status(request: Request, vm_id: str) -> Response:
         vm_id=vm_id,
         vm=data,
         state=vm_display_state(data),
+        lifecycle_notice=_VM_LIFECYCLE_COPY.get(vm_display_state(data)),
+        expiry_dates=vm_expiry_dates(data),
         management_token=management_token,
     )
 

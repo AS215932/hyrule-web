@@ -28,6 +28,24 @@ export type LaunchProofStatus =
   | "rolled_back";
 
 export interface VmStatus {
+  expiry?: {
+    state:
+      | "active"
+      | "expired"
+      | "deletion_eligible"
+      | "deleting"
+      | "retaining"
+      | "retained"
+      | "restoring"
+      | "destroyed"
+      | "not_set"
+      | "not_applicable";
+    grace_ends_at?: string | null;
+    retained_until?: string | null;
+    observed_at?: string;
+    deletion_eligible?: boolean;
+    message?: string;
+  } | null;
   status?: VmLifecycleStatus;
   launch_proof_status?: LaunchProofStatus;
   payment_status?: string;
