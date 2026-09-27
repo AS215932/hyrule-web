@@ -885,10 +885,7 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
         return VM_CUSTOMIZATION
     try:
         contract: dict[str, dict[str, Any]] = {
-            "minimum": {
-                key: int(value["minimum"][key])
-                for key in ("vcpu", "ram_mb", "disk_gb")
-            },
+            "minimum": {key: int(value["minimum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "increments": {
                 key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
@@ -1388,9 +1385,7 @@ async def page_order_profile(
     vm_tiers = _live_vm_tiers(products)
     valid_profile = profile in vm_tiers
     selected_profile = (
-        profile
-        if valid_profile
-        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+        profile if valid_profile else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
     )
     return await _render_order_form(
         request,
@@ -1528,7 +1523,19 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
     mobile wallet handoff that reloads the page just re-GETs this URL and the
     order is re-rendered from the backend — no lost POST body. Unknown quote →
     back to the order form; expired quote → render with a restart banner."""
-    quote = await _fetch_api(request, f"/v1/vm/quote/{quote_id}")
+    # Quote creation forwards the browser session, so a signed-in order is
+    # account-owned. The anonymous catalog client 404s those quotes, and this
+    # page would send the customer back to the form.
+    quote_path = "/v1/vm/quote/" + urllib.parse.quote(quote_id, safe="")
+    quote_response = await _api_request(request, quote_path)
+    quote: dict[str, Any] | None = None
+    if quote_response is not None and quote_response.status_code == 200:
+        try:
+            body = quote_response.json()
+        except ValueError:
+            body = None
+        if isinstance(body, dict):
+            quote = body
     if not quote:
         return RedirectResponse("/order", status_code=303)
 
