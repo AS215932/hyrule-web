@@ -23,6 +23,7 @@ import {
   acceptedRequirements,
   encodeBase64Json,
   executeX402,
+  isAdminBypassResponse,
   quoteX402,
   type X402Acceptance,
   type X402Quote,
@@ -254,7 +255,9 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
       [network.caip2, network.key].filter((value): value is string => Boolean(value)),
     );
     let result: Record<string, unknown>;
+    let adminBypass = false;
     if (quoteResult.kind === "response") {
+      adminBypass = isAdminBypassResponse(quoteResult.response);
       result = (await quoteResult.response.json()) as Record<string, unknown>;
     } else {
       setStatus(statusEl, "Connect and sign the exact payment…", "payment-pending");
@@ -263,9 +266,16 @@ async function payWithEvm(opts: EvmPayOptions): Promise<void> {
       const paidResp = await executeX402(quoteResult.quote, paymentSignature);
       result = (await paidResp.json()) as Record<string, unknown>;
     }
-    setStatus(statusEl, "Payment successful! Redirecting…", "payment-ok");
+    setStatus(
+      statusEl,
+      adminBypass
+        ? "Admin access granted — no payment charged. Redirecting…"
+        : "Payment successful! Redirecting…",
+      "payment-ok",
+    );
     if (onSuccess) {
-      onSuccess(result);
+      if (adminBypass) setTimeout(() => onSuccess(result), 1000);
+      else onSuccess(result);
       return;
     }
     const provisioned = result as ProvisionedResult;

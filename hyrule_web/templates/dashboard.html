@@ -28,6 +28,17 @@
     </div>
 </section>
 
+{% if me %}
+<section class="container mt-4">
+    <nav class="mini-card flex flex-wrap items-center gap-2 p-2" aria-label="Dashboard views">
+        <a href="/dashboard" class="btn btn-primary btn-sm" aria-current="page">VPS &amp; domains</a>
+        {% if me.is_admin %}
+        <a href="/dashboard/admin" class="btn btn-ghost btn-sm">Administration</a>
+        {% endif %}
+    </nav>
+</section>
+{% endif %}
+
 {% if error %}
 <section class="container page-section">
     <div class="payment-status payment-error">{{ error }}</div>

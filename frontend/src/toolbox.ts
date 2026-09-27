@@ -6,6 +6,7 @@ import type { PaymentNetwork } from "./types";
 import {
   executeX402,
   humanTokenAmount,
+  isAdminBypassResponse,
   quoteX402,
   validateSignedPayment,
   type X402Quote,
@@ -443,8 +444,18 @@ async function createQuote(
     [network.caip2, network.key].filter((value): value is string => Boolean(value)),
   );
   if (outcome.kind === "response") {
+    const adminBypass = isAdminBypassResponse(outcome.response);
     const result = await consumeResponse(outcome.response, tool);
-    return { paid: false, result_handle: result.handle, status: result.status };
+    paymentStatus.textContent = adminBypass
+      ? "Admin access granted — no payment charged. Result received."
+      : "Request was already authorized. Result received.";
+    paymentStatus.className = "payment-status payment-ok";
+    return {
+      paid: false,
+      billing_mode: adminBypass ? "admin_waived" : "already_authorized",
+      result_handle: result.handle,
+      status: result.status,
+    };
   }
   const timeout = Math.max(
     60,

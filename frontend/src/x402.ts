@@ -35,6 +35,27 @@ export type X402QuoteResult =
   | { kind: "quote"; quote: X402Quote }
   | { kind: "response"; response: Response };
 
+export const ADMIN_BYPASS_MODE = "admin-bypass";
+
+export function isAdminBypassResponse(response: Response): boolean {
+  return response.headers.get("X-Hyrule-Payment-Mode") === ADMIN_BYPASS_MODE;
+}
+
+export function csrfTokenFromCookie(
+  cookie = typeof document === "undefined" ? "" : document.cookie,
+): string | undefined {
+  for (const part of cookie.split(";")) {
+    const [rawName, ...rawValue] = part.trim().split("=");
+    if (rawName !== "hyr_csrf") continue;
+    try {
+      return decodeURIComponent(rawValue.join("="));
+    } catch {
+      return rawValue.join("=");
+    }
+  }
+  return undefined;
+}
+
 function decodeBase64Json(value: string): unknown {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
@@ -100,9 +121,17 @@ export function fetchRequest(
   spec: X402RequestSpec,
   extraHeaders: Record<string, string> = {},
 ): Promise<Response> {
+  const csrfToken = csrfTokenFromCookie();
+  const target = new URL(
+    spec.url,
+    typeof location === "undefined" ? "http://localhost" : location.href,
+  );
+  const sameOrigin = typeof location !== "undefined" && target.origin === location.origin;
+  const csrfHeader: Record<string, string> = {};
+  if (csrfToken && sameOrigin) csrfHeader["X-CSRF-Token"] = csrfToken;
   return fetch(spec.url, {
     method: spec.method,
-    headers: { ...spec.headers, ...extraHeaders },
+    headers: { ...spec.headers, ...extraHeaders, ...csrfHeader },
     body: spec.method === "GET" || spec.method === "HEAD" ? undefined : spec.body,
   });
 }

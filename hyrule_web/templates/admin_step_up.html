@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Confirm Admin access — Hyrule Cloud{% endblock %}
+{% block meta_description %}Confirm a Hyrule Cloud administrator session.{% endblock %}
+{% block head_meta %}<meta name="robots" content="noindex, nofollow, noarchive">{% endblock %}
+{% block structured_data %}{% endblock %}
+
+{% block content %}
+<section class="container page-section">
+    <div class="crumbs">
+        <a href="/dashboard">dashboard</a><span class="sep">/</span>
+        <a href="/dashboard/admin">administration</a><span class="sep">/</span>
+        <span class="here">confirm</span>
+    </div>
+    <div class="mini-card mx-auto mt-5 max-w-[620px] p-6">
+        <span class="panel-label">password step-up</span>
+        <h1 class="mt-2">Confirm it’s you.</h1>
+        <p class="mt-3 text-text-soft">
+            Sensitive account, resource, billing, and ownership tools require a recent password
+            confirmation. The elevated window is short and applies only to this browser session.
+        </p>
+        {% if error %}<div class="payment-status payment-error mt-4" role="alert">{{ error }}</div>{% endif %}
+        <form method="post" action="/dashboard/admin/step-up" class="mt-5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="next" value="{{ next_path }}">
+            <div class="form-section">
+                <label for="admin-password"><strong>Admin password</strong></label>
+                <input id="admin-password" name="password" type="password" required
+                       autocomplete="current-password" class="w-full p-2 font-mono"
+                       {% if not csrf_token %}disabled{% endif %}>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <button class="btn btn-primary btn-sm" type="submit" {% if not csrf_token %}disabled{% endif %}>Unlock Admin tools</button>
+                <a class="btn btn-ghost btn-sm" href="/dashboard/admin">Cancel</a>
+            </div>
+        </form>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — Hyrule Cloud{% endblock %}
+{% block meta_description %}Private Hyrule Cloud administration access.{% endblock %}
+{% block head_meta %}<meta name="robots" content="noindex, nofollow, noarchive">{% endblock %}
+{% block structured_data %}{% endblock %}
+
+{% block content %}
+<section class="container page-section">
+    <div class="mini-card mx-auto max-w-[680px] p-6">
+        <span class="panel-label">private control plane</span>
+        <h1 class="mt-2">{{ title }}</h1>
+        <p class="mt-3 text-text-soft">{{ message }}</p>
+        <div class="mt-5 flex flex-wrap gap-2">
+            <a class="btn btn-primary btn-sm" href="/dashboard">Return to VPS &amp; domains</a>
+            <form method="post" action="/logout">
+                <button class="btn btn-ghost btn-sm" type="submit">Log out</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

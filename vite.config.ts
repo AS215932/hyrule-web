@@ -7,6 +7,11 @@ import { defineConfig } from "vitest/config";
 // Ansible deploy (issue #14) — there is no Node on the web host.
 export default defineConfig({
   base: "/static/dist/",
+  // Keep manifest module IDs repository-relative when dependencies come from a
+  // shared symlinked cache instead of a physical node_modules directory.
+  resolve: {
+    preserveSymlinks: true,
+  },
   build: {
     outDir: "hyrule_web/static/dist",
     emptyOutDir: true,
