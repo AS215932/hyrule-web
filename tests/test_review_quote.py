@@ -50,9 +50,7 @@ def _quote(status: str = "created") -> dict:
 def test_review_renders_from_durable_quote(
     client: TestClient, mocked_api: respx.MockRouter
 ) -> None:
-    mocked_api.get("/v1/vm/quote/q_test123").mock(
-        return_value=httpx.Response(200, json=_quote())
-    )
+    mocked_api.get("/v1/vm/quote/q_test123").mock(return_value=httpx.Response(200, json=_quote()))
     r = client.get("/order/review/q_test123")
     assert r.status_code == 200
     body = r.text
@@ -68,9 +66,7 @@ def test_review_uses_backend_locked_amount_not_frontend_catalog(
 ) -> None:
     quote = _quote()
     quote["amount_usd"] = "9.73"
-    mocked_api.get("/v1/vm/quote/q_locked").mock(
-        return_value=httpx.Response(200, json=quote)
-    )
+    mocked_api.get("/v1/vm/quote/q_locked").mock(return_value=httpx.Response(200, json=quote))
 
     body = client.get("/order/review/q_locked").text
 
@@ -98,15 +94,38 @@ def test_review_survives_when_quoted_tier_leaves_live_catalog(
             },
         )
     )
-    mocked_api.get("/v1/vm/quote/q_retired").mock(
-        return_value=httpx.Response(200, json=_quote())
-    )
+    mocked_api.get("/v1/vm/quote/q_retired").mock(return_value=httpx.Response(200, json=_quote()))
 
     response = client.get("/order/review/q_retired")
 
     assert response.status_code == 200
     assert "2C-4G-20G" in response.text
     assert "$4.20" in response.text
+
+
+def test_signed_in_review_forwards_the_session_to_the_quote(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Account-owned quotes 404 without the session that created them."""
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.headers.get("cookie") != "hyr_sess=owner-session":
+            return httpx.Response(404, json={"detail": "Quote not found"})
+        return httpx.Response(200, json=_quote())
+
+    mocked_api.get("/v1/vm/quote/q_owned").mock(side_effect=respond)
+
+    anonymous = client.get("/order/review/q_owned", follow_redirects=False)
+    assert anonymous.status_code == 303
+    assert anonymous.headers["location"] == "/order"
+
+    signed_in = client.get(
+        "/order/review/q_owned",
+        headers={"Cookie": "hyr_sess=owner-session"},
+        follow_redirects=False,
+    )
+    assert signed_in.status_code == 200
+    assert 'name="quote_id" value="q_owned"' in signed_in.text
 
 
 def test_review_unknown_quote_redirects_to_order(
