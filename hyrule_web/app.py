@@ -12,6 +12,7 @@ import time
 import urllib.parse
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
@@ -34,7 +35,13 @@ from markupsafe import Markup
 
 from .catalog import browser_catalog, catalog_resources, normalize_openapi
 from .config import DEFAULT_OS_TEMPLATES, VM_CUSTOMIZATION, VM_TIERS, settings
-from .seo import ROBOTS_TXT, build_llms_txt, render_sitemap_xml
+from .seo import (
+    CLOUD_OPENAPI_URL,
+    CLOUD_X402_MANIFEST_URL,
+    ROBOTS_TXT,
+    build_llms_txt,
+    render_sitemap_xml,
+)
 
 # Newline-delimited JSON to stdout per AS215932's application logging
 # contract (hyrule-infra/docs/application-logging.md). systemd-journald
@@ -87,7 +94,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await app.state.http.aclose()
 
 
-app = FastAPI(title="Hyrule Cloud", docs_url=None, redoc_url=None, lifespan=lifespan)
+# openapi_url=None: this app serves HTML pages, so a generated OpenAPI document
+# here described `/`, `/services`, `/order`… under the title "Hyrule Cloud" —
+# indistinguishable from the real agent API's schema and worse than a 404 for an
+# agent doing standard discovery. /openapi.json now redirects to the canonical
+# document instead (see `openapi_json_redirect`). /docs and /redoc stay off.
+app = FastAPI(
+    title="Hyrule Cloud",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    lifespan=lifespan,
+)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
 
@@ -250,6 +268,12 @@ _TOOL_CATALOG_TTL_SECONDS = 300
 # Overhaul: /v1/pricing (proxy route prices + currency/network) for /services.
 _PRICING_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
 _PRICING_TTL_SECONDS = 300
+# Agent-discovery wave: mirror of the canonical agent card authored on
+# cloud.hyrule.host (see `well_known_agent_card` for why this one is mirrored
+# rather than redirected). Stale-on-error via _refresh_cached; fail-closed to
+# 503 when nothing has ever been fetched.
+_AGENT_CARD_CACHE: dict[str, Any] = {"value": None, "expires_at": 0.0}
+_AGENT_CARD_TTL_SECONDS = 300
 
 _SERVICE_COMPONENTS = (
     ("api_checkout", "API & checkout", "Purchasing and management API"),
@@ -382,6 +406,14 @@ async def refresh_service_status_for_pages(
             "/robots.txt",
             "/sitemap.xml",
             "/llms.txt",
+            # Machine discovery URIs: pure redirects to the canonical API host,
+            # no template to decorate with a status pill.
+            "/openapi.json",
+            "/.well-known/x402.json",
+            # Machine artifacts with no status pill either — crawler traffic on
+            # these must not fan out into backend status fetches.
+            "/.well-known/agent-card.json",
+            "/indexnow.txt",
         }
     )
     if request.method == "GET" and not excluded:
@@ -802,6 +834,22 @@ async def _refresh_tool_catalog(request: Request) -> dict[str, Any]:
     return {"status": "unavailable", "fetched_at": None, "tools": []}
 
 
+def _group_is_payable(tool_catalog: dict[str, Any], group: str) -> bool:
+    """True only when FRESH discovery confirms a payable operation in `group`.
+
+    Fail-closed on a stale or unavailable catalog: an unknown state must never
+    be rendered as "this product is for sale". This is how copy learns that the
+    domain product is still deferred — `/v1/domains/*` answers 503 and never
+    appears in the API's enabled-only OpenAPI document.
+    """
+    if tool_catalog.get("status") != "live":
+        return False
+    tools = tool_catalog.get("tools")
+    if not isinstance(tools, list):
+        return False
+    return any(isinstance(tool, dict) and tool.get("group") == group for tool in tools)
+
+
 async def _refresh_pricing(request: Request) -> dict[str, Any] | None:
     return await _refresh_cached(request, _PRICING_CACHE, _PRICING_TTL_SECONDS, "/v1/pricing")
 
@@ -838,10 +886,7 @@ def _live_vm_customization(products: dict[str, Any] | None) -> dict[str, dict[st
         return VM_CUSTOMIZATION
     try:
         contract: dict[str, dict[str, Any]] = {
-            "minimum": {
-                key: int(value["minimum"][key])
-                for key in ("vcpu", "ram_mb", "disk_gb")
-            },
+            "minimum": {key: int(value["minimum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "maximum": {key: int(value["maximum"][key]) for key in ("vcpu", "ram_mb", "disk_gb")},
             "increments": {
                 key: int(value["increments"][key]) for key in ("vcpu", "ram_mb", "disk_gb")
@@ -898,6 +943,99 @@ async def _fetch_api(request: Request, path: str) -> dict[str, Any] | None:
             error={"type": type(exc).__name__, "message": str(exc)},
         )
     return None
+
+
+# GET /v1/vm/{id}/status carries TWO status vocabularies, and they are not
+# interchangeable:
+#   status              VMStatus: provisioning|ready|running|suspended|failed|destroyed
+#   launch_proof_status accepted|payment_required|provisioning|provisioned|failed|rolled_back
+# The templates were written against the launch-proof words but read `status`,
+# so a finished VM (`ready`) matched nothing and the page sat on "Building your
+# VM." forever. Normalize once here; templates consume `state`.
+_VM_LIFECYCLE_TO_DISPLAY = {
+    "ready": "provisioned",
+    "running": "provisioned",
+    "suspended": "suspended",
+    "failed": "failed",
+    "destroyed": "destroyed",
+    "provisioning": "provisioning",
+}
+
+_VM_LIFECYCLE_COPY = {
+    "retaining": ("RETENTION PENDING", "VM retention is being verified.",
+                  "Contact support for recovery."),
+    "retained": ("DATA RETAINED", "Your VM is retained for recovery.",
+                 "Contact support to restore your VM."),
+    "restoring": ("RECOVERY IN PROGRESS", "Your VM is being recovered.",
+                  "This page will update as recovery progresses."),
+    "expired": ("EXPIRED", "Your VM has expired.",
+                "Renew before the grace period ends to avoid deletion."),
+    "deletion_eligible": ("GRACE PERIOD ENDED", "The grace period has ended.",
+                          "This VM is eligible for deletion. "
+                          "Contact support immediately for recovery options."),
+    "deleting": ("DELETION STARTED", "VM deletion has started.",
+                 "Contact support for the remaining recovery options."),
+    "suspended": ("SUSPENDED", "Your VM is suspended.",
+                  "Check the expiry information below and contact support for recovery."),
+    "destroyed": ("DESTROYED", "Your VM is destroyed.", "Contact support if you need assistance."),
+}
+
+
+def vm_display_state(vm: dict[str, Any] | None) -> str:
+    """Collapse both API status vocabularies into one display state."""
+    if not vm:
+        return "provisioning"
+    expiry = vm.get("expiry")
+    expiry_state = expiry.get("state") if isinstance(expiry, dict) else None
+    if vm.get("status") == "destroyed" or expiry_state == "destroyed":
+        return "destroyed"
+    if expiry_state == "deleting":
+        return "deleting"
+    if expiry_state in ("retaining", "retained", "restoring"):
+        return str(expiry_state)
+    if vm.get("status") == "failed":
+        return "rolled_back" if vm.get("launch_proof_status") == "rolled_back" else "failed"
+    if expiry_state in ("expired", "deletion_eligible"):
+        return str(expiry_state)
+    if vm.get("status") == "suspended":
+        return "suspended"
+    proof = vm.get("launch_proof_status")
+    if proof:
+        return str(proof)
+    return _VM_LIFECYCLE_TO_DISPLAY.get(str(vm.get("status") or ""), "provisioning")
+
+
+def vm_expiry_dates(vm: dict[str, Any] | None) -> dict[str, str | None]:
+    def format_date(value: Any) -> str | None:
+        if not value:
+            return None
+        try:
+            date = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            if date.tzinfo is None:
+                date = date.replace(tzinfo=UTC)
+            return date.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        except (ValueError, OverflowError):
+            return "Unavailable"
+
+    data = vm or {}
+    expiry = data.get("expiry")
+    return {
+        "expires_at": format_date(data.get("expires_at")),
+        "retained_until": (
+            format_date(expiry.get("retained_until"))
+            if isinstance(expiry, dict)
+            and expiry.get("state") in ("retaining", "retained", "restoring")
+            and data.get("status") != "destroyed"
+            else None
+        ),
+        "grace_ends_at": (
+            format_date(expiry.get("grace_ends_at"))
+            if isinstance(expiry, dict)
+            and expiry.get("state") in ("active", "expired", "deletion_eligible")
+            and data.get("status") not in ("failed", "destroyed")
+            else None
+        ),
+    }
 
 
 async def _fetch_vm_status(request: Request, vm_id: str) -> dict[str, Any] | None:
@@ -996,9 +1134,7 @@ async def page_services(request: Request) -> Response:
     os_data = await _fetch_api(request, "/v1/os/list")
     os_list = os_data.get("templates", DEFAULT_OS_TEMPLATES) if os_data else DEFAULT_OS_TEMPLATES
     tool_catalog = await _refresh_tool_catalog(request)
-    proxy_enabled = tool_catalog["status"] == "live" and any(
-        isinstance(tool, dict) and tool.get("group") == "proxy" for tool in tool_catalog["tools"]
-    )
+    proxy_enabled = _group_is_payable(tool_catalog, "proxy")
     proxy_prices = _proxy_prices(await _refresh_pricing(request)) if proxy_enabled else {}
     return _render(
         request,
@@ -1265,9 +1401,7 @@ async def page_order_profile(
     vm_tiers = _live_vm_tiers(products)
     valid_profile = profile in vm_tiers
     selected_profile = (
-        profile
-        if valid_profile
-        else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
+        profile if valid_profile else ("sm" if "sm" in vm_tiers else next(iter(vm_tiers)))
     )
     return await _render_order_form(
         request,
@@ -1405,7 +1539,19 @@ async def page_review_quote(request: Request, quote_id: str) -> Response:
     mobile wallet handoff that reloads the page just re-GETs this URL and the
     order is re-rendered from the backend — no lost POST body. Unknown quote →
     back to the order form; expired quote → render with a restart banner."""
-    quote = await _fetch_api(request, f"/v1/vm/quote/{quote_id}")
+    # Quote creation forwards the browser session, so a signed-in order is
+    # account-owned. The anonymous catalog client 404s those quotes, and this
+    # page would send the customer back to the form.
+    quote_path = "/v1/vm/quote/" + urllib.parse.quote(quote_id, safe="")
+    quote_response = await _api_request(request, quote_path)
+    quote: dict[str, Any] | None = None
+    if quote_response is not None and quote_response.status_code == 200:
+        try:
+            body = quote_response.json()
+        except ValueError:
+            body = None
+        if isinstance(body, dict):
+            quote = body
     if not quote:
         return RedirectResponse("/order", status_code=303)
 
@@ -1472,27 +1618,23 @@ async def page_status(request: Request, vm_id: str) -> Response:
     # legacy /v1/vm/{id} is now management-gated and would 404 here.
     data = await _fetch_vm_status(request, vm_id)
     # If the URL carries ?token=hyr_vm_..., the user just landed from a
-    # fresh anon order. Surface the management URL banner exactly once.
+    # fresh anon order. Surface the management token banner exactly once.
+    # We show the bare token, not a URL: the API builds its `management_url`
+    # from the request base_url, which behind the proxy is the internal
+    # overlay address (http://[2a0c:...]:8402/...) — useless to a buyer and a
+    # needless disclosure. The token is the actual credential; where to send
+    # it is documented.
     token = request.query_params.get("token")
-    management_url = None
-    if token and token.startswith("hyr_vm_"):
-        scheme = request.url.scheme
-        host = request.headers.get("host", "")
-        # Routed via Caddy on proxy → api:8402. The cloud subdomain serves
-        # the api directly so the management URL is the canonical form an
-        # agent or curl would use. Token is URL-encoded — current tokens are
-        # `hyr_vm_<32 base62>` (no reserved chars), but encoding now keeps the
-        # URL well-formed if the token shape ever picks up `&`, `?`, or `=`.
-        management_url = (
-            f"{scheme}://cloud.{host.removeprefix('www.')}/v1/vm/{vm_id}"
-            f"?token={urllib.parse.quote(token, safe='')}"
-        )
+    management_token = token if token and token.startswith("hyr_vm_") else None
     return _render(
         request,
         "status.html",
         vm_id=vm_id,
         vm=data,
-        management_url=management_url,
+        state=vm_display_state(data),
+        lifecycle_notice=_VM_LIFECYCLE_COPY.get(vm_display_state(data)),
+        expiry_dates=vm_expiry_dates(data),
+        management_token=management_token,
     )
 
 
@@ -2468,6 +2610,19 @@ async def robots() -> str:
     return ROBOTS_TXT
 
 
+@app.get("/indexnow.txt", include_in_schema=False)
+async def indexnow_key() -> PlainTextResponse:
+    """IndexNow key file for the seo-agent's change-gated pinger.
+
+    Mirrors hyrule-cloud's agent-seo-verification gate: an unset key answers
+    404 rather than serving an empty/placeholder body a search engine would
+    then fail to validate the ping against.
+    """
+    if not settings.indexnow_key:
+        return PlainTextResponse("IndexNow is not configured", status_code=404)
+    return PlainTextResponse(settings.indexnow_key)
+
+
 # Serve the brand icons at the well-known root paths too (browsers and crawlers
 # request /favicon.ico directly, not just the <link>-referenced /static path).
 # Brand marks change rarely, so cache for a week; no `immutable` because the URL
@@ -2565,7 +2720,66 @@ async def llms(request: Request) -> str:
         native=native,
         diagnostics_live=network_fresh and catalog_fresh,
         tools=tool_catalog.get("tools"),
+        domains_live=_group_is_payable(tool_catalog, "domains"),
+        # Block G: registry/skills listings aren't published yet — the section
+        # stays off until HYRULE_WEB_ENABLE_LLMS_ANNOUNCE flips it on.
+        announce=settings.enable_llms_announce,
     )
+
+
+# ---------------------------------------------------------------------------
+# Agent discovery — the brand origin must not dead-end
+#
+# hyrule.host is where agents land first (SEO, llms.txt, schema.org) but every
+# machine-readable contract is authored on cloud.hyrule.host. Redirecting (302,
+# not 301) keeps a single source of truth that is always fresh and leaves us
+# free to serve a brand-origin document later without fighting cached
+# permanent redirects.
+# ---------------------------------------------------------------------------
+
+
+@app.get("/.well-known/x402.json", include_in_schema=False)
+async def well_known_x402() -> RedirectResponse:
+    """Send x402 discovery at the brand origin to the canonical manifest.
+
+    llms.txt used to point agents at this path; before this redirect existed it
+    answered 404 here while cloud.hyrule.host served the real manifest, so a
+    conforming agent stopped at discovery.
+    """
+    return RedirectResponse(url=CLOUD_X402_MANIFEST_URL, status_code=302)
+
+
+@app.get("/openapi.json", include_in_schema=False)
+async def openapi_json_redirect() -> RedirectResponse:
+    """Point OpenAPI discovery at the real agent API.
+
+    This app publishes no schema of its own (`openapi_url=None`); the website's
+    page routes are not a payable API surface.
+    """
+    return RedirectResponse(url=CLOUD_OPENAPI_URL, status_code=302)
+
+
+@app.get("/.well-known/agent-card.json", include_in_schema=False)
+async def well_known_agent_card(request: Request) -> Response:
+    """Mirror the canonical agent card authored on cloud.hyrule.host.
+
+    Unlike x402.json/openapi.json this is a MIRROR, not a redirect: the card's
+    url fields already point at the API host, so the body is host-independent
+    and some A2A clients don't follow cross-origin redirects on well-known
+    paths. Fail-closed: until the backend has served the card at least once
+    (it is being added in a parallel PR), answer 503 rather than fabricating
+    a discovery document here.
+    """
+    card = await _refresh_cached(
+        request, _AGENT_CARD_CACHE, _AGENT_CARD_TTL_SECONDS, "/.well-known/agent-card.json"
+    )
+    if card is None:
+        return Response(
+            content='{"error": "agent card unavailable"}',
+            status_code=503,
+            media_type="application/json",
+        )
+    return Response(content=json.dumps(card), media_type="application/json")
 
 
 # ---------------------------------------------------------------------------

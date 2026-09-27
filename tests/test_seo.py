@@ -114,14 +114,21 @@ def test_render_sitemap_xml_is_well_formed() -> None:
     assert f"{SITE_BASE_URL}/llms.txt" in locs
 
 
-def test_render_sitemap_xml_has_lastmod_for_every_url() -> None:
-    xml = render_sitemap_xml(_build_app())
+def test_render_sitemap_xml_has_no_lastmod_and_is_byte_stable() -> None:
+    """<lastmod> used to stamp date.today() on every URL, so the document
+    changed byte-wise daily and the seo-agent's sha256-change-gated IndexNow
+    pinger fired with an unchanged URL set. The render must be deterministic
+    for a given route table."""
+    a = _build_app()
+    xml = render_sitemap_xml(a)
+    assert "lastmod" not in xml
     root = ET.fromstring(xml)
     urls = [el for el in root.iter() if el.tag.endswith("url")]
+    assert urls
     for u in urls:
         children = {el.tag.split("}")[-1] for el in u}
-        assert "loc" in children
-        assert "lastmod" in children
+        assert children == {"loc"}
+    assert render_sitemap_xml(a) == xml
 
 
 def test_robots_txt_contains_sitemap_pointer_and_agent_allowlist() -> None:
@@ -139,3 +146,21 @@ def test_llms_txt_is_markdown_with_required_sections() -> None:
     assert "https://hyrule.host/order" in LLMS_TXT
     assert "https://hyrule.host/abuse" in LLMS_TXT
     assert "Native crypto rails are listed only" in LLMS_TXT
+
+
+def test_build_llms_txt_announce_section_is_gated_and_additive() -> None:
+    """Block G: the registry/skills listings are not published yet, so the
+    announce section defaults OFF, and turning it on must only append — the
+    rest of the document stays byte-identical."""
+    from hyrule_web.seo import build_llms_txt
+
+    off = build_llms_txt(networks=None)
+    on = build_llms_txt(networks=None, announce=True)
+    assert "## Agent integrations" not in off
+    assert "host.hyrule/hyrule-cloud" not in off
+    assert "clawhub" not in off.lower()
+    assert on.startswith(off)
+    assert "## Agent integrations" in on
+    assert "https://cloud.hyrule.host/.well-known/agent-card.json" in on
+    assert "host.hyrule/hyrule-cloud" in on
+    assert "clawhub.ai" in on

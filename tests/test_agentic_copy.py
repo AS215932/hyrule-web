@@ -78,3 +78,123 @@ def test_llms_txt_lists_canonical_urls(
         "https://cloud.hyrule.host/v1/vm/create",
     ):
         assert url in body, f"llms.txt missing canonical URL {url}"
+
+
+def _openapi_with_domains() -> dict[str, object]:
+    """An enabled OpenAPI document that DOES advertise a payable domain order."""
+    return {
+        "openapi": "3.1.0",
+        "info": {"title": "Hyrule enabled x402 API", "version": "test"},
+        "paths": {
+            "/v1/domains/orders": {
+                "post": {
+                    "operationId": "create_domain_order",
+                    "summary": "Place a domain registration or renewal",
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {"type": "object"},
+                                "example": {"domain": "example.dev"},
+                            }
+                        }
+                    },
+                    "responses": {
+                        "202": {"content": {"application/json": {"schema": {"type": "object"}}}}
+                    },
+                    "x-payment-info": {
+                        "price": {"mode": "dynamic", "currency": "USD", "min": "6.00"}
+                    },
+                }
+            },
+        },
+    }
+
+
+def test_llms_txt_does_not_market_the_deferred_domain_product(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Live evidence from the first dogfood run: `/v1/domains/check` and
+    `/v1/domains/tlds` answer 503 (registrar provider unconfigured) and the
+    API's own OpenAPI says domain registration is deferred from the launch
+    catalog — while llms.txt still sold it. The default conftest OpenAPI
+    fixture advertises no domain operation, which is production today."""
+    r = client.get("/llms.txt")
+    assert r.status_code == 200
+    body = r.text
+    for url in (
+        "https://cloud.hyrule.host/v1/domains/openapi.json",
+        "https://cloud.hyrule.host/v1/domains/check?domain=example.dev",
+        "https://cloud.hyrule.host/v1/domains/quotes",
+        "https://cloud.hyrule.host/v1/domains/orders",
+        "[Search domains](https://hyrule.host/domains)",
+    ):
+        assert url not in body, f"llms.txt still advertises deferred domain URL {url}"
+    # And it says so, rather than silently dropping the product.
+    assert "Not yet launched" in body
+    assert "deferred from the current" in body
+
+
+def test_llms_txt_advertises_domains_again_once_the_catalog_enables_them(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """No hardcoded launch date: the copy follows the enabled x402 catalog."""
+    mocked_api.get("/openapi.json").mock(
+        return_value=httpx.Response(200, json=_openapi_with_domains())
+    )
+    body = client.get("/llms.txt").text
+    assert "[Search domains](https://hyrule.host/domains)" in body
+    assert "https://cloud.hyrule.host/v1/domains/orders" in body
+    assert "Not yet launched" not in body
+
+
+def test_llms_txt_x402_manifest_reference_is_absolute(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """A relative `/.well-known/x402.json` resolves against hyrule.host, where
+    it used to 404 — the discovery dead-end this document caused."""
+    body = client.get("/llms.txt").text
+    assert "in the x402 manifest at\n  https://cloud.hyrule.host/.well-known/x402.json" in body
+    assert "schemas in `/.well-known/x402.json`" not in body
+
+
+def test_llms_txt_fallback_never_markets_domains_when_discovery_fails(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """Fail-closed: an unknown catalog state is not a launched product."""
+    mocked_api.get("/openapi.json").mock(side_effect=httpx.ConnectError("offline"))
+    body = client.get("/llms.txt").text
+    # No callable domain URL is offered; only the plain "deferred" note, which
+    # names the endpoint family without pointing agents at a buyable URL.
+    assert "https://cloud.hyrule.host/v1/domains" not in body
+    assert "[Search domains]" not in body
+    assert "Not yet launched" in body
+
+
+def test_marketing_pages_do_not_price_the_deferred_domain_product(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    """[[feedback_ship_features_before_copy]]: marketing copy describes only
+    live features, built from live config rather than a hardcoded list."""
+    home = client.get("/")
+    assert home.status_code == 200
+    assert "not yet launched" in home.text
+
+    services = client.get("/services")
+    assert services.status_code == 200
+    assert "not currently confirmed by the enabled OpenAPI catalog" in services.text
+    assert "registration is deferred from the launch catalog" in services.text
+
+
+def test_marketing_pages_price_domains_when_the_catalog_enables_them(
+    client: TestClient, mocked_api: respx.MockRouter
+) -> None:
+    mocked_api.get("/openapi.json").mock(
+        return_value=httpx.Response(200, json=_openapi_with_domains())
+    )
+    home = client.get("/")
+    assert "$6.00+" in home.text
+    assert "not yet launched" not in home.text
+
+    services = client.get("/services")
+    assert "/v1/domains/orders" in services.text
+    assert "registration price varies by TLD" in services.text

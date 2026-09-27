@@ -1,24 +1,39 @@
 {# Partial: poll-replaceable inner of the status card (launch-proof contract). #}
-{% set is_provisioned = vm and vm.status == 'provisioned' %}
-{% set is_failed = vm and vm.status == 'failed' %}
-{% set is_rolled_back = vm and vm.status == 'rolled_back' %}
-{% set is_payment_required = vm and vm.status == 'payment_required' %}
-{% set is_provisioning = vm and vm.status == 'provisioning' %}
+{# `state` comes from vm_display_state(). Never read vm.status here: it carries
+   VMStatus (ready|running|suspended|…), not launch-proof words. Comparing it
+   against 'provisioned' is never true for a finished VM. #}
+{% set state = state or 'provisioning' %}
+{% set is_provisioned = state == 'provisioned' %}
+{% set is_failed = state == 'failed' %}
+{% set is_rolled_back = state == 'rolled_back' %}
+{% set is_payment_required = state == 'payment_required' %}
+{% set is_provisioning = state == 'provisioning' %}
 {% set label = 'PROVISIONED' if is_provisioned else ('FAILED' if is_failed else ('ROLLED BACK' if is_rolled_back else ('PAYMENT REQUIRED' if is_payment_required else 'PROVISIONING'))) %}
 {% set card_cls = 'ok' if is_provisioned else ('error' if is_failed or is_rolled_back else 'pending') %}
+{% if lifecycle_notice %}
+{% set label = lifecycle_notice[0] %}
+{% set card_cls = 'error' %}
+{% endif %}
 
 <div id="status-card" class="status-card {{ card_cls }}"
-     data-vm-id="{{ vm_id }}" data-status="{{ vm.status if vm else 'provisioning' }}">
+     data-vm-id="{{ vm_id }}" data-status="{{ state }}">
     <div class="status-row">
         <span class="status-dot"></span>
         <span class="status-label">{{ label }}</span>
     </div>
 
-    {% if is_provisioned %}
+    {% if lifecycle_notice %}
+    <div class="mt-4">
+        <p>{{ lifecycle_notice[2] }}</p>
+        <p class="mt-2">VM status: {{ vm.status or 'unknown' }}</p>
+        <p class="mt-2">Contact <a href="mailto:support@hyrule.host">support@hyrule.host</a> for help.</p>
+    </div>
+    {% elif is_provisioned %}
+    {# The API field is `hostname`; `fqdn` has never existed on this response. #}
     <div class="kv-block">
-        <div class="kv"><span class="k">hostname</span><span class="v"><code>{{ vm.fqdn }}</code></span><button class="copy" data-copy="{{ vm.fqdn }}">copy</button></div>
+        <div class="kv"><span class="k">hostname</span><span class="v"><code>{{ vm.hostname }}</code></span><button class="copy" data-copy="{{ vm.hostname }}">copy</button></div>
         <div class="kv"><span class="k">ipv6</span><span class="v"><code>{{ vm.ipv6 }}</code></span><button class="copy" data-copy="{{ vm.ipv6 }}">copy</button></div>
-        <div class="kv"><span class="k">connect</span><span class="v"><code>ssh root@{{ vm.fqdn }}</code></span><button class="copy" data-copy="ssh root@{{ vm.fqdn }}">copy</button></div>
+        <div class="kv"><span class="k">connect</span><span class="v"><code>ssh root@{{ vm.hostname }}</code></span><button class="copy" data-copy="ssh root@{{ vm.hostname }}">copy</button></div>
     </div>
     {% elif is_payment_required %}
     <div class="mt-4">
@@ -39,6 +54,19 @@
     <div class="mt-4">
         <p class="text-text-soft">Building your VM. Most builds finish in under 60 seconds.</p>
         <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+    {% endif %}
+    {% if (is_provisioned or lifecycle_notice) and (expiry_dates.expires_at or expiry_dates.grace_ends_at or expiry_dates.retained_until) %}
+    <div class="kv-block mt-4">
+        {% if expiry_dates.expires_at %}<div class="kv"><span class="k">Term expires</span><span class="v">{{ expiry_dates.expires_at }}</span></div>{% endif %}
+        {% if expiry_dates.grace_ends_at %}
+        <div class="kv"><span class="k">Grace period ends</span><span class="v">{{ expiry_dates.grace_ends_at }}</span></div>
+        <p class="text-text-soft mt-2">After this deadline, the VM is eligible for deletion. Recovery is not guaranteed.</p>
+        {% endif %}
+        {% if expiry_dates.retained_until %}
+        <div class="kv"><span class="k">Minimum retention until</span><span class="v">{{ expiry_dates.retained_until }}</span></div>
+        <p class="text-text-soft mt-2">Contact support for recovery. This is not a scheduled deletion date.</p>
+        {% endif %}
     </div>
     {% endif %}
 </div>

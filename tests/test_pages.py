@@ -20,6 +20,24 @@ def test_index(client: TestClient) -> None:
     _assert_html_with_canonical(r)
 
 
+# base.html already declared twitter:card summary_large_image, but never an
+# image — so link previews rendered blank. The card URL must be absolute:
+# scrapers resolve og:image outside any base href.
+_OG_IMAGE = '<meta property="og:image" content="https://hyrule.host/static/og-card.png">'
+_TW_IMAGE = '<meta name="twitter:image" content="https://hyrule.host/static/og-card.png">'
+
+
+def test_pages_declare_the_social_preview_image(client: TestClient) -> None:
+    for path in ("/", "/services", "/about", "/faq"):
+        text = client.get(path).text
+        assert _OG_IMAGE in text, path
+        assert '<meta property="og:image:width" content="1200">' in text, path
+        assert '<meta property="og:image:height" content="630">' in text, path
+        assert 'property="og:image:alt"' in text, path
+        assert _TW_IMAGE in text, path
+        assert '<meta name="twitter:card" content="summary_large_image">' in text, path
+
+
 def test_about_is_the_canonical_policy_overview(client: TestClient) -> None:
     r = client.get("/about")
     _assert_html_with_canonical(r)

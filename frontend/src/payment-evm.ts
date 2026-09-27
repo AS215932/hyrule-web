@@ -20,6 +20,7 @@ import type {
   TransferWithAuthorizationTypedData,
 } from "./types";
 import {
+  acceptedRequirements,
   encodeBase64Json,
   executeX402,
   isAdminBypassResponse,
@@ -37,17 +38,18 @@ function setStatus(statusEl: HTMLElement | null, msg: string, cls?: string): voi
 interface ProvisionedResult {
   vm_id?: string;
   management_token?: string;
-  management_url?: string;
 }
 
 function stashManagementToken(result: ProvisionedResult): void {
   if (!result.vm_id || !result.management_token) return;
   try {
+    // Token only. The API's `management_url` is derived from its own request
+    // base_url, which behind the proxy is the internal overlay address, so we
+    // never stash or surface it.
     sessionStorage.setItem(
       "hyr_vm_mgmt:" + result.vm_id,
       JSON.stringify({
         token: result.management_token,
-        url: result.management_url || null,
         issued: Date.now(),
       }),
     );
@@ -208,8 +210,9 @@ export async function signX402Quote(
   })) as string;
   return encodeBase64Json({
     x402Version: 2,
-    scheme: accept.scheme || "exact",
-    network: accept.network,
+    // v2 puts scheme/network/amount in `accepted` (the quoted requirements
+    // entry being fulfilled), not at the top level of the envelope.
+    accepted: acceptedRequirements(accept),
     payload: {
       authorization: {
         from,
