@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}No-KYC IPv6 VPS, paid with crypto — Hyrule Cloud{% endblock %}
+{% block meta_description %}Rent an IPv6-native VPS with no KYC: no ID, no email, no account required. Pay per order in USDC via x402{% if native %} or {{ native | join(' / ') }}{% endif %}.{% endblock %}
+
+{% set live_chains = (networks or []) | map(attribute='display_name') | list %}
+{% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed by /v1/payments/networks" %}
+{% set native_methods = native or [] %}
+{% set cheapest = (vm_tiers.values() | map(attribute='price') | min) if vm_tiers else none %}
+{# CONFIRM(Svag): grace period — live site says 24h; older copy said 48h. #}
+
+{% set faq_items = [
+    {"q": "Do you require ID, email, or a phone number?", "a": "No. One-shot orders need none of them. Optional accounts use a generated handle."},
+    {"q": "Which cryptocurrencies can I pay with?", "a": "USDC via x402 on " ~ chain_sentence ~ "." ~ (" VM orders can also use native " ~ (native_methods | join(" / ")) ~ " checkout." if native_methods else "")},
+    {"q": "What data do you keep?", "a": "VM configuration, SSH public key, generated identifiers, lifecycle and payment state, and the minimum wallet metadata needed to reconcile payment. See the <a href='/privacy'>privacy page</a>."},
+    {"q": "Do you monitor what runs on my VM?", "a": "Customer VMs do not run a Hyrule monitoring agent, and VM disk contents are not proactively inspected. Network telemetry is used for reliability and abuse response."},
+    {"q": "Can I use Tor or I2P?", "a": "You can run them on your VM within the terms. Separately, the paid network proxy offers Tor, I2P and Yggdrasil egress when it is enabled in the catalog."},
+    {"q": "What about IPv4?", "a": "VMs are IPv6-native. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 is not available in v1."}
+] %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "No-KYC VPS", "item": "https://hyrule.host/no-kyc-vps"}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for item in faq_items %}
+    {"@type": "Question", "name": {{ item.q | tojson }}, "acceptedAnswer": {"@type": "Answer", "text": {{ item.a | tojson }}}}{{ "," if not loop.last else "" }}
+    {% endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">no-kyc-vps</span></div>
+            <span class="panel-label">No-KYC VPS</span>
+            <h1>A VPS without identity checks.</h1>
+            <p class="hero-blurb">No passport, no phone number, no email for one-shot orders. Pay in crypto, get root SSH on an IPv6-native VM on an independent network.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label mb-2">live facts</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-[0.85rem] text-text-muted">
+                {% if cheapest is not none %}<li>+ VMs from ${{ "%.2f"|format(cheapest) }}/day</li>{% endif %}
+                {% if live_chains %}{% for network in networks %}<li>+ USDC on {{ network.display_name }} <code>{{ network.caip2 }}</code></li>{% endfor %}{% else %}<li>+ Check <code>/v1/payments/networks</code></li>{% endif %}
+                {% if native_methods %}<li>+ Native VM checkout: {{ native_methods | join(" / ") }}</li>{% endif %}
+                <li>+ IPv6 from <code>2a0c:b641:b51::/48</code>, AS215932</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="feature-card px-5 py-[18px]">
+        <h2>What “no KYC” means here</h2>
+        <p>Hyrule Cloud does not ask for government ID, a phone number or a card. One-shot orders need no account at all. Optional accounts use a generated <code>H&lt;10 hex&gt;</code> handle with a recovery code or wallet-signature recovery.</p>
+        <p>No KYC does not mean no rules. Payment and lifecycle records are kept as described in the <a href="/privacy">privacy policy</a>, and the <a href="/terms">terms</a> and <a href="/abuse">abuse policy</a> apply. The network is <a href="https://as215932.net/">AS215932</a>, operated from the Netherlands.</p>
+    </div>
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">Current VM pricing</span>
+    <h2>Prepaid per day, priced live from the API.</h2>
+    {% include "_tier_grid.html" %}
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">How to order</span>
+    <ol class="mt-3 flex list-none flex-col gap-2 p-0 text-text-muted">
+            <li><code>1</code> Pick a size and duration on <a href="/order">/order</a>, or call the API directly.</li>
+            <li><code>2</code> Paste an SSH public key. No email is asked for.</li>
+            <li><code>3</code> Pay the exact amount in crypto.</li>
+            <li><code>4</code> Save the management URL. It is shown once and is how you extend or manage the VM without an account.</li>
+    </ol>
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">How Hyrule compares</span>
+    <h2>Other agent and no-KYC VPS options.</h2>
+    {% include "_vps_compare.html" %}
+</section>
+
+<section class="container page-section">
+    <div class="faq-list">
+    {% for item in faq_items %}
+        <details class="feature-card px-5 py-[18px]" {% if loop.index <= 2 %}open{% endif %}>
+            <summary>{{ item.q }}</summary>
+            <p>{{ item.a | safe }}</p>
+        </details>
+    {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">Start</span>
+        <h2>Order a VM, or let your agent do it.</h2>
+        <div class="cta-actions">
+            <a href="/order" class="btn btn-primary btn-lg">Order a VM</a>
+            <a href="/agents" class="btn btn-secondary btn-lg">Agent integration</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
