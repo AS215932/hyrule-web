@@ -13,7 +13,8 @@
     {"q": "What data do you keep?", "a": "VM configuration, SSH public key, generated identifiers, lifecycle and payment state, and the minimum wallet metadata needed to reconcile payment. See the <a href='/privacy'>privacy page</a>."},
     {"q": "Do you monitor what runs on my VM?", "a": "Customer VMs do not run a Hyrule monitoring agent, and VM disk contents are not proactively inspected. Network telemetry is used for reliability and abuse response."},
     {"q": "Can I use Tor or I2P?", "a": "You can run them on your VM within the terms. Separately, the paid network proxy offers Tor, I2P and Yggdrasil egress when it is enabled in the catalog."},
-    {"q": "What about IPv4?", "a": "VMs are IPv6-native. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 is not available in v1."}
+    {"q": "What about IPv4?", "a": "VMs are IPv6-native. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 is not available in v1."},
+    {"q": "Is a human involved in day-to-day operations?", "a": "Provisioning, payments and routine operations run through autonomous agents with no human in the loop by default. Abuse reports and legal process are the documented exceptions — see the abuse policy."}
 ] %}
 
 {% block structured_data %}
@@ -48,7 +49,7 @@
             <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">no-kyc-vps</span></div>
             <span class="panel-label">No-KYC VPS</span>
             <h1>A VPS without identity checks.</h1>
-            <p class="hero-blurb">No passport, no phone number, no email for one-shot orders. Pay in crypto, get root SSH on an IPv6-native VM on an independent network.</p>
+            <p class="hero-blurb">ISP operated by autonomous agents — no human in the loop by default. No passport, no phone number, no email for one-shot orders. Pay in crypto, get root SSH on an IPv6-native VM on an independent network.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">live facts</span>
@@ -67,6 +68,7 @@
         <h2>What “no KYC” means here</h2>
         <p>Hyrule Cloud does not ask for government ID, a phone number or a card. One-shot orders need no account at all. Optional accounts use a generated <code>H&lt;10 hex&gt;</code> handle with a recovery code or wallet-signature recovery.</p>
         <p>No KYC does not mean no rules. Payment and lifecycle records are kept as described in the <a href="/privacy">privacy policy</a>, and the <a href="/terms">terms</a> and <a href="/abuse">abuse policy</a> apply. The network is <a href="https://as215932.net/">AS215932</a>, operated from the Netherlands.</p>
+        <p>Hyrule is an ISP operated by autonomous agents. Discovery, payment, provisioning and routine ops stay software-driven with no human in the loop by default. Abuse handling and legal process remain the documented exceptions.</p>
     </div>
 </section>
 

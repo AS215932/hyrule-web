@@ -81,17 +81,17 @@ _DOMAINS_DEFERRED = """\
 
 
 _INTRO_WITH_DOMAINS = """\
-> Full-stack infrastructure that autonomous agents can discover, pay for,
-> and provision directly: compute, network intelligence, domains and DNS,
-> and network proxy on AS215932. x402 prices and requirements are published
-> as machine-readable contracts.
+> An ISP operated by autonomous agents — no human in the loop by default.
+> Agents discover, pay for, and provision compute, network intelligence,
+> domains and DNS, and network proxy on AS215932. x402 prices and
+> requirements are published as machine-readable contracts.
 """
 
 _INTRO_WITHOUT_DOMAINS = """\
-> Full-stack infrastructure that autonomous agents can discover, pay for,
-> and provision directly: compute, network intelligence, and network proxy
-> on AS215932. x402 prices and requirements are published as
-> machine-readable contracts.
+> An ISP operated by autonomous agents — no human in the loop by default.
+> Agents discover, pay for, and provision compute, network intelligence,
+> and network proxy on AS215932. x402 prices and requirements are
+> published as machine-readable contracts.
 """
 
 _CATALOG_ENTRY_WITH_DOMAINS = """\

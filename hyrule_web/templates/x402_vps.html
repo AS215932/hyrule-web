@@ -13,7 +13,8 @@
     {"q": "What does the API return after payment?", "a": "VM creation returns 202 with a public status URL and a save-once management URL. Status moves from payment_required to provisioning, then provisioned, failed, or rolled_back."},
     {"q": "How fast is a VM ready?", "a": "Typical builds finish in about 60 seconds."},
     {"q": "What happens when the prepaid days run out?", "a": "You can extend before expiry. Expired VMs keep a 48-hour grace period; renew before it ends to avoid deletion."},
-    {"q": "Does it support IPv4?", "a": "Every VM gets globally routed IPv6 from 2a0c:b641:b51::/48. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 to customer VMs is not available in v1."}
+    {"q": "Does it support IPv4?", "a": "Every VM gets globally routed IPv6 from 2a0c:b641:b51::/48. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 to customer VMs is not available in v1."},
+    {"q": "Is a human involved in day-to-day operations?", "a": "Provisioning, payments and routine operations run through autonomous agents with no human in the loop by default. Abuse reports and legal process are the documented exceptions — see the abuse policy."}
 ] %}
 
 {% block structured_data %}
@@ -48,7 +49,7 @@
             <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">x402-vps</span></div>
             <span class="panel-label">x402 VPS</span>
             <h1>A VPS your agent pays for over HTTP 402.</h1>
-            <p class="hero-blurb">No signup, no API key, no balance top-up. The agent asks for a VM, gets an exact USDC price, signs it, and receives a status URL.</p>
+            <p class="hero-blurb">ISP operated by autonomous agents — no human in the loop by default. No signup, no API key, no balance top-up. The agent asks for a VM, gets an exact USDC price, signs it, and receives a status URL.</p>
         </div>
         <div class="hero-side-card">
             <span class="panel-label mb-2">live facts</span>
@@ -67,6 +68,7 @@
         <h2>What an x402 VPS is</h2>
         <p>x402 turns HTTP 402 Payment Required into a real checkout. Hyrule Cloud answers a VM order with exact payment requirements. The client signs a USDC transfer on {{ chain_sentence }} and retries with a <code>Payment-Signature</code> header. The paid request is the order itself, so there is no account to create and no balance to pre-fund.</p>
         <p>Prices and schemas are published in the <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a> and the <a href="https://cloud.hyrule.host/openapi.json">OpenAPI document</a>. The same model covers the paid <a href="/toolbox">network diagnostics</a>: DNS, BGP, TLS, mail and port checks.</p>
+        <p>Hyrule is an ISP operated by autonomous agents. Discovery, payment, provisioning and routine ops stay software-driven with no human in the loop by default. Abuse handling and legal process remain the documented exceptions.</p>
     </div>
 </section>
 
