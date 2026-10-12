@@ -1,0 +1,20 @@
+{# Factual competitor comparison shared by /x402-vps and /no-kyc-vps.
+   Every competitor cell is sourced from the provider's own public page
+   (checked 2026-10-11). Re-verify before changing; never guess. #}
+<div class="overflow-x-auto">
+<table class="w-full min-w-[900px] border-collapse font-mono text-sm">
+    <thead><tr class="bg-white/[0.04] text-left">
+        <th class="px-3 py-2.5">provider</th><th class="px-3 py-2.5">what you get</th><th class="px-3 py-2.5">account</th><th class="px-3 py-2.5">payment</th><th class="px-3 py-2.5">billing</th><th class="px-3 py-2.5">network</th>
+    </tr></thead>
+    <tbody>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><strong>Hyrule Cloud</strong></td><td class="px-3 py-3">full VM, root SSH</td><td class="px-3 py-3">none for one-shot orders</td><td class="px-3 py-3">x402 USDC per order{% if live_chains %} ({{ live_chains | join(", ") }}){% endif %}{% if native_methods %}; {{ native_methods | join(" / ") }} for VMs{% endif %}</td><td class="px-3 py-3">prepaid per day, 1–365 days</td><td class="px-3 py-3">IPv6-only + NAT64, own ASN (AS215932)</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://x402vps.com/" rel="nofollow noopener">x402vps</a></td><td class="px-3 py-3">Docker containers</td><td class="px-3 py-3">none (wallet is identity)</td><td class="px-3 py-3">x402 USDC on Base</td><td class="px-3 py-3">per hour</td><td class="px-3 py-3">internet on node/core plans</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://github.com/kartojal/openvps" rel="nofollow noopener">OpenVPS</a></td><td class="px-3 py-3">Firecracker microVM, Ubuntu 24.04</td><td class="px-3 py-3">none</td><td class="px-3 py-3">x402 USDC (Base, Celo); MPP (Tempo)</td><td class="px-3 py-3">per hour, per resource</td><td class="px-3 py-3">public IP, per-VM port forwarding</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://nordbastion.com/agentic-vps/" rel="nofollow noopener">NordBastion</a></td><td class="px-3 py-3">VPS, Nordic jurisdictions, MCP + REST</td><td class="px-3 py-3">email + password</td><td class="px-3 py-3">x402 per call or prepaid crypto balance</td><td class="px-3 py-3">monthly, from $3.90/mo</td><td class="px-3 py-3">not stated on page</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://vpscrypto.com/agents" rel="nofollow noopener">VPSCrypto</a></td><td class="px-3 py-3">KVM VPS</td><td class="px-3 py-3">API-key account</td><td class="px-3 py-3">balance top-up via x402 USDC on Base, other crypto</td><td class="px-3 py-3">prepaid balance</td><td class="px-3 py-3">not stated on page</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://novavps.io/x402-vps/" rel="nofollow noopener">NovaVPS</a></td><td class="px-3 py-3">KVM VPS, 21 locations</td><td class="px-3 py-3">token account (or email)</td><td class="px-3 py-3">balance top-up via x402 USDC on Base; many coins incl. XMR</td><td class="px-3 py-3">monthly, from $3/mo</td><td class="px-3 py-3">not stated on page</td></tr>
+        <tr class="border-t border-white/[0.06] align-top"><td class="px-3 py-3"><a href="https://servury.com/servers/monero-vps/" rel="nofollow noopener">Servury</a></td><td class="px-3 py-3">VPS / VDS, 8 locations</td><td class="px-3 py-3">32-character credential</td><td class="px-3 py-3">XMR (own node)</td><td class="px-3 py-3">7–365 day terms</td><td class="px-3 py-3">not stated on page</td></tr>
+    </tbody>
+</table>
+</div>
+<p class="mt-3 text-[0.84rem] text-text-soft">Competitor details are taken from each provider's public page as linked, checked 2026-10-11, and may have changed since. Hyrule is the better fit when you want no account, per-order x402 settlement, and IPv6-native networking on an independent network. Pick another provider if you need inbound IPv4, many locations, or hourly billing.</p>

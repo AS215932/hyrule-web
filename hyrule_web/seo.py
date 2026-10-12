@@ -110,9 +110,7 @@ _CATALOG_ENTRY_WITHOUT_DOMAINS = """\
 def _render_preamble(domains_live: bool) -> str:
     """Compose the static head of llms.txt against live product availability."""
     intro = _INTRO_WITH_DOMAINS if domains_live else _INTRO_WITHOUT_DOMAINS
-    catalog_entry = (
-        _CATALOG_ENTRY_WITH_DOMAINS if domains_live else _CATALOG_ENTRY_WITHOUT_DOMAINS
-    )
+    catalog_entry = _CATALOG_ENTRY_WITH_DOMAINS if domains_live else _CATALOG_ENTRY_WITHOUT_DOMAINS
     domain_product = _DOMAIN_PRODUCT_ENTRY if domains_live else ""
     domain_key_urls = _DOMAIN_KEY_URLS if domains_live else ""
     deferred = "" if domains_live else "\n" + _DOMAINS_DEFERRED
@@ -146,6 +144,12 @@ def _render_preamble(domains_live: bool) -> str:
 - [About & policy](https://hyrule.host/about): mission, operating principles,
   abuse-handling posture, and links to the authoritative service policies.
 - [FAQ](https://hyrule.host/faq): integration, recovery, IPv6, and operations.
+- [x402 VPS](https://hyrule.host/x402-vps): how an agent buys a VM over HTTP 402,
+  with a sourced comparison against other agent VPS providers.
+- [No-KYC VPS](https://hyrule.host/no-kyc-vps): what no-KYC ordering means here,
+  what data is kept, and crypto payment options.
+- [llms-full.txt](https://hyrule.host/llms-full.txt): this document plus live
+  VM pricing and long-form answers in one file.
 - [Terms](https://hyrule.host/terms), [Privacy](https://hyrule.host/privacy),
   [Abuse](https://hyrule.host/abuse), [Legal](https://hyrule.host/legal):
   service rules, data handling, notice/action flow, contact points.
@@ -193,7 +197,7 @@ def _render_what_ships(domains_live: bool) -> str:
 {domain_attach}\
 - Paid direct/Tor network requests are available through the API
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
-- 1-365 day runtimes, extendable, 24-hour grace after expiry
+- 1-365 day runtimes, extendable, 48-hour grace after expiry
 
 ## Network
 
@@ -388,6 +392,56 @@ def iter_sitemap_paths(app: FastAPI) -> list[str]:
     return sorted(paths)
 
 
+_LLMS_FULL_FAQ = """\
+## Common questions
+
+### Can an AI agent buy a VPS without an account?
+Yes. A VM order is itself the paid x402 request: HTTP 402 returns exact USDC
+requirements, the agent retries with `Payment-Signature`, and the API answers
+202 with a public status URL and a save-once management URL. No signup, API
+key, or balance top-up is needed. Optional accounts use generated handles.
+
+### Is it no-KYC?
+Yes. No government ID, phone number, card, or email is required for one-shot
+orders. Payment and lifecycle records are still kept as described at
+https://hyrule.host/privacy, and https://hyrule.host/terms applies.
+
+### How long does provisioning take, and what happens at expiry?
+Typical builds finish in about 60 seconds. VMs are prepaid per day for 1-365
+days and can be extended; expired VMs keep a 48-hour grace period before
+deletion.
+
+### What about IPv4?
+VMs are IPv6-native in 2a0c:b641:b51::/48 on AS215932. Outbound IPv4 works via
+NAT64/DNS64. Inbound IPv4 to customer VMs is not available in v1.
+
+### Who operates it?
+Hyrule Networks, AS215932, from the Netherlands: https://as215932.net/
+"""
+
+
+def build_llms_full_txt(llms_txt: str, vm_tiers: dict[str, dict[str, Any]]) -> str:
+    """llms.txt plus a live VM price table and long-form answers.
+
+    `llms_txt` must be the output of build_llms_txt for the same live state;
+    `vm_tiers` comes from GET /v1/products/vms (static mirror only on failure).
+    """
+    rows = "\n".join(
+        f"| {code} | {t['name']} | {t['vcpu']} | {t['ram_mb'] // 1024} GB "
+        f"| {t['disk_gb']} GB | ${t['price']:.2f}/day |"
+        for code, t in vm_tiers.items()
+    )
+    pricing = (
+        "## VM pricing (live)\n\n"
+        "| size | name | vCPU | RAM | disk | price |\n"
+        "|---|---|---|---|---|---|\n"
+        f"{rows}\n\n"
+        "Authoritative prices: https://cloud.hyrule.host/v1/products/vms and the\n"
+        f"x402 manifest at {CLOUD_X402_MANIFEST_URL}.\n"
+    )
+    return llms_txt.rstrip("\n") + "\n\n" + pricing + "\n" + _LLMS_FULL_FAQ
+
+
 def render_sitemap_xml(app: FastAPI) -> str:
     # No <lastmod>: stamping every URL with date.today() made the document
     # change byte-wise daily, which defeated the seo-agent's sha256-gated
@@ -395,9 +449,7 @@ def render_sitemap_xml(app: FastAPI) -> str:
     # Sitemaps are valid without it; the render is deterministic for a given
     # route table.
     urls = "\n".join(
-        f"  <url>\n"
-        f"    <loc>{escape(SITE_BASE_URL + path)}</loc>\n"
-        f"  </url>"
+        f"  <url>\n    <loc>{escape(SITE_BASE_URL + path)}</loc>\n  </url>"
         for path in iter_sitemap_paths(app)
     )
     return (

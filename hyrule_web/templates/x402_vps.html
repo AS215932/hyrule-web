@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}x402 VPS for AI agents — Hyrule Cloud{% endblock %}
+{% block meta_description %}An x402 VPS your AI agent can buy with one HTTP request: USDC per order, no account, no API key, IPv6-native VMs on AS215932.{% endblock %}
+
+{% set live_chains = (networks or []) | map(attribute='display_name') | list %}
+{% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed by /v1/payments/networks" %}
+{% set native_methods = native or [] %}
+{% set cheapest = (vm_tiers.values() | map(attribute='price') | min) if vm_tiers else none %}
+
+{% set faq_items = [
+    {"q": "Do I need an account or API key?", "a": "No. One-shot VM orders and paid diagnostics settle per request over x402. Optional accounts exist for managing several resources and use a generated handle, not an identity profile."},
+    {"q": "Which chains and tokens are accepted?", "a": "USDC via x402 on " ~ chain_sentence ~ ". The list is read live from /v1/payments/networks."},
+    {"q": "What does the API return after payment?", "a": "VM creation returns 202 with a public status URL and a save-once management URL. Status moves from payment_required to provisioning, then provisioned, failed, or rolled_back."},
+    {"q": "How fast is a VM ready?", "a": "Typical builds finish in about 60 seconds."},
+    {"q": "What happens when the prepaid days run out?", "a": "You can extend before expiry. Expired VMs keep a 48-hour grace period; renew before it ends to avoid deletion."},
+    {"q": "Does it support IPv4?", "a": "Every VM gets globally routed IPv6 from 2a0c:b641:b51::/48. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 to customer VMs is not available in v1."}
+] %}
+
+{% block structured_data %}
+{{ super() }}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Home", "item": "https://hyrule.host/"},
+    {"@type": "ListItem", "position": 2, "name": "x402 VPS", "item": "https://hyrule.host/x402-vps"}
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for item in faq_items %}
+    {"@type": "Question", "name": {{ item.q | tojson }}, "acceptedAnswer": {"@type": "Answer", "text": {{ item.a | tojson }}}}{{ "," if not loop.last else "" }}
+    {% endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+    <div class="page-hero">
+        <div>
+            <div class="crumbs"><a href="/">hyrule.host</a><span class="sep">/</span><span class="here">x402-vps</span></div>
+            <span class="panel-label">x402 VPS</span>
+            <h1>A VPS your agent pays for over HTTP 402.</h1>
+            <p class="hero-blurb">No signup, no API key, no balance top-up. The agent asks for a VM, gets an exact USDC price, signs it, and receives a status URL.</p>
+        </div>
+        <div class="hero-side-card">
+            <span class="panel-label mb-2">live facts</span>
+            <ul class="mt-2 flex list-none flex-col gap-1.5 p-0 text-[0.85rem] text-text-muted">
+                {% if cheapest is not none %}<li>+ VMs from ${{ "%.2f"|format(cheapest) }}/day</li>{% endif %}
+                {% if live_chains %}{% for network in networks %}<li>+ USDC on {{ network.display_name }} <code>{{ network.caip2 }}</code></li>{% endfor %}{% else %}<li>+ Check <code>/v1/payments/networks</code></li>{% endif %}
+                {% if native_methods %}<li>+ Native VM checkout: {{ native_methods | join(" / ") }}</li>{% endif %}
+                <li>+ IPv6 from <code>2a0c:b641:b51::/48</code>, AS215932</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="feature-card px-5 py-[18px]">
+        <h2>What an x402 VPS is</h2>
+        <p>x402 turns HTTP 402 Payment Required into a real checkout. Hyrule Cloud answers a VM order with exact payment requirements. The client signs a USDC transfer on {{ chain_sentence }} and retries with a <code>Payment-Signature</code> header. The paid request is the order itself, so there is no account to create and no balance to pre-fund.</p>
+        <p>Prices and schemas are published in the <a href="https://cloud.hyrule.host/.well-known/x402.json">x402 manifest</a> and the <a href="https://cloud.hyrule.host/openapi.json">OpenAPI document</a>. The same model covers the paid <a href="/toolbox">network diagnostics</a>: DNS, BGP, TLS, mail and port checks.</p>
+    </div>
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">Current VM pricing</span>
+    <h2>Prepaid per day, priced live from the API.</h2>
+    {% include "_tier_grid.html" %}
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">Agent flow</span>
+    <ol class="mt-3 flex list-none flex-col gap-2 p-0 text-text-muted">
+            <li><code>1</code> Read prices from <code>https://cloud.hyrule.host/.well-known/x402.json</code>.</li>
+            <li><code>2</code> <code>POST</code> the VM order and receive <code>402 Payment Required</code> with exact requirements.</li>
+            <li><code>3</code> Sign the USDC authorization and retry with <code>Payment-Signature</code>.</li>
+            <li><code>4</code> Poll the returned status URL, then SSH to the VM over IPv6.</li>
+    </ol>
+</section>
+
+<section class="container page-section">
+    <span class="panel-label">How Hyrule compares</span>
+    <h2>Other agent and no-KYC VPS options.</h2>
+    {% include "_vps_compare.html" %}
+</section>
+
+<section class="container page-section">
+    <div class="faq-list">
+    {% for item in faq_items %}
+        <details class="feature-card px-5 py-[18px]" {% if loop.index <= 2 %}open{% endif %}>
+            <summary>{{ item.q }}</summary>
+            <p>{{ item.a | safe }}</p>
+        </details>
+    {% endfor %}
+    </div>
+</section>
+
+<section class="container page-section">
+    <div class="cta">
+        <span class="panel-label">Start</span>
+        <h2>Order a VM, or let your agent do it.</h2>
+        <div class="cta-actions">
+            <a href="/order" class="btn btn-primary btn-lg">Order a VM</a>
+            <a href="/agents" class="btn btn-secondary btn-lg">Agent integration</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

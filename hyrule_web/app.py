@@ -39,6 +39,7 @@ from .seo import (
     CLOUD_OPENAPI_URL,
     CLOUD_X402_MANIFEST_URL,
     ROBOTS_TXT,
+    build_llms_full_txt,
     build_llms_txt,
     render_sitemap_xml,
 )
@@ -127,6 +128,7 @@ async def response_policy(
         response.headers["Cache-Control"] = "no-store"
     elif response.headers.get("content-type", "").startswith("text/html") or path in {
         "/llms.txt",
+        "/llms-full.txt",
         "/sitemap.xml",
     }:
         response.headers["Cache-Control"] = "no-cache"
@@ -406,6 +408,7 @@ async def refresh_service_status_for_pages(
             "/robots.txt",
             "/sitemap.xml",
             "/llms.txt",
+            "/llms-full.txt",
             # Machine discovery URIs: pure redirects to the canonical API host,
             # no template to decorate with a status pill.
             "/openapi.json",
@@ -962,21 +965,41 @@ _VM_LIFECYCLE_TO_DISPLAY = {
 }
 
 _VM_LIFECYCLE_COPY = {
-    "retaining": ("RETENTION PENDING", "VM retention is being verified.",
-                  "Contact support for recovery."),
-    "retained": ("DATA RETAINED", "Your VM is retained for recovery.",
-                 "Contact support to restore your VM."),
-    "restoring": ("RECOVERY IN PROGRESS", "Your VM is being recovered.",
-                  "This page will update as recovery progresses."),
-    "expired": ("EXPIRED", "Your VM has expired.",
-                "Renew before the grace period ends to avoid deletion."),
-    "deletion_eligible": ("GRACE PERIOD ENDED", "The grace period has ended.",
-                          "This VM is eligible for deletion. "
-                          "Contact support immediately for recovery options."),
-    "deleting": ("DELETION STARTED", "VM deletion has started.",
-                 "Contact support for the remaining recovery options."),
-    "suspended": ("SUSPENDED", "Your VM is suspended.",
-                  "Check the expiry information below and contact support for recovery."),
+    "retaining": (
+        "RETENTION PENDING",
+        "VM retention is being verified.",
+        "Contact support for recovery.",
+    ),
+    "retained": (
+        "DATA RETAINED",
+        "Your VM is retained for recovery.",
+        "Contact support to restore your VM.",
+    ),
+    "restoring": (
+        "RECOVERY IN PROGRESS",
+        "Your VM is being recovered.",
+        "This page will update as recovery progresses.",
+    ),
+    "expired": (
+        "EXPIRED",
+        "Your VM has expired.",
+        "Renew before the grace period ends to avoid deletion.",
+    ),
+    "deletion_eligible": (
+        "GRACE PERIOD ENDED",
+        "The grace period has ended.",
+        "This VM is eligible for deletion. Contact support immediately for recovery options.",
+    ),
+    "deleting": (
+        "DELETION STARTED",
+        "VM deletion has started.",
+        "Contact support for the remaining recovery options.",
+    ),
+    "suspended": (
+        "SUSPENDED",
+        "Your VM is suspended.",
+        "Check the expiry information below and contact support for recovery.",
+    ),
     "destroyed": ("DESTROYED", "Your VM is destroyed.", "Contact support if you need assistance."),
 }
 
@@ -2676,6 +2699,32 @@ async def page_faq(request: Request) -> Response:
     )
 
 
+async def _render_vps_landing(request: Request, template: str) -> Response:
+    """Shared context for the /x402-vps and /no-kyc-vps landing pages: live
+    chains, native rails and VM tiers, never hardcoded."""
+    await _refresh_runtime(request)
+    catalog = await _refresh_networks(request)
+    return _render(
+        request,
+        template,
+        networks=_catalog_networks(catalog),
+        native=_catalog_native(catalog),
+        vm_tiers=_live_vm_tiers(await _refresh_products(request)),
+    )
+
+
+@app.get("/x402-vps", response_class=HTMLResponse)
+async def page_x402_vps(request: Request) -> Response:
+    """Landing page for agents and builders searching for an x402 VPS."""
+    return await _render_vps_landing(request, "x402_vps.html")
+
+
+@app.get("/no-kyc-vps", response_class=HTMLResponse)
+async def page_no_kyc_vps(request: Request) -> Response:
+    """Landing page for no-KYC / crypto-paid VPS searches."""
+    return await _render_vps_landing(request, "no_kyc_vps.html")
+
+
 @app.get("/terms", response_class=HTMLResponse)
 async def page_terms(request: Request) -> Response:
     await _refresh_runtime(request)
@@ -2725,6 +2774,14 @@ async def llms(request: Request) -> str:
         # stays off until HYRULE_WEB_ENABLE_LLMS_ANNOUNCE flips it on.
         announce=settings.enable_llms_announce,
     )
+
+
+@app.get("/llms-full.txt", response_class=PlainTextResponse)
+async def llms_full(request: Request) -> str:
+    """llms.txt plus the live VM price table and long-form answers, for
+    assistants that ingest one document. Same live sources as /llms.txt."""
+    summary = await llms(request)
+    return build_llms_full_txt(summary, _live_vm_tiers(await _refresh_products(request)))
 
 
 # ---------------------------------------------------------------------------
