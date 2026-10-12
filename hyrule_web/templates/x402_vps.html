@@ -6,14 +6,13 @@
 {% set chain_sentence = (live_chains | join(", ")) if live_chains else "the chains listed by /v1/payments/networks" %}
 {% set native_methods = native or [] %}
 {% set cheapest = (vm_tiers.values() | map(attribute='price') | min) if vm_tiers else none %}
-{# CONFIRM(Svag): grace period — live site says 24h; older copy said 48h. #}
 
 {% set faq_items = [
     {"q": "Do I need an account or API key?", "a": "No. One-shot VM orders and paid diagnostics settle per request over x402. Optional accounts exist for managing several resources and use a generated handle, not an identity profile."},
     {"q": "Which chains and tokens are accepted?", "a": "USDC via x402 on " ~ chain_sentence ~ ". The list is read live from /v1/payments/networks."},
     {"q": "What does the API return after payment?", "a": "VM creation returns 202 with a public status URL and a save-once management URL. Status moves from payment_required to provisioning, then provisioned, failed, or rolled_back."},
     {"q": "How fast is a VM ready?", "a": "Typical builds finish in about 60 seconds."},
-    {"q": "What happens when the prepaid days run out?", "a": "You can extend before expiry. Expired VMs keep a 24-hour grace period; renew before it ends to avoid deletion."},
+    {"q": "What happens when the prepaid days run out?", "a": "You can extend before expiry. Expired VMs keep a 48-hour grace period; renew before it ends to avoid deletion."},
     {"q": "Does it support IPv4?", "a": "Every VM gets globally routed IPv6 from 2a0c:b641:b51::/48. Outbound IPv4 works through NAT64/DNS64. Inbound IPv4 to customer VMs is not available in v1."}
 ] %}
 

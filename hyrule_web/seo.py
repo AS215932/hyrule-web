@@ -197,7 +197,7 @@ def _render_what_ships(domains_live: bool) -> str:
 {domain_attach}\
 - Paid direct/Tor network requests are available through the API
 - SSH, HTTP, HTTPS open by default; outbound SMTP blocked
-- 1-365 day runtimes, extendable, 24-hour grace after expiry
+- 1-365 day runtimes, extendable, 48-hour grace after expiry
 
 ## Network
 
@@ -408,7 +408,7 @@ https://hyrule.host/privacy, and https://hyrule.host/terms applies.
 
 ### How long does provisioning take, and what happens at expiry?
 Typical builds finish in about 60 seconds. VMs are prepaid per day for 1-365
-days and can be extended; expired VMs keep a 24-hour grace period before
+days and can be extended; expired VMs keep a 48-hour grace period before
 deletion.
 
 ### What about IPv4?
