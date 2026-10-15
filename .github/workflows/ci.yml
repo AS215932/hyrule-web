@@ -19,14 +19,15 @@ jobs:
     # Branch protection requires this exact check name. Don't rename without
     # updating the rule in repo settings.
     name: test
-    runs-on: [self-hosted, linux, x64, hyrule-public-pr]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      # actions/setup-python has no Debian 13 build for 3.12; the runner
-      # ships system Python 3.13 which satisfies the project's
-      # requires-python = ">=3.12" and matches the web VM in production.
+      # GitHub-hosted runner: pin Python 3.13 to match production.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - name: Install uv
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
 
@@ -59,7 +60,7 @@ jobs:
     # Issue #14: TypeScript/Vite/Tailwind frontend bundle. Add this check name to
     # branch protection alongside `test`. Don't rename without updating the rule.
     name: frontend
-    runs-on: [self-hosted, linux, x64, hyrule-public-pr]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

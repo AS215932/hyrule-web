@@ -29,7 +29,7 @@ concurrency:
 jobs:
   semgrep:
     name: semgrep
-    runs-on: [self-hosted, linux, x64, hyrule-public-pr]
+    runs-on: ubuntu-latest
     # Cap a cold pull of the heavy semgrep image on the small ci-pr VM.
     timeout-minutes: 20
     if: github.actor != 'dependabot[bot]'
